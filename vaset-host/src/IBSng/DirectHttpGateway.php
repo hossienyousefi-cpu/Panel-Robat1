@@ -137,9 +137,39 @@ final class DirectHttpGateway implements IBSngGatewayInterface
         throw new RuntimeException('حذف کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن نمونه واقعی HTML صفحه حذف کاربر در IBSng داریم.');
     }
 
+    /**
+     * Confirmed with the account owner: renewal on this install means resetting the
+     * user's "Package First Login" date (attr_edit_checkbox_30, value=first_login),
+     * so the group's relative expiration recalculates from the next login - not
+     * topping up Credit1. Posted the same way as the lock toggle: the checkbox
+     * (reset_first_login=t) is only present in the static HTML after IBSng's JS
+     * reveals it, but the underlying submit is a single POST like any other
+     * attr_edit_checkbox field, so no separate page fetch is needed. $addCredit1 is
+     * unused here - this integration has no evidence any group is credit-based for
+     * renewal, so it does not guess a second code path.
+     */
     public function renewUser(string $username, string $group, float $addCredit1, ?int $ibsngUserId = null): bool
     {
-        throw new RuntimeException('تمدید کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن نمونه واقعی HTML صفحه change_credit_deposit.php در IBSng داریم.');
+        $this->ensureLoggedIn();
+        if ($ibsngUserId === null) {
+            throw new RuntimeException('برای این کاربر شناسه عددی IBSng ثبت نشده - امکان تمدید از این طریق نیست.');
+        }
+
+        $fields = [
+            'user_id' => (string) $ibsngUserId,
+            'user_repr' => $username,
+            'edit_user' => '1',
+            'attr_edit_checkbox_30' => 'first_login',
+            'reset_first_login' => 't',
+        ];
+
+        $html = $this->post($this->baseUrl . '/plugins/edit.php', $fields);
+
+        // No distinct before/after text marks a successful reset (the field reads
+        // "---------------" both before the first login and immediately after a
+        // reset, until the user actually logs in again), so this only confirms the
+        // POST was accepted while still authenticated - not that the value changed.
+        return str_contains($html, '?logout=1');
     }
 
     public function lockUser(string $username, ?int $ibsngUserId = null): bool
