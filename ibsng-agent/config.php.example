@@ -1,0 +1,120 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Copy this file to config.php on the IBSng server and fill in every VERIFY_ME value.
+ * See ../docs/IBSNG_INTEGRATION.md for the step-by-step guide (browser DevTools) to
+ * find the real values for your IBSng install.
+ */
+return [
+    // The agent must only ever be reached through the SSH tunnel from Host vaset,
+    // so it binds to loopback only - never change this to 0.0.0.0 in production.
+    'listen_host' => '127.0.0.1',
+    'listen_port' => 9090,
+
+    // Must match IBSNG_AGENT_API_KEY in vaset-host/.env exactly.
+    'api_key' => 'CHANGE_ME_LONG_RANDOM_STRING',
+
+    // Defense in depth on top of the SSH tunnel: only accept requests whose apparent
+    // source (after any local proxy) is one of these. 127.0.0.1 covers the tunnel.
+    'allowed_ips' => ['127.0.0.1'],
+
+    'ibsng' => [
+        // Base URL of the IBSng admin panel as seen from the IBSng server itself.
+        'base_url' => 'http://127.0.0.1/admin', // VERIFY_ME
+
+        'login' => [
+            'url' => 'http://127.0.0.1/admin/index.php', // VERIFY_ME - Request URL from DevTools when you submit the login form
+            'username_field' => 'admin_username', // VERIFY_ME - name= attribute of the username input
+            'password_field' => 'admin_password', // VERIFY_ME - name= attribute of the password input
+            'extra_fields' => [], // VERIFY_ME - any additional hidden fields the login form sends
+            'username' => 'CHANGE_ME',
+            'password' => 'CHANGE_ME',
+            // A string that appears in the HTML ONLY when logged in (e.g. "Logout" or the admin's name).
+            'success_marker' => 'Logout', // VERIFY_ME
+        ],
+
+        'add_user' => [
+            'url' => 'http://127.0.0.1/admin/user_add.php', // VERIFY_ME
+            'count_field' => 'count', // VERIFY_ME - leave null if you always POST one user at a time
+            'field_map' => [
+                // left = logical name used by the agent, right = real HTML name= attribute
+                'username' => 'user_name', // VERIFY_ME
+                'password' => 'password', // VERIFY_ME
+                'group' => 'group_id', // VERIFY_ME - IBSng may expect the group's numeric id rather than its name;
+                                        // if so, set 'group_field_is_name' below to false and extend resolveGroupId()
+                'isp' => 'isp_id', // VERIFY_ME
+                'credit1' => 'credit1', // VERIFY_ME
+                'credit2' => 'credit2', // VERIFY_ME
+            ],
+            'group_field_is_name' => true, // VERIFY_ME
+            'isp_field_is_name' => true, // VERIFY_ME
+            // A string that appears in the response HTML when the user was created successfully.
+            'success_marker' => 'successfully', // VERIFY_ME
+            // A string/regex fragment that appears when creation failed (e.g. duplicate username).
+            'error_marker' => 'error', // VERIFY_ME
+        ],
+
+        'search_user' => [
+            'url' => 'http://127.0.0.1/admin/user.php', // VERIFY_ME
+            'method' => 'GET',
+            'query_field' => 'search_username', // VERIFY_ME
+            // Regex with a named group `id` that extracts the numeric user id from the
+            // search-results HTML, e.g. '/user_edit\.php\?user_id=(?<id>\d+)/'
+            'user_id_pattern' => '/user_edit\\.php\\?user_id=(?<id>\\d+)/', // VERIFY_ME
+        ],
+
+        'user_edit_page' => [
+            'url' => 'http://127.0.0.1/admin/user_edit.php', // VERIFY_ME
+            'method' => 'GET',
+            'id_field' => 'user_id', // VERIFY_ME
+            // Regexes (named group `value`) to read the current state off the edit page.
+            'credit1_pattern' => null, // VERIFY_ME e.g. '/name="credit1"[^>]*value="(?<value>[^"]*)"/'
+            'credit2_pattern' => null, // VERIFY_ME
+            'group_pattern' => null,   // VERIFY_ME
+            'isp_pattern' => null,     // VERIFY_ME
+            'locked_pattern' => null,  // VERIFY_ME e.g. '/name="is_locked"[^>]*checked/'
+            'expire_pattern' => null,  // VERIFY_ME
+        ],
+
+        'update_user' => [
+            'url' => 'http://127.0.0.1/admin/user_edit.php', // VERIFY_ME - the POST target of the Edit form
+            'id_field' => 'user_id', // VERIFY_ME
+            'locked_field' => 'is_locked', // VERIFY_ME
+            'locked_on_value' => '1', // VERIFY_ME
+            'locked_off_value' => '0', // VERIFY_ME - '' (absent) if IBSng uses an unchecked checkbox to mean unlocked
+            'credit1_field' => 'credit1', // VERIFY_ME
+            'success_marker' => 'successfully', // VERIFY_ME
+        ],
+
+        'delete_user' => [
+            'url' => 'http://127.0.0.1/admin/user_del.php', // VERIFY_ME
+            'id_field' => 'user_id', // VERIFY_ME
+            'success_marker' => 'successfully', // VERIFY_ME
+        ],
+
+        'groups_list' => [
+            'url' => 'http://127.0.0.1/admin/user_add.php', // VERIFY_ME - wherever the Group <select> is rendered
+            'select_name' => 'group_id', // VERIFY_ME
+        ],
+
+        'isps_list' => [
+            'url' => 'http://127.0.0.1/admin/user_add.php', // VERIFY_ME - wherever the ISP <select> is rendered
+            'select_name' => 'isp_id', // VERIFY_ME
+        ],
+    ],
+
+    // Read-only access to the standard FreeRADIUS `radacct` table that IBSng uses for
+    // accounting - this schema is stable/standard, so this part needs no verification
+    // beyond your actual DB credentials.
+    'radacct' => [
+        'host' => '127.0.0.1',
+        'name' => 'radius', // VERIFY_ME - the DB name your FreeRADIUS/IBSng install uses
+        'user' => 'CHANGE_ME',
+        'pass' => 'CHANGE_ME',
+        'table' => 'radacct',
+    ],
+
+    'cookie_jar' => '/tmp/ibsng-agent-cookies.txt',
+];

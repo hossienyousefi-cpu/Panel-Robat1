@@ -1,0 +1,3 @@
+# Safety net in case the vhost/document root is ever misconfigured to point here
+# instead of to public/. The application must only ever be served from public/.
+Require all denied

@@ -1,0 +1,6 @@
+# crontab -e را باز کنید و این خطوط را با مسیر واقعی دیپلوی جایگزین کنید.
+# مثال مسیر: /home/<cpanel-user>/panel-vaset
+
+*/15 * * * * php /home/<cpanel-user>/panel-vaset/cron/sync_online_sessions.php >> /home/<cpanel-user>/panel-vaset/storage/logs/cron.log 2>&1
+0 * * * *     php /home/<cpanel-user>/panel-vaset/cron/expiry_and_overdue_watch.php >> /home/<cpanel-user>/panel-vaset/storage/logs/cron.log 2>&1
+0 3 * * *     php /home/<cpanel-user>/panel-vaset/cron/sync_groups.php >> /home/<cpanel-user>/panel-vaset/storage/logs/cron.log 2>&1

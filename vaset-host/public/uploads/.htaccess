@@ -1,0 +1,6 @@
+# Uploaded receipt images only - never execute PHP from this directory.
+<FilesMatch "\.(php|phtml|php[0-9]?|phar)$">
+    Require all denied
+</FilesMatch>
+Options -ExecCGI
+php_flag engine off

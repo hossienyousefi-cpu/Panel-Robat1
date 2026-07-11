@@ -1,0 +1,16 @@
+# Dependencies
+/vaset-host/vendor/
+/ibsng-agent/vendor/
+
+# Local secrets - never commit real credentials
+/vaset-host/.env
+/ibsng-agent/config.php
+
+# Runtime data
+/vaset-host/storage/logs/*.log
+/vaset-host/public/uploads/receipts/*
+!/vaset-host/public/uploads/receipts/.gitkeep
+
+# OS / editor
+.DS_Store
+*.swp

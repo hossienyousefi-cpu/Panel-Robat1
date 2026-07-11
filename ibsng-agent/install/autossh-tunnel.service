@@ -1,0 +1,26 @@
+[Unit]
+Description=Persistent SSH tunnel from Host vaset to the IBSng Agent (loopback-only, no inbound port opened on IBSng)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ibsngtunnel
+Environment=AUTOSSH_GATETIME=0
+# Forwards local 127.0.0.1:9091 (on Host vaset) -> 127.0.0.1:9090 (IBSng Agent) through SSH.
+# Replace <IBSNG_SERVER_IP> and the SSH user; that user's authorized_keys entry on the
+# IBSng server should be restricted with command="/bin/false",permitopen="127.0.0.1:9090"
+# so this key can only ever forward that one port even if it leaks.
+ExecStart=/usr/bin/autossh -M 0 -N \
+    -o "ServerAliveInterval 30" \
+    -o "ServerAliveCountMax 3" \
+    -o "ExitOnForwardFailure yes" \
+    -o "StrictHostKeyChecking accept-new" \
+    -i /home/ibsngtunnel/.ssh/id_ed25519 \
+    -L 127.0.0.1:9091:127.0.0.1:9090 \
+    ibsngtunnel@<IBSNG_SERVER_IP>
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
