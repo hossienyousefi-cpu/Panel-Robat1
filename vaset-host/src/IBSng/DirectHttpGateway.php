@@ -132,9 +132,26 @@ final class DirectHttpGateway implements IBSngGatewayInterface
         return $results;
     }
 
+    /**
+     * Confirmed via a real capture: the sidebar "Delete User" link is a plain GET to
+     * del_user.php?user_id=&user_repr= and that single request deletes the user
+     * immediately - the response page opens with "User(s) Deleted Successfully",
+     * no separate confirmation step is involved.
+     */
     public function deleteUser(string $username, ?int $ibsngUserId = null): bool
     {
-        throw new RuntimeException('حذف کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن نمونه واقعی HTML صفحه حذف کاربر در IBSng داریم.');
+        $this->ensureLoggedIn();
+        if ($ibsngUserId === null) {
+            throw new RuntimeException('برای این کاربر شناسه عددی IBSng ثبت نشده - امکان حذف از این طریق نیست.');
+        }
+
+        $url = $this->baseUrl . '/user/del_user.php?' . http_build_query([
+            'user_id' => $ibsngUserId,
+            'user_repr' => $username,
+        ]);
+        $html = $this->get($url);
+
+        return str_contains($html, 'Deleted Successfully');
     }
 
     /**
