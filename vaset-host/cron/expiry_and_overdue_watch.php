@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/src/bootstrap.php';
 
-use App\IBSng\HttpAgentGateway;
+use App\IBSng\IBSngGatewayFactory;
 use App\Services\ExpiryWatcherService;
 
-$gateway = new HttpAgentGateway();
+$gateway = IBSngGatewayFactory::create();
 $service = new ExpiryWatcherService($gateway);
 
 try {

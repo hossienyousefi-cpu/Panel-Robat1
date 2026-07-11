@@ -10,12 +10,12 @@ use App\Core\Request;
 use App\Core\Session;
 use App\Core\View;
 use App\Domain\Repositories\ManagedUserRepository;
-use App\IBSng\HttpAgentGateway;
+use App\IBSng\IBSngGatewayFactory;
 use App\Services\PricingService;
 use App\Services\UserProvisioningService;
 
 $reseller = Auth::requireReseller();
-$provisioning = new UserProvisioningService(new HttpAgentGateway());
+$provisioning = new UserProvisioningService(IBSngGatewayFactory::create());
 
 if (Request::isPost()) {
     Csrf::requireValid();

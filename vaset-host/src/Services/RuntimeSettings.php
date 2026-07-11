@@ -19,6 +19,13 @@ final class RuntimeSettings
     public const IBSNG_AGENT_URL = 'IBSNG_AGENT_URL';
     public const IBSNG_AGENT_API_KEY = 'IBSNG_AGENT_API_KEY';
 
+    /** 'direct' (talk straight to the IBSng admin panel over HTTPS, no install on that server) or 'agent' (legacy SSH-tunnel ibsng-agent). */
+    public const IBSNG_CONNECTION_MODE = 'IBSNG_CONNECTION_MODE';
+    public const IBSNG_ADMIN_BASE_URL = 'IBSNG_ADMIN_BASE_URL';
+    public const IBSNG_ADMIN_USERNAME = 'IBSNG_ADMIN_USERNAME';
+    public const IBSNG_ADMIN_PASSWORD = 'IBSNG_ADMIN_PASSWORD';
+    public const IBSNG_ADMIN_VERIFY_SSL = 'IBSNG_ADMIN_VERIFY_SSL';
+
     public function __construct(private readonly SettingsRepository $repository = new SettingsRepository())
     {
     }

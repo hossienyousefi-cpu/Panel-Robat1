@@ -10,7 +10,7 @@ use App\Domain\Repositories\ManagedUserRepository;
 use App\Domain\Repositories\OrderRepository;
 use App\Domain\Repositories\ReceiptRepository;
 use App\Domain\Repositories\TelegramCustomerRepository;
-use App\IBSng\HttpAgentGateway;
+use App\IBSng\IBSngGatewayFactory;
 use App\Services\PricingService;
 use App\Services\TelegramNotifier;
 use App\Services\UserProvisioningService;
@@ -37,7 +37,7 @@ final class TelegramBot
         $this->receipts = new ReceiptRepository();
         $this->pricing = new PricingService();
         $this->notifier = new TelegramNotifier();
-        $this->provisioning = new UserProvisioningService(new HttpAgentGateway());
+        $this->provisioning = new UserProvisioningService(IBSngGatewayFactory::create());
         $this->admins = new AdminRepository();
         $this->adminBot = new AdminBotController();
     }

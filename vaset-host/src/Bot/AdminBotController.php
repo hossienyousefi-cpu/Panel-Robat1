@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Bot;
 
 use App\Domain\Repositories\AdminRepository;
-use App\IBSng\HttpAgentGateway;
+use App\IBSng\IBSngGatewayFactory;
 use App\Services\DatabaseBackupService;
 use App\Services\RuntimeSettings;
 use App\Services\TelegramNotifier;
@@ -235,13 +235,17 @@ final class AdminBotController
     private function testConnection(array $admin): void
     {
         $chatId = (int) $admin['telegram_chat_id'];
-        $gateway = new HttpAgentGateway();
+        $mode = $this->settings->get(RuntimeSettings::IBSNG_CONNECTION_MODE, 'direct');
+        $gateway = IBSngGatewayFactory::create();
         $ok = $gateway->healthCheck();
-        $url = $this->settings->get(RuntimeSettings::IBSNG_AGENT_URL, '(تنظیم نشده)');
+        $url = $mode === 'agent'
+            ? $this->settings->get(RuntimeSettings::IBSNG_AGENT_URL, '(تنظیم نشده)')
+            : $this->settings->get(RuntimeSettings::IBSNG_ADMIN_BASE_URL, '(تنظیم نشده)');
+        $modeLabel = $mode === 'agent' ? 'IBSng Agent' : 'اتصال مستقیم';
 
         $this->notifier->sendToChat(
             $chatId,
-            ($ok ? '✅ اتصال به IBSng Agent برقرار است.' : '❌ اتصال به IBSng Agent برقرار نیست.') . "\nآدرس فعلی: {$url}",
+            ($ok ? "✅ اتصال ({$modeLabel}) برقرار است." : "❌ اتصال ({$modeLabel}) برقرار نیست.") . "\nآدرس فعلی: {$url}",
             Keyboards::adminMenu()
         );
     }

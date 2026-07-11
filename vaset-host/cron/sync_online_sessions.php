@@ -5,9 +5,9 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/src/bootstrap.php';
 
 use App\Domain\Repositories\OnlineSessionRepository;
-use App\IBSng\HttpAgentGateway;
+use App\IBSng\IBSngGatewayFactory;
 
-$gateway = new HttpAgentGateway();
+$gateway = IBSngGatewayFactory::create();
 
 try {
     $sessions = $gateway->listOnlineSessions();
