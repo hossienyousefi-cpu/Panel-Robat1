@@ -41,6 +41,17 @@ final class TelegramNotifier
         return $this->call('sendPhoto', $payload, true);
     }
 
+    /** Used for database export dumps (Task 4). Telegram's bot API caps uploads at 50MB. */
+    public function sendDocumentFromPath(int $chatId, string $path, string $caption = ''): bool
+    {
+        $payload = [
+            'chat_id' => $chatId,
+            'caption' => $caption,
+            'document' => new \CURLFile($path),
+        ];
+        return $this->call('sendDocument', $payload, true, 120);
+    }
+
     public function notifyAllAdmins(string $text): void
     {
         foreach ((new AdminRepository())->allWithTelegram() as $admin) {
@@ -48,14 +59,14 @@ final class TelegramNotifier
         }
     }
 
-    private function call(string $method, array $payload, bool $multipart = false): bool
+    private function call(string $method, array $payload, bool $multipart = false, int $timeoutSeconds = 15): bool
     {
         $ch = curl_init("{$this->apiBase}/{$method}");
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $multipart ? $payload : json_encode($payload, JSON_UNESCAPED_UNICODE),
-            CURLOPT_TIMEOUT => 15,
+            CURLOPT_TIMEOUT => $timeoutSeconds,
         ]);
         if (!$multipart) {
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);

@@ -57,6 +57,7 @@ mysql -u root -p -e "CREATE DATABASE panel_vaset CHARACTER SET utf8mb4 COLLATE u
 mysql -u root -p -e "CREATE USER 'panel_vaset'@'localhost' IDENTIFIED BY 'CHANGE_ME';"
 mysql -u root -p -e "GRANT ALL PRIVILEGES ON panel_vaset.* TO 'panel_vaset'@'localhost';"
 mysql -u panel_vaset -p panel_vaset < vaset-host/database/migrations/001_init.sql
+mysql -u panel_vaset -p panel_vaset < vaset-host/database/migrations/002_admin_bot_and_settings.sql
 ```
 
 ## مرحله ۴ — کد اپلیکیشن روی Host vaset
@@ -100,3 +101,13 @@ php /home/<cpanel-user>/panel-vaset/bin/create_admin.php --username=admin --pass
 ```
 
 بعد از این می‌توانید از `/admin/login.php` وارد شوید و Resellerها، قیمت‌گذاری و ... را از همان‌جا مدیریت کنید.
+
+## مرحله ۸ — فعال‌سازی پنل مدیریتی ربات (تسک ۴: Export/Import و تنظیمات اتصال)
+
+1. مطمئن شوید `mysqldump` و `mysql` روی Host vaset نصب‌اند (`which mysqldump mysql`)؛ در غیر این صورت مسیر
+   کامل را در `.env` به `MYSQLDUMP_PATH`/`MYSQL_CLI_PATH` بدهید.
+2. با اکانت تلگرام خودتان به ربات پیام بدهید تا Chat ID را بگیرید (مثلاً از @userinfobot)، سپس در
+   `/admin/settings.php` همان عدد را در بخش «دریافت هشدار و دسترسی به پنل مدیریتی ربات» ذخیره کنید.
+3. از همان اکانت تلگرام دوباره به ربات `/start` بزنید — چون Chat ID شما حالا با یک ادمین مطابقت دارد، به‌جای
+   منوی مشتری، منوی مدیریتی (Export/Import دیتابیس، تغییر آدرس/کلید IBSng Agent، تست اتصال) نمایش داده
+   می‌شود. جزئیات کامل در `docs/ARCHITECTURE.md` بخش «تسک ۴».

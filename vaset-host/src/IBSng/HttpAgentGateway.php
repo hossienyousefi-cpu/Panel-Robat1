@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace App\IBSng;
 
-use App\Config;
 use App\IBSng\Dto\CreateUserItem;
 use App\IBSng\Dto\CreateUserResultItem;
 use App\IBSng\Dto\OnlineSession;
 use App\IBSng\Dto\UserStatus;
+use App\Services\RuntimeSettings;
 use RuntimeException;
 
 /**
  * Talks to the IBSng Agent (see /ibsng-agent) over the local end of the SSH tunnel.
  * The tunnel makes the agent's 127.0.0.1-only HTTP API reachable at IBSNG_AGENT_URL
  * (typically http://127.0.0.1:9091) from this host, without ever exposing a port on
- * the IBSng server itself to anything but SSH.
+ * the IBSng server itself to anything but SSH. The URL/API key come from
+ * RuntimeSettings (DB-backed, overridable from the admin panel or the admin Telegram
+ * bot control panel) with .env as the initial default, so the connection can be
+ * repointed without a redeploy if it ever breaks.
  */
 final class HttpAgentGateway implements IBSngGatewayInterface
 {
@@ -25,8 +28,9 @@ final class HttpAgentGateway implements IBSngGatewayInterface
 
     public function __construct(?string $baseUrl = null, ?string $apiKey = null, int $timeoutSeconds = 20)
     {
-        $this->baseUrl = rtrim($baseUrl ?? Config::get('IBSNG_AGENT_URL', 'http://127.0.0.1:9091'), '/');
-        $this->apiKey = $apiKey ?? (Config::get('IBSNG_AGENT_API_KEY', '') ?? '');
+        $settings = new RuntimeSettings();
+        $this->baseUrl = rtrim($baseUrl ?? (string) $settings->get(RuntimeSettings::IBSNG_AGENT_URL, 'http://127.0.0.1:9091'), '/');
+        $this->apiKey = $apiKey ?? (string) $settings->get(RuntimeSettings::IBSNG_AGENT_API_KEY, '');
         $this->timeoutSeconds = $timeoutSeconds;
     }
 

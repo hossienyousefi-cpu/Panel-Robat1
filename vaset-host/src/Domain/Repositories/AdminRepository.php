@@ -50,4 +50,20 @@ final class AdminRepository
         $stmt = Database::connection()->prepare('UPDATE admins SET telegram_chat_id = ? WHERE id = ?');
         $stmt->execute([$chatId, $adminId]);
     }
+
+    public function findByTelegramChatId(int $chatId): ?array
+    {
+        $stmt = Database::connection()->prepare('SELECT * FROM admins WHERE telegram_chat_id = ? AND is_active = 1');
+        $stmt->execute([$chatId]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    public function setConversationState(int $adminId, ?string $state, ?array $payload = null): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE admins SET conversation_state = ?, conversation_payload = ? WHERE id = ?'
+        );
+        $stmt->execute([$state, $payload === null ? null : json_encode($payload, JSON_UNESCAPED_UNICODE), $adminId]);
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Bot;
 
 use App\Config;
+use App\Domain\Repositories\AdminRepository;
 use App\Domain\Repositories\ManagedUserRepository;
 use App\Domain\Repositories\OrderRepository;
 use App\Domain\Repositories\ReceiptRepository;
@@ -13,6 +14,7 @@ use App\IBSng\HttpAgentGateway;
 use App\Services\PricingService;
 use App\Services\TelegramNotifier;
 use App\Services\UserProvisioningService;
+use App\Support\TelegramFileDownloader;
 use RuntimeException;
 
 final class TelegramBot
@@ -24,6 +26,8 @@ final class TelegramBot
     private PricingService $pricing;
     private TelegramNotifier $notifier;
     private UserProvisioningService $provisioning;
+    private AdminRepository $admins;
+    private AdminBotController $adminBot;
 
     public function __construct()
     {
@@ -34,11 +38,26 @@ final class TelegramBot
         $this->pricing = new PricingService();
         $this->notifier = new TelegramNotifier();
         $this->provisioning = new UserProvisioningService(new HttpAgentGateway());
+        $this->admins = new AdminRepository();
+        $this->adminBot = new AdminBotController();
     }
 
     public function handleUpdate(array $update): void
     {
         try {
+            $chatId = $this->extractChatId($update);
+
+            // Admins (identified by the telegram_chat_id saved in /admin/settings.php)
+            // get an entirely separate control-panel flow: DB export/import, and
+            // changing how the bot talks to the IBSng Agent - see AdminBotController.
+            if ($chatId !== null) {
+                $admin = $this->admins->findByTelegramChatId($chatId);
+                if ($admin !== null) {
+                    $this->adminBot->handleUpdate($admin, $update);
+                    return;
+                }
+            }
+
             if (isset($update['message'])) {
                 $this->handleMessage($update['message']);
             } elseif (isset($update['callback_query'])) {
@@ -47,6 +66,17 @@ final class TelegramBot
         } catch (\Throwable $e) {
             error_log('[panel-vaset] Telegram bot error: ' . $e->getMessage());
         }
+    }
+
+    private function extractChatId(array $update): ?int
+    {
+        if (isset($update['message']['chat']['id'])) {
+            return (int) $update['message']['chat']['id'];
+        }
+        if (isset($update['callback_query']['message']['chat']['id'])) {
+            return (int) $update['callback_query']['message']['chat']['id'];
+        }
+        return null;
     }
 
     private function handleMessage(array $message): void
@@ -281,22 +311,9 @@ final class TelegramBot
 
     private function downloadTelegramFile(string $fileId): string
     {
-        $token = Config::get('TELEGRAM_BOT_TOKEN', '');
-        $meta = json_decode((string) file_get_contents("https://api.telegram.org/bot{$token}/getFile?file_id={$fileId}"), true);
-        $filePath = $meta['result']['file_path'] ?? null;
-        if ($filePath === null) {
-            throw new RuntimeException('دریافت فایل از تلگرام ناموفق بود.');
-        }
-
-        $contents = file_get_contents("https://api.telegram.org/file/bot{$token}/{$filePath}");
         $dir = dirname(__DIR__, 2) . '/public/uploads/receipts';
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-        $localName = date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.jpg';
-        $localPath = $dir . '/' . $localName;
-        file_put_contents($localPath, $contents);
+        $absolutePath = TelegramFileDownloader::download($fileId, $dir, 'receipt');
 
-        return 'uploads/receipts/' . $localName;
+        return 'uploads/receipts/' . basename($absolutePath);
     }
 }

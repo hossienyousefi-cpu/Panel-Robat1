@@ -39,4 +39,17 @@ final class Keyboards
         }
         return ['inline_keyboard' => $rows];
     }
+
+    /** Task 4: admin-only control panel menu (DB export/import, IBSng Agent connection settings). */
+    public static function adminMenu(): array
+    {
+        return [
+            'keyboard' => [
+                ['📤 Export دیتابیس', '📥 Import دیتابیس'],
+                ['⚙️ آدرس IBSng Agent', '🔑 کلید API Agent'],
+                ['📶 تست اتصال', '❌ لغو عملیات جاری'],
+            ],
+            'resize_keyboard' => true,
+        ];
+    }
 }

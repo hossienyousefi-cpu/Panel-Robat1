@@ -8,6 +8,10 @@
 
 # Runtime data
 /vaset-host/storage/logs/*.log
+/vaset-host/storage/backups/*
+!/vaset-host/storage/backups/.gitkeep
+/vaset-host/storage/imports/*
+!/vaset-host/storage/imports/.gitkeep
 /vaset-host/public/uploads/receipts/*
 !/vaset-host/public/uploads/receipts/.gitkeep
 
