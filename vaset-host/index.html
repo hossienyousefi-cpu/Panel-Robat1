@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پنل مدیریت - نصب و راه‌اندازی</title>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Vazirmatn', sans-serif; background: #080c18; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .container { max-width: 800px; width: 100%; }
+  h1 { font-size: 36px; font-weight: 900; background: linear-gradient(135deg, #3b82f6, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .subtitle { color: #64748b; margin-bottom: 40px; font-size: 16px; }
+  .card { background: #131e30; border: 1px solid #1e2d45; border-radius: 20px; padding: 32px; margin-bottom: 24px; }
+  h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: #60a5fa; }
+  .step { display: flex; gap: 16px; margin-bottom: 16px; padding: 16px; background: rgba(0,0,0,0.2); border-radius: 12px; }
+  .step-num { width: 32px; height: 32px; background: linear-gradient(135deg, #3b82f6, #06b6d4); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; flex-shrink: 0; }
+  .step-text { font-size: 14px; color: #94a3b8; line-height: 1.7; }
+  code { background: rgba(59,130,246,0.15); color: #60a5fa; padding: 2px 8px; border-radius: 6px; font-family: monospace; font-size: 13px; }
+  .links { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
+  .link-card { background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2); border-radius: 14px; padding: 24px; text-align: center; text-decoration: none; color: #e2e8f0; transition: all 0.2s; }
+  .link-card:hover { border-color: #3b82f6; transform: translateY(-2px); }
+  .link-icon { font-size: 36px; margin-bottom: 12px; }
+  .link-title { font-size: 16px; font-weight: 700; }
+  .link-desc { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; color: #fbbf24; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>⚡ پنل مدیریت</h1>
+  <p class="subtitle">سیستم مدیریت اینترنت هوشمند با پشتیبانی از ریسلر</p>
+
+  <div class="warning">
+    ⚠️ لطفاً قبل از استفاده، فایل <code>includes/config.php</code> را پیکربندی کنید.
+  </div>
+
+  <div class="card">
+    <h2>📋 مراحل نصب</h2>
+    
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text">
+        یک دیتابیس MySQL در cPanel ایجاد کنید<br>
+        سپس محتویات فایل <code>install.sql</code> را اجرا کنید
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-text">
+        فایل <code>includes/config.php</code> را باز کنید و مقادیر زیر را تنظیم کنید:<br>
+        <code>DB_HOST, DB_NAME, DB_USER, DB_PASS</code> - اطلاعات دیتابیس<br>
+        <code>IBS_URL, IBS_ADMIN, IBS_PASS</code> - آدرس و اطلاعات IBSng
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-text">
+        رمز ادمین پیش‌فرض را با اجرای این کوئری تغییر دهید:<br>
+        <code>UPDATE admins SET password = '$2y$12$...' WHERE username='admin';</code><br>
+        یا از phpMyAdmin استفاده کنید و رمز را با bcrypt hash کنید
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-text">
+        برای تولید hash رمز عبور در PHP:<br>
+        <code>echo password_hash('رمز_جدید', PASSWORD_BCRYPT, ['cost' => 12]);</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="links">
+    <a href="admin/login.php" class="link-card">
+      <div class="link-icon">🛡️</div>
+      <div class="link-title">پنل مدیریت</div>
+      <div class="link-desc">ورود با حساب ادمین</div>
+    </a>
+    <a href="reseller/login.php" class="link-card">
+      <div class="link-icon">🌐</div>
+      <div class="link-title">پنل ریسلر</div>
+      <div class="link-desc">ورود با حساب ریسلر</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>
