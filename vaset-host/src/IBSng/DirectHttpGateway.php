@@ -197,9 +197,8 @@ final class DirectHttpGateway implements IBSngGatewayInterface
             throw new RuntimeException('برای این کاربر شناسه عددی IBSng ثبت نشده - امکان استعلام وضعیت از این طریق نیست.');
         }
 
-        $url = $this->baseUrl . '/user/single_user_info.php?' . http_build_query([
-            'user_id' => $ibsngUserId,
-            'user_repr' => $username,
+        $url = $this->baseUrl . '/user/user_info.php?' . http_build_query([
+            'user_id_multi' => $ibsngUserId,
         ]);
         $html = $this->get($url);
 
