@@ -9,6 +9,19 @@ final class Session
     public static function start(): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
+            // Some hosts (notably CloudLinux/open_basedir setups) don't let PHP write
+            // to the system-wide default session save path, which silently makes every
+            // request start a brand new empty session - forms then always fail CSRF
+            // checks because the token from the GET request never survives to the POST.
+            // Storing sessions inside the app's own writable storage/ dir sidesteps that.
+            $savePath = dirname(__DIR__, 2) . '/storage/sessions';
+            if (!is_dir($savePath)) {
+                @mkdir($savePath, 0700, true);
+            }
+            if (is_dir($savePath) && is_writable($savePath)) {
+                session_save_path($savePath);
+            }
+
             session_set_cookie_params([
                 'lifetime' => 0,
                 'path' => '/',
