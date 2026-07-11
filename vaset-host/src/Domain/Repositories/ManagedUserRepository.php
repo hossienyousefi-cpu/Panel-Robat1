@@ -27,13 +27,14 @@ final class ManagedUserRepository
         ?int $resellerId,
         ?int $telegramCustomerId,
         string $group,
-        string $isp
+        string $isp,
+        ?int $ibsngUserId = null
     ): int {
         $stmt = Database::connection()->prepare(
-            'INSERT INTO managed_users (ibsng_username, owner_type, reseller_id, telegram_customer_id, group_name, isp)
-             VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO managed_users (ibsng_username, ibsng_user_id, owner_type, reseller_id, telegram_customer_id, group_name, isp)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$username, $ownerType, $resellerId, $telegramCustomerId, $group, $isp]);
+        $stmt->execute([$username, $ibsngUserId, $ownerType, $resellerId, $telegramCustomerId, $group, $isp]);
         return (int) Database::connection()->lastInsertId();
     }
 
@@ -61,13 +62,6 @@ final class ManagedUserRepository
         $stmt = Database::connection()->prepare('SELECT * FROM managed_users WHERE reseller_id = ? ORDER BY created_at DESC');
         $stmt->execute([$resellerId]);
         return $stmt->fetchAll();
-    }
-
-    public function ownedByReseller(int $resellerId, string $username): bool
-    {
-        $stmt = Database::connection()->prepare('SELECT 1 FROM managed_users WHERE reseller_id = ? AND ibsng_username = ?');
-        $stmt->execute([$resellerId, $username]);
-        return (bool) $stmt->fetchColumn();
     }
 
     /** @return array<int,array<string,mixed>> */

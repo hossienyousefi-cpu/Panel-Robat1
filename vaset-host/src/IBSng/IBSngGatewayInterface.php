@@ -29,15 +29,19 @@ interface IBSngGatewayInterface
      */
     public function createUsers(array $items, string $group, string $isp, float $credit1, float $credit2): array;
 
-    public function deleteUser(string $username): bool;
+    /**
+     * $ibsngUserId, when known (stored on the managed_users row at creation time),
+     * lets a gateway skip an extra username-search round-trip against IBSng.
+     */
+    public function deleteUser(string $username, ?int $ibsngUserId = null): bool;
 
-    public function renewUser(string $username, string $group, float $addCredit1): bool;
+    public function renewUser(string $username, string $group, float $addCredit1, ?int $ibsngUserId = null): bool;
 
-    public function lockUser(string $username): bool;
+    public function lockUser(string $username, ?int $ibsngUserId = null): bool;
 
-    public function unlockUser(string $username): bool;
+    public function unlockUser(string $username, ?int $ibsngUserId = null): bool;
 
-    public function getUserStatus(string $username): ?UserStatus;
+    public function getUserStatus(string $username, ?int $ibsngUserId = null): ?UserStatus;
 
     /** @return OnlineSession[] */
     public function listOnlineSessions(): array;

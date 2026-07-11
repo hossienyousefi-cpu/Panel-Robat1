@@ -63,13 +63,13 @@ final class HttpAgentGateway implements IBSngGatewayInterface
         return $results;
     }
 
-    public function deleteUser(string $username): bool
+    public function deleteUser(string $username, ?int $ibsngUserId = null): bool
     {
         $response = $this->request('POST', '/users/delete', ['username' => $username]);
         return (bool) ($response['ok'] ?? false);
     }
 
-    public function renewUser(string $username, string $group, float $addCredit1): bool
+    public function renewUser(string $username, string $group, float $addCredit1, ?int $ibsngUserId = null): bool
     {
         $response = $this->request('POST', '/users/renew', [
             'username' => $username,
@@ -79,19 +79,19 @@ final class HttpAgentGateway implements IBSngGatewayInterface
         return (bool) ($response['ok'] ?? false);
     }
 
-    public function lockUser(string $username): bool
+    public function lockUser(string $username, ?int $ibsngUserId = null): bool
     {
         $response = $this->request('POST', '/users/lock', ['username' => $username]);
         return (bool) ($response['ok'] ?? false);
     }
 
-    public function unlockUser(string $username): bool
+    public function unlockUser(string $username, ?int $ibsngUserId = null): bool
     {
         $response = $this->request('POST', '/users/unlock', ['username' => $username]);
         return (bool) ($response['ok'] ?? false);
     }
 
-    public function getUserStatus(string $username): ?UserStatus
+    public function getUserStatus(string $username, ?int $ibsngUserId = null): ?UserStatus
     {
         $response = $this->request('GET', '/users/search', ['username' => $username]);
         if (!($response['exists'] ?? false)) {

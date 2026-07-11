@@ -84,7 +84,7 @@ final class UserProvisioningService
             }
 
             Database::transaction(function () use ($result, $resellerId, $groupName, $reseller, $price, &$totalCharged) {
-                $this->managedUsers->create($result->username, 'reseller', $resellerId, null, $groupName, (string) $reseller['ibsng_isp']);
+                $this->managedUsers->create($result->username, 'reseller', $resellerId, null, $groupName, (string) $reseller['ibsng_isp'], $result->ibsngUserId);
                 $balanceAfter = $this->resellers->adjustBalance($resellerId, -$price);
                 $this->ledger->record('reseller', $resellerId, 'debit_purchase', $price, $balanceAfter, $result->username, "ساخت یوزر {$result->username} در گروه {$groupName}");
                 $totalCharged += $price;
@@ -105,11 +105,13 @@ final class UserProvisioningService
     public function deleteForReseller(array $reseller, string $username): void
     {
         $resellerId = (int) $reseller['id'];
-        if (!$this->managedUsers->ownedByReseller($resellerId, $username)) {
+        $managedUser = $this->managedUsers->findByUsername($username);
+        if ($managedUser === null || (int) $managedUser['reseller_id'] !== $resellerId) {
             throw new RuntimeException('این یوزر متعلق به شما نیست یا از طریق این سیستم ساخته نشده است.');
         }
 
-        $ok = $this->gateway->deleteUser($username);
+        $ibsngUserId = $managedUser['ibsng_user_id'] !== null ? (int) $managedUser['ibsng_user_id'] : null;
+        $ok = $this->gateway->deleteUser($username, $ibsngUserId);
         if (!$ok) {
             throw new RuntimeException('حذف یوزر از IBSng ناموفق بود.');
         }
@@ -133,7 +135,8 @@ final class UserProvisioningService
         }
 
         $renewCredit1 = (float) Config::get('IBSNG_RENEW_CREDIT1', '100');
-        $ok = $this->gateway->renewUser($username, $groupName, $renewCredit1);
+        $ibsngUserId = $managedUser['ibsng_user_id'] !== null ? (int) $managedUser['ibsng_user_id'] : null;
+        $ok = $this->gateway->renewUser($username, $groupName, $renewCredit1, $ibsngUserId);
         if (!$ok) {
             throw new RuntimeException('تمدید یوزر در IBSng ناموفق بود.');
         }
@@ -168,7 +171,8 @@ final class UserProvisioningService
                 throw new RuntimeException('یوزر انتخاب‌شده برای تمدید متعلق به این مشتری نیست.');
             }
             $renewCredit1 = (float) Config::get('IBSNG_RENEW_CREDIT1', '100');
-            if (!$this->gateway->renewUser($username, $groupName, $renewCredit1)) {
+            $ibsngUserId = $managedUser['ibsng_user_id'] !== null ? (int) $managedUser['ibsng_user_id'] : null;
+            if (!$this->gateway->renewUser($username, $groupName, $renewCredit1, $ibsngUserId)) {
                 throw new RuntimeException('تمدید یوزر در IBSng ناموفق بود.');
             }
             return $username;
@@ -185,7 +189,7 @@ final class UserProvisioningService
             throw new RuntimeException('ساخت یوزر در IBSng ناموفق بود: ' . ($result->message ?? 'نامشخص'));
         }
 
-        $this->managedUsers->create($username, 'direct', null, (int) $order['telegram_customer_id'], $groupName, $isp);
+        $this->managedUsers->create($username, 'direct', null, (int) $order['telegram_customer_id'], $groupName, $isp, $result->ibsngUserId);
 
         return $username;
     }

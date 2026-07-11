@@ -119,41 +119,114 @@ final class DirectHttpGateway implements IBSngGatewayInterface
 
             $html = $this->post($url, $fields);
             $hidden = $this->extractHiddenFields($html);
-            $ok = isset($hidden['user_id']) && ctype_digit((string) $hidden['user_id']);
+            $ibsngUserId = isset($hidden['user_id']) && ctype_digit((string) $hidden['user_id']) ? (int) $hidden['user_id'] : null;
 
             $results[] = new CreateUserResultItem(
                 $item->username,
-                $ok,
-                $ok ? null : 'IBSng شناسه کاربر جدید را برنگرداند - ممکن است یوزرنیم تکراری باشد یا گروه/ISP نامعتبر باشد.',
+                $ibsngUserId !== null,
+                $ibsngUserId !== null ? null : 'IBSng شناسه کاربر جدید را برنگرداند - ممکن است یوزرنیم تکراری باشد یا گروه/ISP نامعتبر باشد.',
+                $ibsngUserId,
             );
         }
 
         return $results;
     }
 
-    public function deleteUser(string $username): bool
+    public function deleteUser(string $username, ?int $ibsngUserId = null): bool
     {
-        throw new RuntimeException('حذف کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن نمونه واقعی HTML صفحه جستجو/حذف کاربر در IBSng داریم.');
+        throw new RuntimeException('حذف کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن نمونه واقعی HTML صفحه حذف کاربر در IBSng داریم.');
     }
 
-    public function renewUser(string $username, string $group, float $addCredit1): bool
+    public function renewUser(string $username, string $group, float $addCredit1, ?int $ibsngUserId = null): bool
     {
-        throw new RuntimeException('تمدید کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن نمونه واقعی HTML ویرایش Credit1 در IBSng داریم.');
+        throw new RuntimeException('تمدید کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن نمونه واقعی HTML صفحه change_credit_deposit.php در IBSng داریم.');
     }
 
-    public function lockUser(string $username): bool
+    public function lockUser(string $username, ?int $ibsngUserId = null): bool
     {
-        throw new RuntimeException('قفل‌کردن کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن آدرس دقیق و فیلدهای مخفی صفحه ویرایش کاربر در IBSng داریم.');
+        return $this->setLocked($username, true, $ibsngUserId);
     }
 
-    public function unlockUser(string $username): bool
+    public function unlockUser(string $username, ?int $ibsngUserId = null): bool
     {
-        throw new RuntimeException('بازکردن قفل کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن آدرس دقیق و فیلدهای مخفی صفحه ویرایش کاربر در IBSng داریم.');
+        return $this->setLocked($username, false, $ibsngUserId);
     }
 
-    public function getUserStatus(string $username): ?UserStatus
+    /**
+     * Confirmed via a real captured edit page: the "select attribute to edit" checkbox
+     * (attr_edit_checkbox_2, value=lock) plus the actual toggle (has_lock=t, sent only
+     * when locking - an unchecked HTML checkbox is simply omitted) posted together to
+     * plugins/edit.php is enough; no separate page fetch is needed since user_id/
+     * user_repr/edit_user are just fixed hidden fields, not page-specific tokens.
+     */
+    private function setLocked(string $username, bool $locked, ?int $ibsngUserId): bool
     {
-        throw new RuntimeException('استعلام وضعیت کاربر هنوز از طریق اتصال مستقیم پیاده‌سازی نشده - نیاز به گرفتن نمونه واقعی HTML نتیجه جستجوی کاربر در IBSng داریم.');
+        $this->ensureLoggedIn();
+        if ($ibsngUserId === null) {
+            throw new RuntimeException('برای این کاربر شناسه عددی IBSng ثبت نشده (احتمالاً قبل از فعال‌سازی اتصال مستقیم ساخته شده) - امکان قفل/بازکردن قفل از این طریق نیست.');
+        }
+
+        $fields = [
+            'user_id' => (string) $ibsngUserId,
+            'user_repr' => $username,
+            'edit_user' => '1',
+            'attr_edit_checkbox_2' => 'lock',
+        ];
+        if ($locked) {
+            $fields['has_lock'] = 't';
+        }
+
+        $html = $this->post($this->baseUrl . '/plugins/edit.php', $fields);
+        $status = $this->parseLockStatus($html);
+
+        return $status === $locked;
+    }
+
+    private function parseLockStatus(string $html): ?bool
+    {
+        if (preg_match('/User is Locked\s*:<\/td>.*?Form_Content_Row_Right_textarea_td_\w+">\s*(Yes|No)/is', $html, $m)) {
+            return strtolower($m[1]) === 'yes';
+        }
+        return null;
+    }
+
+    public function getUserStatus(string $username, ?int $ibsngUserId = null): ?UserStatus
+    {
+        $this->ensureLoggedIn();
+        if ($ibsngUserId === null) {
+            throw new RuntimeException('برای این کاربر شناسه عددی IBSng ثبت نشده - امکان استعلام وضعیت از این طریق نیست.');
+        }
+
+        $url = $this->baseUrl . '/user/single_user_info.php?' . http_build_query([
+            'user_id' => $ibsngUserId,
+            'user_repr' => $username,
+        ]);
+        $html = $this->get($url);
+
+        $credits = [];
+        if (preg_match_all('/<span id="credit">([\-\d.]+)<\/span>/i', $html, $m)) {
+            $credits = $m[1];
+        }
+        $group = null;
+        if (preg_match('/id="group_name"[^>]*>([^<]+)<\/a>/i', $html, $m)) {
+            $group = trim($m[1]);
+        }
+        $isp = null;
+        if (preg_match('/Owner ISP\s*:<\/td>\s*<td class="[^"]*"\s*>([^<]*)<\/td>/is', $html, $m)) {
+            $isp = trim($m[1]);
+        }
+        $locked = $this->parseLockStatus($html) ?? false;
+
+        return new UserStatus(
+            $username,
+            true,
+            $group,
+            $isp,
+            isset($credits[0]) ? (float) $credits[0] : null,
+            isset($credits[1]) ? (float) $credits[1] : null,
+            $locked,
+            null,
+        );
     }
 
     public function listOnlineSessions(): array

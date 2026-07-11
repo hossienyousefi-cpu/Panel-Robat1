@@ -33,7 +33,8 @@ final class ExpiryWatcherService
     {
         $refreshed = 0;
         foreach ($this->managedUsers->all(2000) as $user) {
-            $status = $this->gateway->getUserStatus((string) $user['ibsng_username']);
+            $ibsngUserId = $user['ibsng_user_id'] !== null ? (int) $user['ibsng_user_id'] : null;
+            $status = $this->gateway->getUserStatus((string) $user['ibsng_username'], $ibsngUserId);
             if ($status === null || !$status->exists) {
                 continue;
             }
@@ -55,7 +56,9 @@ final class ExpiryWatcherService
             $username = $order['provisioned_username'] ?? $order['target_username'];
 
             if ($username !== null) {
-                $this->gateway->lockUser((string) $username);
+                $managedUser = $this->managedUsers->findByUsername((string) $username);
+                $ibsngUserId = $managedUser !== null && $managedUser['ibsng_user_id'] !== null ? (int) $managedUser['ibsng_user_id'] : null;
+                $this->gateway->lockUser((string) $username, $ibsngUserId);
                 $this->managedUsers->setLocked((string) $username, true);
             }
 
