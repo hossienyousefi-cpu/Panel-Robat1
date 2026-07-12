@@ -29,7 +29,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
     if($ispF!==''||$search!==''){
         $conds=[];
         if($grpF!=='') $conds['group_name']=$grpF;
-        if($ispF!=='') $conds['isp_name']=$ispF;
+        if($ispF!=='') $conds['isp_name']=[$ispF];
 
         // اگر فقط ISP (یا ISP+گروه) فیلتر است، بدون RAS/search: مستقیم همون صفحه‌ی
         // درخواستی رو از  می‌گیریم (دقیقاً مثل حالت بدون فیلتر پایین این فایل) -

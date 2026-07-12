@@ -93,7 +93,7 @@ function ibsng_getRasList() {
 // ─── تعداد کاربران یک ISP با کش 60 ثانیه ───
 function ibsng_getIspUserCount($ispName) {
     $r = ibsng_call('user.searchUser', [
-        'conds'    => ['isp_name' => $ispName],
+        'conds'    => ['isp_name' => [$ispName]],
         'from'     => 0,
         'to'       => 1,
         'order_by' => 'user_id',
@@ -223,7 +223,7 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
     // مطمئن می‌شویم قفل در هر صورت پاک می‌شود.
     register_shutdown_function(function () use ($lockFile) { @unlink($lockFile); });
 
-    $conds = ['isp_name' => $ispName];
+    $conds = ['isp_name' => [$ispName]];
     if ($groupFilter !== '') $conds['group_name'] = $groupFilter;
 
     $uids = ibsng_getAllUidsForIsp($conds);
@@ -274,7 +274,7 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
     }
 
     // کش نداریم → فقط تعداد کل + صفحه اول رو سریع بگیر
-    $conds = ['isp_name' => $ispName];
+    $conds = ['isp_name' => [$ispName]];
     if ($groupFilter !== '') $conds['group_name'] = $groupFilter;
 
     // تعداد کل
@@ -318,7 +318,7 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
 
 function ibsng_searchUsersForReseller($ispName, $search, $group, $page, $perPage = 50) {
     $conds = [];
-    if ($ispName !== '') $conds['isp_name'] = $ispName;
+    if ($ispName !== '') $conds['isp_name'] = [$ispName];
     if ($group   !== '') $conds['group_name'] = $group;
 
     // ─ جستجو با username ─
@@ -457,7 +457,7 @@ function ibsng_getIspUsernameMap($ispName) {
     }
     try {
         // از pagination کامل استفاده کن
-        $uids = ibsng_getAllUidsForIsp(['isp_name' => $ispName]);
+        $uids = ibsng_getAllUidsForIsp(['isp_name' => [$ispName]]);
         if (empty($uids)) { @file_put_contents($cKey, '{}'); return []; }
         $map = [];
         foreach (array_chunk($uids, 100) as $chunk) {
