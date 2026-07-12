@@ -4,6 +4,10 @@ require_once '../includes/ibsng_api.php';
 require_once '../includes/telegram_api.php';
 require_once '../telegram/bot.php';
 requireAdmin();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 $success = ''; $error = '';
 
@@ -280,12 +284,12 @@ $orders = $pdo->query("
 
         <?php if ($o['status'] === 'pending'): ?>
         <div class="req-actions">
-          <form method="POST" onsubmit="return confirm('این سفارش روی  اعمال می‌شود. تأیید می‌کنید؟')">
+          <form method="POST" onsubmit="return confirm('این سفارش روی  اعمال می‌شود. تأیید می‌کنید؟')"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="order_id" value="<?= $o['id'] ?>">
             <input type="hidden" name="action" value="approve">
             <button type="submit" class="btn btn-approve">✅ تأیید و ایجاد/تمدید سرویس</button>
           </form>
-          <form method="POST" onsubmit="return confirm('این سفارش رد شود؟')">
+          <form method="POST" onsubmit="return confirm('این سفارش رد شود؟')"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="order_id" value="<?= $o['id'] ?>">
             <input type="hidden" name="action" value="reject">
             <button type="submit" class="btn btn-reject">❌ رد کردن</button>

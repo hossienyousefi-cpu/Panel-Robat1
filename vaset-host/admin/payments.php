@@ -1,6 +1,10 @@
 <?php
 require_once '../includes/config.php';
 requireAdmin();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 $success = ''; $error = '';
 
@@ -303,12 +307,13 @@ $requests = $pdo->query("
             <input type="text" id="note_<?= $req['id'] ?>" placeholder="یادداشت (اختیاری)...">
           </div>
           <form method="POST" onsubmit="return fillNote(<?= $req['id'] ?>, 'approve')">
+            <input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="request_id" value="<?= $req['id'] ?>">
             <input type="hidden" name="action" value="approve">
             <input type="hidden" name="admin_note" id="note_approve_<?= $req['id'] ?>">
             <button type="submit" class="btn btn-approve" onclick="fillNoteApprove(<?= $req['id'] ?>)">✅ تأیید و شارژ حساب</button>
           </form>
-          <form method="POST" onsubmit="return confirm('آیا مطمئن هستید؟')">
+          <form method="POST" onsubmit="return confirm('آیا مطمئن هستید؟')"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="request_id" value="<?= $req['id'] ?>">
             <input type="hidden" name="action" value="reject">
             <input type="hidden" name="admin_note" id="note_reject_<?= $req['id'] ?>">

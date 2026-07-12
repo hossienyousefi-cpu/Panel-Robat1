@@ -1,6 +1,10 @@
 <?php
 require_once '../includes/config.php';
 requireAdmin();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 $message = '';
 $error = '';
@@ -224,7 +228,7 @@ $siteLogo = getSetting('site_logo', '');
         </div>
       </div>
       <div class="section-body">
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="change_admin_pass">
           <div class="form-row">
             <div class="form-group">
@@ -258,7 +262,7 @@ $siteLogo = getSetting('site_logo', '');
         </div>
       </div>
       <div class="section-body">
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="change_reseller_pass">
           <div class="form-group">
             <label>انتخاب ریسلر</label>
@@ -294,7 +298,7 @@ $siteLogo = getSetting('site_logo', '');
         </div>
       </div>
       <div class="section-body">
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="save_ibs_settings">
           <div class="form-group">
             <label>آدرس API سرور  <span style="font-size:11px;color:var(--muted);font-weight:400">(همان که برنامه واقعاً استفاده می‌کند)</span></label>
@@ -345,7 +349,7 @@ $siteLogo = getSetting('site_logo', '');
           <div style="font-size:11px;color:var(--muted);margin-top:6px">لوگوی فعلی</div>
         </div>
         <?php endif; ?>
-        <form method="POST" enctype="multipart/form-data">
+        <form method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="upload_logo">
           <div class="form-group">
             <label>انتخاب فایل لوگو (PNG، JPG، SVG، WEBP — حداکثر ۲MB)</label>

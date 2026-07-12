@@ -1,6 +1,10 @@
 <?php
 require_once '../includes/config.php';
 requireReseller();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 $rid = $_SESSION['reseller_id'];
 $reseller = $pdo->prepare("SELECT * FROM resellers WHERE id=?");
@@ -178,7 +182,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
         <div class="card-title">ارسال فیش پرداخت جدید</div>
       </div>
       <div class="card-body">
-        <form method="POST" enctype="multipart/form-data">
+        <form method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <div class="form-group">
             <label>مبلغ پرداختی (تومان) *</label>
             <input type="number" name="amount" placeholder="مثلاً: 500000" min="1000" required>

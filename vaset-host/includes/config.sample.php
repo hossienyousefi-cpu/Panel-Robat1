@@ -117,6 +117,10 @@ function requireAdmin() {
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('X-Frame-Options: DENY');
     header('X-Content-Type-Options: nosniff');
+    // CSRF token باید قبل از بسته شدن سشن تولید/تضمین بشه وگرنه هیچ‌وقت ذخیره نمی‌شه
+    // (نوشتن روی $_SESSION بعد از session_write_close فقط توی حافظه‌ی همون
+    // درخواسته و هیچ‌وقت روی دیسک ذخیره نمی‌شه)
+    generateCsrf();
     // PHP به‌طور پیش‌فرض فایل سشن را برای کل عمر یک درخواست قفل می‌کند؛ صفحاتی که
     // چند ثانیه صبر می‌کنند تا با  صحبت کنند (جستجو، ساخت کاربر و ...) باعث می‌شدند
     // بقیه‌ی تب‌ها/درخواست‌های همون کاربر (که سشن یکسان دارند) هم قفل بمونن و کل
@@ -133,6 +137,7 @@ function requireReseller() {
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('X-Frame-Options: DENY');
     header('X-Content-Type-Options: nosniff');
+    generateCsrf();
     session_write_close();
 }
 

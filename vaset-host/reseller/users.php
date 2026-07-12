@@ -2,6 +2,10 @@
 require_once '../includes/config.php';
 require_once '../includes/ibsng_api.php';
 requireReseller();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 // تبدیل الگوی «PREFIX{شروع-پایان}SUFFIX» به لیست یوزرنیم؛ مثلاً TRR{01-20} => TRR01..TRR20
 function expandBulkPattern($pattern){
@@ -572,7 +576,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <div class="mbg" id="addM">
   <div class="modal msm">
     <div class="mh"><div class="mt">➕ کاربر جدید</div><button class="mc" onclick="closeM('addM')">✕</button></div>
-    <form method="POST"><input type="hidden" name="action" value="create_user">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="create_user">
       <input type="hidden" name="isp_name" value="<?=sanitize($ispName)?>">
       <div class="mb">
         <div style="background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:9px 12px;margin-bottom:11px;font-size:12px">
@@ -613,7 +617,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <div class="mbg" id="bulkM">
   <div class="modal msm">
     <div class="mh"><div class="mt">📦 ساخت گروهی</div><button class="mc" onclick="closeM('bulkM')">✕</button></div>
-    <form method="POST"><input type="hidden" name="action" value="bulk_create">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="bulk_create">
       <input type="hidden" name="isp_name" value="<?=sanitize($ispName)?>">
       <div class="mb">
         <div class="fr">
@@ -652,7 +656,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <div class="mbg" id="passM">
   <div class="modal msm">
     <div class="mh"><div class="mt">🔑 تغییر رمز</div><button class="mc" onclick="closeM('passM')">✕</button></div>
-    <form method="POST"><input type="hidden" name="action" value="change_password">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="change_password">
       <input type="hidden" name="user_id" id="pUid">
       <div class="mb">
         <p style="margin-bottom:12px;color:var(--txt2)">کاربر: <strong id="pUname" style="color:var(--acc)"></strong></p>
@@ -681,7 +685,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <div class="mbg" id="rnM">
   <div class="modal msm">
     <div class="mh"><div class="mt">🔄 تمدید کاربر</div><button class="mc" onclick="closeM('rnM')">✕</button></div>
-    <form method="POST"><input type="hidden" name="action" value="renew_user">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="renew_user">
       <input type="hidden" name="user_id" id="rnUid">
       <div class="mb">
         <p style="color:var(--txt2)">تمدید سرویس: <strong id="rnUname" style="color:var(--grn)"></strong></p>
@@ -701,7 +705,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <div class="mbg" id="delM">
   <div class="modal msm">
     <div class="mh"><div class="mt">🗑 حذف کاربر</div><button class="mc" onclick="closeM('delM')">✕</button></div>
-    <form method="POST"><input type="hidden" name="action" value="delete_user">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="delete_user">
       <input type="hidden" name="user_id" id="dUid">
       <div class="mb"><p style="color:var(--txt2)">کاربر <strong id="dUname" style="color:var(--red)"></strong> حذف می‌شود. قابل بازگشت نیست.</p></div>
       <div class="mf">
@@ -717,7 +721,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <div class="mbg" id="lockM">
   <div class="modal msm">
     <div class="mh"><div class="mt" id="lockTitle">🔒 قفل کاربر</div><button class="mc" onclick="closeM('lockM')">✕</button></div>
-    <form method="POST"><input type="hidden" name="action" value="toggle_lock">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="toggle_lock">
       <input type="hidden" name="user_id" id="lkUid">
       <input type="hidden" name="new_status" id="lkSt">
       <div class="mb"><p style="color:var(--txt2)" id="lockMsg"></p></div>
@@ -729,7 +733,7 @@ input:focus,select:focus{border-color:var(--acc)}
   </div>
 </div>
 
-<form method="POST" id="brForm"><input type="hidden" name="action" value="bulk_renew"><input type="hidden" name="user_ids" id="brIds"></form>
+<form method="POST" id="brForm"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="bulk_renew"><input type="hidden" name="user_ids" id="brIds"></form>
 
 <script>
 let curP=0,curSort='',curDir='desc',curTab='all',selIds=new Set(),ptM='m',ptP='m',ptB='m';

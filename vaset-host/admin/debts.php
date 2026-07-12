@@ -1,6 +1,10 @@
 <?php
 require_once '../includes/config.php';
 requireAdmin();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 $message = '';
 
@@ -213,7 +217,7 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
       <div class="modal-title" id="modalTitle">مدیریت موجودی</div>
       <button class="modal-close" onclick="document.getElementById('debtModal').style.display='none'">✕</button>
     </div>
-    <form method="POST">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="reseller_id" id="modalResellerId">
       <input type="hidden" name="type" id="modalType">
       <div class="modal-body">

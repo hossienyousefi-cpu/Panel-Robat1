@@ -3,6 +3,10 @@ require_once '../includes/config.php';
 require_once '../includes/telegram_api.php';
 require_once '../includes/db_backup.php';
 requireAdmin();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 $message = ''; $error = '';
 
@@ -233,7 +237,7 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
         </div>
       </div>
       <div class="section-body">
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="save_bot_settings">
           <div class="form-group">
             <label>توکن ربات (<?= $botToken !== '' ? 'تنظیم شده' : 'تنظیم نشده' ?>)</label>
@@ -260,11 +264,11 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
               <span class="badge badge-danger">تنظیم نشده</span>
             <?php endif; ?>
           </p>
-          <form method="POST" style="display:inline-block;margin-left:8px">
+          <form method="POST" style="display:inline-block;margin-left:8px"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="action" value="set_webhook">
             <button type="submit" class="btn btn-primary">🔗 تنظیم Webhook روی این آدرس</button>
           </form>
-          <form method="POST" style="display:inline-block">
+          <form method="POST" style="display:inline-block"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="action" value="delete_webhook">
             <button type="submit" class="btn btn-danger">حذف Webhook</button>
           </form>
@@ -283,7 +287,7 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
       </div>
       <div class="section-body">
         <p style="font-size:13px;color:var(--text2);margin-bottom:16px">برای گرفتن Chat ID خودتان: ابتدا توکن بالا را ذخیره و Webhook را تنظیم کنید، بعد به ربات پیام <code>/start</code> بدهید و آیدی چت خودتان را از ربات‌هایی مثل @userinfobot بگیرید.</p>
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="save_my_chat_id">
           <div class="form-group">
             <label>Chat ID فعلی: <?= sanitize((string)($myChatId ?: 'ثبت نشده')) ?></label>
@@ -303,7 +307,7 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
         </div>
       </div>
       <div class="section-body">
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="save_direct_isp">
           <div class="form-group">
             <label>ISP</label>
@@ -332,7 +336,7 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
         </div>
       </div>
       <div class="section-body">
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="save_texts">
           <div class="form-group">
             <label>پیام پشتیبانی</label>
@@ -356,11 +360,11 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
         </div>
       </div>
       <div class="section-body">
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="export_db">
           <button type="submit" class="btn btn-primary">📥 دانلود فایل Export (.sql)</button>
         </form>
-        <form method="POST" enctype="multipart/form-data" style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+        <form method="POST" enctype="multipart/form-data" style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="import_db">
           <div class="form-group">
             <label>فایل .sql برای بازگردانی <span style="font-size:11px;color:var(--danger);font-weight:400">(جدول‌های داخل فایل کامل جایگزین می‌شوند)</span></label>

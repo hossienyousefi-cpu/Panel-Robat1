@@ -2,6 +2,10 @@
 require_once '../includes/config.php';
 require_once '../includes/ibsng_api.php';
 requireAdmin();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 $error = ''; $success = '';
 $ibsGroups = ibsng_getGroups();
@@ -175,7 +179,7 @@ input:focus,select:focus{border-color:var(--acc)}
             <td style="font-weight:700;color:#34d399"><?=number_format((float)$p['price'])?></td>
             <td><?=(int)$p['sort_order']?></td>
             <td>
-              <form method="POST" style="display:inline">
+              <form method="POST" style="display:inline"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
                 <input type="hidden" name="action" value="toggle_active">
                 <input type="hidden" name="id" value="<?=$p['id']?>">
                 <button type="submit" class="badge <?=$p['is_active']?'bok':'ber'?>" style="border:none;cursor:pointer"><?=$p['is_active']?'✅ فعال':'❌ غیرفعال'?></button>
@@ -184,7 +188,7 @@ input:focus,select:focus{border-color:var(--acc)}
             <td>
               <div class="acts">
                 <button class="btn bpu bsm" onclick='openEdit(<?=json_encode($p, JSON_UNESCAPED_UNICODE)?>)'>✏️</button>
-                <form method="POST" style="display:inline" onsubmit="return confirm('حذف این بسته؟')">
+                <form method="POST" style="display:inline" onsubmit="return confirm('حذف این بسته؟')"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
                   <input type="hidden" name="action" value="delete_package">
                   <input type="hidden" name="id" value="<?=$p['id']?>">
                   <button type="submit" class="btn bd bsm">🗑</button>
@@ -206,7 +210,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <div class="mbg" id="pkgM">
   <div class="modal">
     <div class="mh"><div class="mt" id="pkgTitle">➕ بسته جدید</div><button class="mc" onclick="closeM()">✕</button></div>
-    <form method="POST">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="action" value="save_package">
       <input type="hidden" name="id" id="fId" value="">
       <div class="mb">

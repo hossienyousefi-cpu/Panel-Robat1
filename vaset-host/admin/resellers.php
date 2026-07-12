@@ -2,6 +2,10 @@
 require_once '../includes/config.php';
 require_once '../includes/ibsng_api.php';
 requireAdmin();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    die('درخواست نامعتبر است (احتمالاً صفحه قدیمی شده). لطفاً صفحه را رفرش کرده و دوباره امتحان کنید.');
+}
 
 $error = ''; $success = '';
 $ibsGroups = ibsng_getGroups();
@@ -318,7 +322,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
               <div class="acts">
                 <button class="btn bpu bsm" onclick="openSet(<?=$r['id']?>)">⚙️</button>
                 <button class="btn bc bsm" onclick="openReport(<?=$r['id']?>,'<?=sanitize($r['username'])?>')">📊</button>
-                <form method="POST" style="display:inline">
+                <form method="POST" style="display:inline"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
                   <input type="hidden" name="action" value="toggle_status">
                   <input type="hidden" name="reseller_id" value="<?=$r['id']?>">
                   <button type="submit" class="btn <?=$r['status']==='active'?'bd':'bg'?> bsm"><?=$r['status']==='active'?'⏸':'▶'?></button>
@@ -342,7 +346,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <div class="mbg" id="addM">
   <div class="modal msm">
     <div class="mh"><div class="mt">➕ ریسلر جدید</div><button class="mc" onclick="closeM('addM')">✕</button></div>
-    <form method="POST">
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="action" value="add_reseller">
       <div class="mb">
         <div class="fr">
@@ -376,7 +380,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
       <div class="mt">⚙️ تنظیمات: <span id="setName" style="color:var(--acc)">...</span></div>
       <button class="mc" onclick="closeM('setM')">✕</button>
     </div>
-    <form method="POST" id="setForm">
+    <form method="POST" id="setForm"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="action" value="update_settings">
       <input type="hidden" name="reseller_id" id="setRid">
       <div class="mb">
@@ -458,7 +462,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
   </div>
 </div>
 
-<form method="POST" id="delf">
+<form method="POST" id="delf"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
   <input type="hidden" name="action" value="delete_reseller">
   <input type="hidden" name="reseller_id" id="dId">
 </form>
