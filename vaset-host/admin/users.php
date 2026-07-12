@@ -6,8 +6,22 @@ requireAdmin();
 function generatePassword($type,$len){
     $l='abcdefghijkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';
     $d='23456789';
-    $pool=match($type){'letters'=>$l,'digits'=>$d,default=>$l.$d};
+    $pool=match($type){'c','letters'=>$l,'n','digits'=>$d,default=>$l.$d};
     $p='';for($i=0;$i<$len;$i++)$p.=$pool[random_int(0,strlen($pool)-1)];return $p;
+}
+
+// تبدیل الگوی «PREFIX{شروع-پایان}SUFFIX» به لیست یوزرنیم؛ مثلاً TRR{01-20} => TRR01..TRR20
+// عرض صفر-پرشدن از تعداد رقم‌های شروع/پایان نوشته‌شده در الگو گرفته می‌شود.
+function expandBulkPattern($pattern){
+    if(!preg_match('/^(.*)\{(\d+)-(\d+)\}(.*)$/',trim($pattern),$m)) return null;
+    [, $pre, $sStr, $eStr, $post]=$m;
+    $start=(int)$sStr; $end=(int)$eStr;
+    if($end<$start){$t=$start;$start=$end;$end=$t;}
+    $width=max(strlen($sStr),strlen($eStr));
+    $count=min(50,$end-$start+1);
+    $out=[];
+    for($i=0;$i<$count;$i++) $out[]=$pre.str_pad((string)($start+$i),$width,'0',STR_PAD_LEFT).$post;
+    return $out;
 }
 
 $error=$_GET['error']??'';$success=$_GET['success']??'';
@@ -243,7 +257,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     if($act==='toggle_lock'){
         $uid=$_POST['user_id'];$st=$_POST['new_status']??'Disable';
         $rLock=ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>$st]);
-        if($rLock['error']??null){$error='خطا در تغییر وضعیت: '.$rLock['error'];}
+        if($rLock['error']??null){$error='خطا در تغییر وضعیت به «'.$st.'»: '.$rLock['error'];}
         else{header('Location: users.php?success=وضعیت+تغییر+کرد');exit;}
     }
     if($act==='bulk_renew'){
@@ -266,17 +280,19 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         $cnt   =min(50,max(1,(int)($_POST['bulk_count']??5)));
         $grp   =sanitize($_POST['group_name']??'');
         $isp   =sanitize($_POST['isp_name']??'');
-        $pw    =$_POST['password']??'';
-        $ptype =$_POST['pass_type']??'mixed';
+        $ptype =$_POST['pass_type']??'m';
         $plen  =max(4,min(20,(int)($_POST['pass_len']??4)));
-        $uniq  =!empty($_POST['unique_pass']);
         $credit_val=(float)($_POST['credit']??100);
         $created=[];$failed=[];
         $gi=ibsng_call('group.getGroupInfo',['group_name'=>$grp]);
         $ga=$gi['result']['raw_attrs']??[];
-        for($i=1;$i<=$cnt;$i++){
-            $uname=$pfx.'_'.bin2hex(random_bytes(3));
-            $thispw=$uniq?generatePassword($ptype,$plen):$pw;
+        // اگه پیشوند شامل الگوی {شروع-پایان} باشه (مثلا TRR{01-20})، یوزرنیم‌ها از
+        // روی همون بازه ساخته می‌شن و فیلد «تعداد» نادیده گرفته می‌شه؛ وگرنه مثل قبل
+        // پیشوند+رندوم.
+        $patternNames=expandBulkPattern($pfx);
+        $usernames=$patternNames!==null?$patternNames:array_map(fn($i)=>$pfx.'_'.bin2hex(random_bytes(3)),range(1,$cnt));
+        foreach($usernames as $uname){
+            $thispw=generatePassword($ptype,$plen);
             $chk=ibsng_call('user.doesUserExists',['normal_username'=>$uname]);
             if($chk['result']??false){$failed[]=$uname;continue;}
             $r=ibsng_call('user.addNewUsers',['count'=>1,'credit'=>['1'=>$credit_val],'isp_name'=>$isp,'group_name'=>$grp,'credit_comment'=>'ساخت گروهی ادمین']);
@@ -650,8 +666,9 @@ input:focus,select:focus{border-color:var(--acc)}
       <div class="mb">
         <div class="fr">
           <div class="fg"><label class="lbl">تعداد (max 50)</label><input type="number" name="bulk_count" value="5" min="1" max="50"></div>
-          <div class="fg"><label class="lbl">پیشوند</label><input type="text" name="bulk_prefix" value="user"></div>
+          <div class="fg"><label class="lbl">پیشوند</label><input type="text" name="bulk_prefix" value="user" placeholder="user یا TRR{01-20}"></div>
         </div>
+        <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">برای شماره‌گذاری دلخواه از الگوی <b>TRR{01-20}</b> در پیشوند استفاده کن (یوزرنیم‌ها TRR01 تا TRR20 ساخته می‌شن و فیلد تعداد نادیده گرفته می‌شه).</div>
         <div class="fr">
           <div class="fg"><label class="lbl">گروه</label>
             <select name="group_name" required>

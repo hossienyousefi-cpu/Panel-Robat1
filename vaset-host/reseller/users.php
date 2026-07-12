@@ -3,6 +3,19 @@ require_once '../includes/config.php';
 require_once '../includes/ibsng_api.php';
 requireReseller();
 
+// تبدیل الگوی «PREFIX{شروع-پایان}SUFFIX» به لیست یوزرنیم؛ مثلاً TRR{01-20} => TRR01..TRR20
+function expandBulkPattern($pattern){
+    if(!preg_match('/^(.*)\{(\d+)-(\d+)\}(.*)$/',trim($pattern),$m)) return null;
+    [, $pre, $sStr, $eStr, $post]=$m;
+    $start=(int)$sStr; $end=(int)$eStr;
+    if($end<$start){$t=$start;$start=$end;$end=$t;}
+    $width=max(strlen($sStr),strlen($eStr));
+    $count=min(50,$end-$start+1);
+    $out=[];
+    for($i=0;$i<$count;$i++) $out[]=$pre.str_pad((string)($start+$i),$width,'0',STR_PAD_LEFT).$post;
+    return $out;
+}
+
 $rid      = (int)$_SESSION['reseller_id'];
 $stmt     = $pdo->prepare("SELECT * FROM resellers WHERE id=?");
 $stmt->execute([$rid]);
@@ -175,6 +188,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $isp   = $ispName ?: sanitize($_POST['isp_name'] ?? '');
         $ptype = $_POST['pass_type'] ?? 'm';
         $plen  = max(4, min(20, (int)($_POST['pass_len'] ?? 6)));
+        // اگه پیشوند شامل الگوی {شروع-پایان} باشه (مثلا TRR{01-20})، تعداد از روی
+        // همون بازه محاسبه می‌شه (فیلد «تعداد» نادیده گرفته می‌شه)
+        $patternNames = expandBulkPattern($pfx);
+        if ($patternNames !== null) $cnt = count($patternNames);
         if (!$grp || !array_key_exists($grp, $grpData)) { $error = 'گروه نامعتبر'; }
         else {
             $price  = $grpData[$grp] > 0 ? $grpData[$grp] : (float)getSetting('user_create_price', 5000);
@@ -187,8 +204,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ga = $gi['result']['raw_attrs'] ?? [];
                 $created = []; $failed = [];
                 $l = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ'; $d = '23456789';
-                for ($i = 1; $i <= $cnt; $i++) {
-                    $un = $pfx . '_' . bin2hex(random_bytes(3));
+                $usernames = $patternNames !== null ? array_slice($patternNames, 0, $cnt) : array_map(fn($i) => $pfx . '_' . bin2hex(random_bytes(3)), range(1, $cnt));
+                foreach ($usernames as $un) {
                     $pool = $ptype==='n' ? $d : ($ptype==='c' ? $l : $l.$d);
                     $pw = ''; for ($j = 0; $j < $plen; $j++) $pw .= $pool[random_int(0, strlen($pool)-1)];
                     $chk = ibsng_call('user.doesUserExists', ['normal_username' => $un]);
@@ -295,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newSt = sanitize($_POST['new_status'] ?? 'Disable');
         if ($uid2 && in_array($newSt, ['Disable', 'Active', 'Recharged'])) {
             $r2 = ibsng_call('user.changeStatus', ['user_id' => $uid2, 'status' => $newSt]);
-            if ($r2['error'] ?? null) $error = 'خطا: ' . $r2['error'];
+            if ($r2['error'] ?? null) $error = 'خطا در تغییر وضعیت به «' . $newSt . '»: ' . $r2['error'];
             else { header('Location: users.php?success=وضعیت+تغییر+کرد'); exit; }
         }
     }
@@ -601,8 +618,9 @@ input:focus,select:focus{border-color:var(--acc)}
       <div class="mb">
         <div class="fr">
           <div class="fg"><label class="lbl">تعداد (max 50)</label><input type="number" name="bulk_count" value="5" min="1" max="50"></div>
-          <div class="fg"><label class="lbl">پیشوند</label><input type="text" name="bulk_prefix" value="user"></div>
+          <div class="fg"><label class="lbl">پیشوند</label><input type="text" name="bulk_prefix" value="user" placeholder="user یا TRR{01-20}"></div>
         </div>
+        <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">برای شماره‌گذاری دلخواه از الگوی <b>TRR{01-20}</b> در پیشوند استفاده کن (یوزرنیم‌ها TRR01 تا TRR20 ساخته می‌شن و فیلد تعداد نادیده گرفته می‌شه).</div>
         <div class="fg">
           <label class="lbl">گروه</label>
           <select name="group_name" id="bGrp" required>
