@@ -33,25 +33,19 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_stats') {
         $ispOnline[$isp] = ($ispOnline[$isp] ?? 0) + 1;
     }
 
-    // لیست ISP ها
-    $allIsps  = ibsng_call('isp.getAllISPNames', []);
-    $ispList  = $allIsps['result'] ?? [];
+    // لیست ISP ها - فقط تعداد آنلاین هر کدام لازم است (تعداد کل کاربر دیگر نمایش
+    // داده نمی‌شود، پس نیازی به یک فراخوانی searchUser جداگانه به‌ازای هر ISP نیست)
+    $allIsps = ibsng_call('isp.getAllISPNames', []);
+    $ispList = $allIsps['result'] ?? [];
 
-    // تعداد کل کاربران هر ISP - با یک call به searchUser (سریع‌تر)
     $rows = [];
     foreach ($ispList as $ispName) {
-        $sr    = ibsng_call('user.searchUser', ['conds' => ['isp_name' => $ispName], 'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => false]);
-        $total = (int)($sr['result'][0] ?? 0);
-        $rows[] = [
-            'isp'    => $ispName,
-            'total'  => $total,
-            'online' => (int)($ispOnline[$ispName] ?? 0),
-        ];
+        $rows[] = ['isp' => $ispName, 'online' => (int)($ispOnline[$ispName] ?? 0)];
     }
     // ISP هایی که فقط آنلاین هستند ولی در لیست نبودند
     foreach ($ispOnline as $isp => $cnt) {
         if (!in_array($isp, $ispList)) {
-            $rows[] = ['isp' => $isp, 'total' => $cnt, 'online' => $cnt];
+            $rows[] = ['isp' => $isp, 'online' => $cnt];
         }
     }
     usort($rows, fn($a, $b) => $b['online'] <=> $a['online']);
@@ -226,7 +220,6 @@ function load(){
         <div class="isp-name">🌐 ${r.isp}</div>
         <div class="isp-nums">
           <div class="isp-num"><div class="n n-online">${r.online}</div><div class="l">آنلاین</div></div>
-          <div class="isp-num"><div class="n n-total">${r.total}</div><div class="l">کل کاربر</div></div>
         </div>
         <div class="isp-users-list" id="ul_${encodeURIComponent(r.isp)}" style="display:none;margin-top:10px"></div>
       </div>`).join('');

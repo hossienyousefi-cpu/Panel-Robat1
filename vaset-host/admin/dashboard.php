@@ -241,7 +241,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
         <div class="stat-glow"></div>
         <div class="stat-icon">🧑‍💻</div>
         <div class="stat-value"><?= number_format($totalUsers) ?></div>
-        <div class="stat-label">کل کاربران ()</div>
+        <div class="stat-label">کل کاربران</div>
         <div class="stat-sub"><?= number_format($activeUsers) ?> فعال</div>
       </a>
 
@@ -249,7 +249,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
         <div class="stat-glow"></div>
         <div class="stat-icon">🟢</div>
         <div class="stat-value"><?= number_format($onlineCount) ?></div>
-        <div class="stat-label">آنلاین ()</div>
+        <div class="stat-label">آنلاین</div>
         <div class="stat-sub">همین الان</div>
       </a>
 

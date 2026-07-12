@@ -217,7 +217,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $cost = count($created) * $price;
                     $pdo->prepare("UPDATE resellers SET balance=GREATEST(0,balance-?) WHERE id=?")->execute([$cost, $rid]);
                     $balance -= $cost;
+                    session_start();
                     $_SESSION['bulk_result'] = $created;
+                    session_write_close();
                 }
                 $msg = count($created) . ' کاربر ساخته شد' . (count($failed) ? ' | ' . count($failed) . ' خطا' : '');
                 header('Location: users.php?success=' . urlencode($msg)); exit;

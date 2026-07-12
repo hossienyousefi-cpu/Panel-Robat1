@@ -117,6 +117,12 @@ function requireAdmin() {
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('X-Frame-Options: DENY');
     header('X-Content-Type-Options: nosniff');
+    // PHP به‌طور پیش‌فرض فایل سشن را برای کل عمر یک درخواست قفل می‌کند؛ صفحاتی که
+    // چند ثانیه صبر می‌کنند تا با  صحبت کنند (جستجو، ساخت کاربر و ...) باعث می‌شدند
+    // بقیه‌ی تب‌ها/درخواست‌های همون کاربر (که سشن یکسان دارند) هم قفل بمونن و کل
+    // سایت انگار هنگ کنه. چون بعد از این نقطه هیچ صفحه‌ای چیزی توی $_SESSION
+    // نمی‌نویسه، همین‌جا قفل رو آزاد می‌کنیم.
+    session_write_close();
 }
 
 function requireReseller() {
@@ -127,6 +133,7 @@ function requireReseller() {
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('X-Frame-Options: DENY');
     header('X-Content-Type-Options: nosniff');
+    session_write_close();
 }
 
 // ===== لاگ فعالیت =====

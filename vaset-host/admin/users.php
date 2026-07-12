@@ -50,31 +50,62 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             echo json_encode(['total'=>$total,'rows'=>$rows]);exit;
         }
 
-        // جستجو با search یا RAS: pagination کامل بدون hard limit
-        $allUIDs=ibsng_getAllUidsForIsp($conds);
-
-        if(empty($allUIDs)){echo json_encode(['total'=>0,'rows'=>[]]);exit;}
-
-        $infos2=[];
-        foreach(array_chunk($allUIDs,100) as $chunk){
-            $inf2=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
-            if(!empty($inf2['result'])) $infos2+=$inf2['result'];
+        // جستجو: اول یک تلاش سریع با تطبیق مستقیم username روی سرور  (یک request).
+        // فقط اگر جواب نداد (یعنی جستجوی جزئی/partial است یا فقط RAS فیلتر شده) کل
+        // کاربرهای ISP/گروه fetch و در PHP فیلتر می‌شوند - این حالت کند است و فقط
+        // وقتی واقعاً لازم باشد اجرا می‌شود.
+        $filtered=[];
+        $fastTried=false;
+        if($search!==''&&$rasF===''){
+            $fastTried=true;
+            $fastConds=$conds;
+            $fastConds['normal_username']=$search;
+            $fr=ibsng_call('user.searchUser',['conds'=>$fastConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]);
+            $fastUids=$fr['result'][2]??[];
+            if(!empty($fastUids)){
+                $infosF=[];
+                foreach(array_chunk($fastUids,100) as $chunk){
+                    $infR=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
+                    if(!empty($infR['result'])) $infosF+=$infR['result'];
+                }
+                foreach($fastUids as $uid){
+                    $u=$infosF[(string)$uid]??($infosF[$uid]??null);if(!$u)continue;
+                    $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
+                    $un=$attrs['normal_username']??$attrs['username']??'';
+                    $uIsp=$basic['isp_name']??'';
+                    if($ispF!==''&&$uIsp!==$ispF)continue;
+                    $exp=$basic['nearest_exp_date']??'';
+                    $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
+                    $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$uIsp,'ras'=>$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—'),'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+                }
+            }
         }
 
-        $filtered=[];
-        foreach($allUIDs as $uid){
-            $u=$infos2[(string)$uid]??($infos2[$uid]??null);if(!$u)continue;
-            $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
-            $un=$attrs['normal_username']??$attrs['username']??'';
-            if($un===''&&!empty($attrs)) foreach($attrs as $k=>$v) if(stripos($k,'username')!==false&&is_string($v)&&$v!==''){$un=$v;break;}
-            $uIsp=$basic['isp_name']??'';
-            if($ispF!==''&&$uIsp!==$ispF)continue;
-            if($search!==''&&stripos($un,$search)===false)continue;
-            $ras=$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—');
-            if($rasF!==''&&stripos($ras,$rasF)===false)continue;
-            $exp=$basic['nearest_exp_date']??'';
-            $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
-            $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$uIsp,'ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+        if(empty($filtered)){
+            $allUIDs=ibsng_getAllUidsForIsp($conds);
+
+            if(empty($allUIDs)){echo json_encode(['total'=>0,'rows'=>[]]);exit;}
+
+            $infos2=[];
+            foreach(array_chunk($allUIDs,100) as $chunk){
+                $inf2=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
+                if(!empty($inf2['result'])) $infos2+=$inf2['result'];
+            }
+
+            foreach($allUIDs as $uid){
+                $u=$infos2[(string)$uid]??($infos2[$uid]??null);if(!$u)continue;
+                $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
+                $un=$attrs['normal_username']??$attrs['username']??'';
+                if($un===''&&!empty($attrs)) foreach($attrs as $k=>$v) if(stripos($k,'username')!==false&&is_string($v)&&$v!==''){$un=$v;break;}
+                $uIsp=$basic['isp_name']??'';
+                if($ispF!==''&&$uIsp!==$ispF)continue;
+                if($search!==''&&stripos($un,$search)===false)continue;
+                $ras=$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—');
+                if($rasF!==''&&stripos($ras,$rasF)===false)continue;
+                $exp=$basic['nearest_exp_date']??'';
+                $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
+                $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$uIsp,'ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+            }
         }
 
         $total=count($filtered);
@@ -244,7 +275,9 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 $created[]=['u'=>$uname,'p'=>$thispw];
             }
         }
+        session_start();
         $_SESSION['bulk_result']=$created;
+        session_write_close();
         $msg=count($created).' کاربر ساخته شد'.(count($failed)?' | '.count($failed).' خطا':'');
         header('Location: users.php?success='.urlencode($msg));exit;
     }
