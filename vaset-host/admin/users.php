@@ -241,7 +241,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         header('Location: users.php?success=رمز+تغییر+کرد');exit;
     }
     if($act==='toggle_lock'){
-        $uid=$_POST['user_id'];$st=$_POST['new_status']??'Disabled';
+        $uid=$_POST['user_id'];$st=$_POST['new_status']??'Disable';
         $rLock=ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>$st]);
         if($rLock['error']??null){$error='خطا در تغییر وضعیت: '.$rLock['error'];}
         else{header('Location: users.php?success=وضعیت+تغییر+کرد');exit;}
@@ -750,7 +750,7 @@ function renderTable(d,pp){
     const ec=u.days_left===null?'bbl':u.days_left<0?'ber':u.days_left<=7?'bwa':'bok';
     const expT=u.exp+(u.days_left!==null?`<br><span class="badge ${ec}" style="margin-top:2px">${u.days_left<0?'منقضی':u.days_left+'روز'}</span>`:'');
     const pw=`<span class="pass-box">${u.password}</span>`;
-    const isLocked=u.status==='Disabled';
+    const isLocked=u.status==='Disable';
     return `<tr>
       <td><input type="checkbox" class="rcb" value="${u.id}" onchange="onChk(this)"></td>
       <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
@@ -762,7 +762,7 @@ function renderTable(d,pp){
       <td><div class="acts">
         <button class="btn by bsm" onclick="openPM('${u.id}','${u.username}')">🔑</button>
         <button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')">🔄</button>
-        <button class="btn ${isLocked?'bc':'bwa'} bsm" onclick="openLk('${u.id}','${u.username}','${isLocked?'Recharged':'Disabled'}')">${isLocked?'🔓':'🔒'}</button>
+        <button class="btn ${isLocked?'bc':'bwa'} bsm" onclick="openLk('${u.id}','${u.username}','${isLocked?'Recharged':'Disable'}')">${isLocked?'🔓':'🔒'}</button>
         <button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')">🗑</button>
       </div></td>
     </tr>`;
@@ -784,7 +784,7 @@ function openDel(uid,un){document.getElementById('dUid').value=uid;document.getE
 function openLk(uid,un,st){
   document.getElementById('lkUid').value=uid;
   document.getElementById('lkSt').value=st;
-  const lock=st==='Disabled';
+  const lock=st==='Disable';
   document.getElementById('lockTitle').textContent=lock?'🔒 قفل کاربر':'🔓 رفع قفل';
   document.getElementById('lockMsg').textContent=(lock?'کاربر ':'رفع قفل ')+un+(lock?' قفل می‌شود':' می‌شود');
   openM('lockM');
