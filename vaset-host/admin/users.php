@@ -109,6 +109,33 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             }
         }
 
+        // اگر جستجوی سریع (exact/prefix) چیزی پیدا نکرد و هیچ ISP انتخاب نشده، قبل از
+        // اسکن کامل همه‌ی ~15000 کاربر (کند)، یک جستجوی هدفمند و سریع تک‌تک روی هر ISP
+        // امتحان کن (چند request کوچیک به‌جای دانلود کل دیتابیس).
+        if(empty($filtered)&&$search!==''&&$ispF===''&&$rasF===''){
+            foreach(ibsng_getIsps() as $ispTry){
+                $tryConds=$conds;
+                $tryConds['isp_name']=[$ispTry];
+                $tryConds['normal_username']=$search;
+                $tr=ibsng_call('user.searchUser',['conds'=>$tryConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]);
+                $tUids=$tr['result'][2]??[];
+                if(empty($tUids))continue;
+                $infT=[];
+                foreach(array_chunk($tUids,100) as $chunk){
+                    $r3=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
+                    if(!empty($r3['result']))$infT+=$r3['result'];
+                }
+                foreach($tUids as $uid){
+                    $u=$infT[(string)$uid]??($infT[$uid]??null);if(!$u)continue;
+                    $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
+                    $un=$attrs['normal_username']??$attrs['username']??'';
+                    $exp=$basic['nearest_exp_date']??'';
+                    $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
+                    $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??$ispTry,'ras'=>$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—'),'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+                }
+            }
+        }
+
         if(empty($filtered)){
             $allUIDs=ibsng_getAllUidsForIsp($conds);
 

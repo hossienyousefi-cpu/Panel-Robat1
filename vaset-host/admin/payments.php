@@ -17,8 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$req) {
             $error = 'درخواست یافت نشد یا قبلاً بررسی شده';
         } elseif ($action === 'approve') {
-            // کاهش بدهی ریسلر
-            $pdo->prepare("UPDATE resellers SET debt = GREATEST(0, debt - ?) WHERE id=?")->execute([$req['amount'], $req['reseller_id']]);
+            // کاهش بدهی ریسلر و شارژ حساب (مثل شارژ دستی در debts.php)
+            $pdo->prepare("UPDATE resellers SET debt = GREATEST(0, debt - ?), balance = balance + ? WHERE id=?")->execute([$req['amount'], $req['amount'], $req['reseller_id']]);
             // ثبت تراکنش
             $pdo->prepare("INSERT INTO transactions (reseller_id, type, amount, description, created_by_admin) VALUES (?,?,?,?,?)")
                 ->execute([$req['reseller_id'], 'credit', $req['amount'], 'تأیید فیش پرداخت #'.$reqId.($note?" - $note":''), $_SESSION['admin_id']]);
