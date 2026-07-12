@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS telegram_user_links (
 
 -- Default admin (password: Admin@1234)
 INSERT INTO admins (username, password, email) VALUES
-('admin', '$2y$12$xKBPbKBPbKBPbKBPbKBPbOQfHjQfHjQfHjQfHjQfHjQfHjQfHjQf2', 'admin@example.com')
+('admin', '$2y$12$dnZcP2gEvgzn0niZ2lQiu.fpGBZXN61Qp4cGxbes4Ine8kk8xCLw6', 'admin@example.com')
 ON DUPLICATE KEY UPDATE id=id;
 
 -- Default settings
