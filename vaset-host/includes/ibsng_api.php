@@ -154,6 +154,10 @@ function ibsng_getAllUidsForIsp($conds) {
     $batchSize = 500;
     $from      = 0;
     $allUids   = [];
+    // سقف زمانی: اگر شرط isp_name/group_name به هر دلیلی سمت  فیلتر نکند (یا total
+    // درست برنگردد)، این حلقه می‌تواند صدها request پشت‌سرهم بزند و کل هاست را برای
+    // بقیه‌ی کاربران هم کند/بلاک کند. بعد از ۸ ثانیه با هرچی تا الان جمع شده برمی‌گردیم.
+    $deadline = microtime(true) + 8;
     do {
         $r     = ibsng_call('user.searchUser', [
             'conds' => $conds, 'from' => $from, 'to' => $from + $batchSize,
@@ -161,9 +165,10 @@ function ibsng_getAllUidsForIsp($conds) {
         ]);
         $total  = (int)($r['result'][0] ?? 0);
         $batch  = $r['result'][2] ?? [];
+        if (empty($batch)) break;
         $allUids = array_merge($allUids, $batch);
         $from  += $batchSize;
-    } while (count($allUids) < $total && !empty($batch));
+    } while (count($allUids) < $total && microtime(true) < $deadline);
     return $allUids;
 }
 
@@ -213,6 +218,10 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
         return []; // هنوز چیزی نیست
     }
     @file_put_contents($lockFile, time());
+    // اگر اسکریپت به هر دلیل (timeout، خطای بحرانی) وسط راه متوقف شود، این فایل قفل
+    // باقی می‌ماند و تا ۱۲۰ ثانیه بعدی درخواست‌ها را خالی برمی‌گرداند؛ با register_shutdown
+    // مطمئن می‌شویم قفل در هر صورت پاک می‌شود.
+    register_shutdown_function(function () use ($lockFile) { @unlink($lockFile); });
 
     $conds = ['isp_name' => $ispName];
     if ($groupFilter !== '') $conds['group_name'] = $groupFilter;

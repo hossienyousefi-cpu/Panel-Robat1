@@ -31,22 +31,36 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
         if($grpF!=='') $conds['group_name']=$grpF;
         if($ispF!=='') $conds['isp_name']=$ispF;
 
-        // اگر فقط ISP فیلتر است از تابع کش ریسلر استفاده کن
+        // اگر فقط ISP (یا ISP+گروه) فیلتر است، بدون RAS/search: مستقیم همون صفحه‌ی
+        // درخواستی رو از  می‌گیریم (دقیقاً مثل حالت بدون فیلتر پایین این فایل) -
+        // قبلاً اینجا کل کاربرهای آن ISP (تا 15000+) طی ده‌ها request fetch می‌شد که
+        // هم خیلی کند بود و هم می‌توانست منابع هاست را برای بقیه‌ی کاربران هم‌زمان
+        // اشغال کند.
         if($ispF!==''&&$search===''&&$rasF===''){
-            $allRows=ibsng_getIspUsersCache($ispF,$grpF);
-            // credit ندارن - اضافه کن
-            foreach($allRows as &$row) if(!isset($row['credit'])) $row['credit']=0;
-            unset($row);
-            $total=count($allRows);
-            if(!empty($allRows)&&in_array($sortBy,['username','group','isp','ras','exp','status'])){
-                usort($allRows,function($a,$b)use($sortBy,$sortDir){
+            $r=ibsng_call('user.searchUser',['conds'=>$conds,'from'=>$page*$perPage,'to'=>($page+1)*$perPage,'order_by'=>'user_id','desc'=>true]);
+            $total=(int)($r['result'][0]??0);
+            $uids=$r['result'][2]??[];
+            $rows=[];
+            if(!empty($uids)){
+                $inf=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$uids)]);
+                $infos=$inf['result']??[];
+                foreach($uids as $uid){
+                    $u=$infos[$uid]??($infos[(string)$uid]??null);if(!$u)continue;
+                    $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
+                    $exp=$basic['nearest_exp_date']??'';
+                    $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
+                    $ras=$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—');
+                    $rows[]=['id'=>$uid,'username'=>$attrs['normal_username']??'—','password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+                }
+            }
+            if(!empty($rows)&&in_array($sortBy,['username','group','isp','ras','exp','status'])){
+                usort($rows,function($a,$b)use($sortBy,$sortDir){
                     $va=$sortBy==='exp'?($a['exp_ts']??0):strtolower($a[$sortBy]??'');
                     $vb=$sortBy==='exp'?($b['exp_ts']??0):strtolower($b[$sortBy]??'');
                     $cmp=is_numeric($va)?($va<=>$vb):strcmp($va,$vb);
                     return $sortDir==='asc'?$cmp:-$cmp;
                 });
             }
-            $rows=array_slice($allRows,$page*$perPage,$perPage);
             echo json_encode(['total'=>$total,'rows'=>$rows]);exit;
         }
 
@@ -228,8 +242,9 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     }
     if($act==='toggle_lock'){
         $uid=$_POST['user_id'];$st=$_POST['new_status']??'Disabled';
-        ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>$st]);
-        header('Location: users.php?success=وضعیت+تغییر+کرد');exit;
+        $rLock=ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>$st]);
+        if($rLock['error']??null){$error='خطا در تغییر وضعیت: '.$rLock['error'];}
+        else{header('Location: users.php?success=وضعیت+تغییر+کرد');exit;}
     }
     if($act==='bulk_renew'){
         $ids=array_filter(explode(',',$_POST['user_ids']??''));
