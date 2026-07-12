@@ -1,6 +1,9 @@
 -- IBSng Panel Database Schema
-CREATE DATABASE IF NOT EXISTS ibs_panel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE ibs_panel;
+-- توجه: این فایل عمداً CREATE DATABASE/USE ندارد. روی هاست‌های cPanel دیتابیس از قبل
+-- با پیشوند اسم کاربری (مثلاً csdfacij_panel) توسط خودتان ساخته شده و یوزر دیتابیس
+-- معمولاً اجازه‌ی ساخت دیتابیس جدید را ندارد. قبل از Import کردن این فایل در
+-- phpMyAdmin، از سمت چپ همان دیتابیسی که ساختید (نه ibs_panel) را انتخاب کنید تا
+-- جدول‌ها داخل همان دیتابیس درست ساخته شوند.
 
 -- Admins table
 CREATE TABLE IF NOT EXISTS admins (
