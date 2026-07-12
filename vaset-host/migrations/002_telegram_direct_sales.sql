@@ -4,7 +4,18 @@
 -- از طریق phpMyAdmin روی دیتابیس همین سیستم اجرا کنید.
 
 -- ===== چت آیدی تلگرام ادمین (برای اعلان سفارش‌ها و دستورات کنترلی) =====
-ALTER TABLE admins ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(32) DEFAULT NULL;
+-- «ADD COLUMN IF NOT EXISTS» روی نسخه‌های قدیمی‌تر MySQL/MariaDB وجود ندارد، پس با
+-- information_schema چک می‌کنیم که آیا ستون از قبل هست یا نه.
+SET @col_exists = (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admins' AND COLUMN_NAME = 'telegram_chat_id'
+);
+SET @sql = IF(@col_exists = 0,
+    'ALTER TABLE admins ADD COLUMN telegram_chat_id VARCHAR(32) DEFAULT NULL',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ===== مشتریان مستقیم ربات تلگرام =====
 CREATE TABLE IF NOT EXISTS telegram_customers (
@@ -88,8 +99,8 @@ CREATE TABLE IF NOT EXISTS reseller_groups (
     FOREIGN KEY (reseller_id) REFERENCES resellers(id)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-ALTER TABLE resellers ADD COLUMN IF NOT EXISTS balance DECIMAL(10,2) DEFAULT 0.00;
-ALTER TABLE resellers ADD COLUMN IF NOT EXISTS debt DECIMAL(10,2) DEFAULT 0.00;
+-- balance/debt از همان نسخه‌ی اول install.sql همیشه در resellers بوده‌اند، نیازی به
+-- ALTER جداگانه نیست.
 
 -- ===== تنظیمات جدید =====
 -- ibs_api_url جایگزین ibs_url قدیمی (که برای XML-RPC بود و includes/ibsng_api.php

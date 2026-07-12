@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS admins (
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(100),
+    telegram_chat_id VARCHAR(32) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -35,11 +36,6 @@ CREATE TABLE IF NOT EXISTS resellers (
     created_by INT,
     FOREIGN KEY (created_by) REFERENCES admins(id)
 );
-
--- Migration برای نصب‌های قدیمی
-ALTER TABLE resellers ADD COLUMN IF NOT EXISTS isp_name VARCHAR(100) DEFAULT NULL;
-ALTER TABLE resellers ADD COLUMN IF NOT EXISTS can_delete_users TINYINT(1) DEFAULT 0;
-ALTER TABLE resellers ADD COLUMN IF NOT EXISTS can_renew_users TINYINT(1) DEFAULT 1;
 
 -- Users (created by resellers)
 CREATE TABLE IF NOT EXISTS users (
@@ -121,8 +117,6 @@ CREATE TABLE IF NOT EXISTS reseller_groups (
 );
 
 -- ===== ربات تلگرام مشتریان مستقیم =====
-ALTER TABLE admins ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(32) DEFAULT NULL;
-
 CREATE TABLE IF NOT EXISTS telegram_customers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     chat_id VARCHAR(32) UNIQUE NOT NULL,
