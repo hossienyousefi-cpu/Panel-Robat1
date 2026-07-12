@@ -8,19 +8,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if ($username && $password) {
-        $stmt = $pdo->prepare("SELECT * FROM admins WHERE username = ?");
-        $stmt->execute([$username]);
-        $admin = $stmt->fetch();
-
-        if ($admin && password_verify($password, $admin['password'])) {
-            $_SESSION['admin_id'] = $admin['id'];
-            $_SESSION['admin_username'] = $admin['username'];
-            session_regenerate_id(true);
-            logActivity('admin', $admin['id'], 'login', 'Admin logged in');
-            header('Location: dashboard.php');
-            exit;
+        if (!checkLoginRateLimit($username)) {
+            $error = 'تعداد تلاش‌های ناموفق بیش از حد مجاز است. چند دقیقه دیگر دوباره امتحان کنید.';
         } else {
-            $error = 'نام کاربری یا رمز عبور اشتباه است';
+            $stmt = $pdo->prepare("SELECT * FROM admins WHERE username = ?");
+            $stmt->execute([$username]);
+            $admin = $stmt->fetch();
+
+            if ($admin && password_verify($password, $admin['password'])) {
+                $_SESSION['admin_id'] = $admin['id'];
+                $_SESSION['admin_username'] = $admin['username'];
+                session_regenerate_id(true);
+                logActivity('admin', $admin['id'], 'login', 'Admin logged in');
+                header('Location: dashboard.php');
+                exit;
+            } else {
+                logActivity('login_fail', 0, 'login_fail', $username);
+                $error = 'نام کاربری یا رمز عبور اشتباه است';
+            }
         }
     }
 }

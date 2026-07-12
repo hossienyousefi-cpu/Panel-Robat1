@@ -22,10 +22,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $allowed = ['jpg','jpeg','png','pdf','webp'];
         $maxSize = 5 * 1024 * 1024;
 
+        // بررسی نوع واقعی فایل (نه فقط پسوند اسمی) تا کسی نتونه یه فایل اجرایی رو
+        // با پسوند jpg/png آپلود کنه
+        $realMime = @mime_content_type($file['tmp_name']);
+        $mimeOk = in_array($realMime, ['image/jpeg','image/png','image/webp','application/pdf'], true);
+
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $error = 'خطا در آپلود فایل: ' . $file['error'];
         } elseif (!in_array($ext, $allowed)) {
             $error = 'فرمت فایل مجاز نیست (jpg, png, pdf)';
+        } elseif (!$mimeOk) {
+            $error = 'محتوای فایل با فرمت مجاز (تصویر یا PDF) مطابقت ندارد';
         } elseif ($file['size'] > $maxSize) {
             $error = 'حجم فایل نباید بیشتر از ۵ مگابایت باشد';
         } else {

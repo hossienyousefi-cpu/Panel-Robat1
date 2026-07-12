@@ -1,0 +1,10 @@
+# بکاپ‌های دیتابیس شامل همه‌ی اطلاعات حساس (هش پسوردها، مشخصات ریسلرها و ...)
+# هستن و فقط باید از طریق admin/telegram.php (با لاگین ادمین) دانلود بشن، نه
+# مستقیم با آدرس فایل.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

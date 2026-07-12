@@ -1,0 +1,17 @@
+# این پوشه فقط برای آپلود فایل (فیش پرداخت، بکاپ و ...) استفاده می‌شه؛ هیچ فایلی
+# داخلش نباید به‌عنوان کد اجرا بشه، حتی اگه یه فایل php با نام/پسوند جعلی آپلود شده باشه.
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+<FilesMatch "\.(php|phtml|php\d?|phar|cgi|pl|py|sh)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

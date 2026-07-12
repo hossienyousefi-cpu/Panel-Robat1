@@ -8,20 +8,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if ($username && $password) {
-        $stmt = $pdo->prepare("SELECT * FROM resellers WHERE username = ? AND status = 'active'");
-        $stmt->execute([$username]);
-        $reseller = $stmt->fetch();
-
-        if ($reseller && password_verify($password, $reseller['password'])) {
-            $_SESSION['reseller_id'] = $reseller['id'];
-            $_SESSION['reseller_username'] = $reseller['username'];
-            $_SESSION['reseller_name'] = $reseller['full_name'];
-            session_regenerate_id(true);
-            logActivity('reseller', $reseller['id'], 'login', 'Reseller logged in');
-            header('Location: dashboard.php');
-            exit;
+        if (!checkLoginRateLimit($username)) {
+            $error = 'تعداد تلاش‌های ناموفق بیش از حد مجاز است. چند دقیقه دیگر دوباره امتحان کنید.';
         } else {
-            $error = 'نام کاربری یا رمز عبور اشتباه است یا حساب غیرفعال است';
+            $stmt = $pdo->prepare("SELECT * FROM resellers WHERE username = ? AND status = 'active'");
+            $stmt->execute([$username]);
+            $reseller = $stmt->fetch();
+
+            if ($reseller && password_verify($password, $reseller['password'])) {
+                $_SESSION['reseller_id'] = $reseller['id'];
+                $_SESSION['reseller_username'] = $reseller['username'];
+                $_SESSION['reseller_name'] = $reseller['full_name'];
+                session_regenerate_id(true);
+                logActivity('reseller', $reseller['id'], 'login', 'Reseller logged in');
+                header('Location: dashboard.php');
+                exit;
+            } else {
+                logActivity('login_fail', 0, 'login_fail', $username);
+                $error = 'نام کاربری یا رمز عبور اشتباه است یا حساب غیرفعال است';
+            }
         }
     }
 }

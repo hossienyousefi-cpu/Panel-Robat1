@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS users (
     ibs_username VARCHAR(50),
     ibs_uid VARCHAR(50),
     package_name VARCHAR(100),
+    isp_name VARCHAR(100),
     duration_days INT DEFAULT 30,
     price DECIMAL(10,2) DEFAULT 0.00,
     start_date DATE,

@@ -1,0 +1,10 @@
+# جلوگیری از دسترسی مستقیم به فایل‌های داخل includes (شامل config.php که رمز
+# دیتابیس و IBSng رو داره). این فایل‌ها فقط باید توسط require_once از اسکریپت‌های
+# دیگه لود بشن، نه مستقیم توی مرورگر باز بشن.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

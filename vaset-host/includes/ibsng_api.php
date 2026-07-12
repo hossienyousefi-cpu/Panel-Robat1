@@ -177,7 +177,9 @@ function ibsng_uidToRow($uid, $u, $ispName) {
     $basic = $u['basic_info'] ?? []; $attrs = $u['attrs'] ?? [];
     $un = $attrs['normal_username'] ?? $attrs['username'] ?? '';
     if ($un === '') foreach ($attrs as $k=>$v) if(stripos($k,'username')!==false&&is_string($v)&&$v!==''){$un=$v;break;}
-    if (!empty($basic['isp_name']) && $basic['isp_name'] !== $ispName) return null;
+    // فیلتر ISP همین الان توی خود کوئری (conds['isp_name']) روی  انجام می‌شه؛ چک
+    // دوباره‌ی اینجا فقط باعث می‌شد اگه رشته‌ی isp_name برگشتی از  با فاصله/حروف
+    // کمی فرق داشت (که پیش میومد)، ردیف‌های درست هم بی‌صدا حذف بشن.
     $exp = $basic['nearest_exp_date'] ?? '';
     $et  = $exp ? strtotime($exp) : 0;
     $dL  = $et ? (int)(($et - time()) / 86400) : null;

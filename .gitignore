@@ -11,6 +11,7 @@
 /vaset-host/uploads/logo.*
 /vaset-host/uploads/backups/*
 !/vaset-host/uploads/backups/.gitkeep
+!/vaset-host/uploads/backups/.htaccess
 
 # OS / editor
 .DS_Store
