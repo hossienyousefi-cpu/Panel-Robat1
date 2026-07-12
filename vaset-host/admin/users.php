@@ -263,10 +263,14 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         $gi=ibsng_call('group.getGroupInfo',['group_name'=>$gn]);
         $gc=$gi['result']['attrs']['group_credit']??($basic['credit']??100);
         $ga=$gi['result']['raw_attrs']??[];
-        ibsng_call('user.changeCredit',['user_id'=>$uid,'credit'=>(float)$gc,'is_absolute_change'=>true,'credit_comment'=>'تمدید توسط ادمین']);
-        if(!empty($ga['rel_exp_date'])){$m=max(1,(int)round((int)$ga['rel_exp_date']/(30*24*3600)));ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['abs_exp_date'=>$m,'abs_exp_date_unit'=>'months'],'to_del_attrs'=>[]]);}
-        ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>'Recharged']);
-        header('Location: users.php?success=تمدید+شد');exit;
+        $rCredit=ibsng_call('user.changeCredit',['user_id'=>$uid,'credit'=>(float)$gc,'is_absolute_change'=>true,'credit_comment'=>'تمدید توسط ادمین']);
+        $rExp=null;
+        if(!empty($ga['rel_exp_date'])){$m=max(1,(int)round((int)$ga['rel_exp_date']/(30*24*3600)));$rExp=ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['abs_exp_date'=>$m,'abs_exp_date_unit'=>'months'],'to_del_attrs'=>[]]);}
+        $rStatus=ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>'Recharged']);
+        if($rCredit['error']??null){$error='خطا در شارژ اعتبار: '.$rCredit['error'];}
+        elseif($rExp&&($rExp['error']??null)){$error='خطا در تمدید تاریخ انقضا: '.$rExp['error'];}
+        elseif($rStatus['error']??null){$error='خطا در تغییر وضعیت به «Recharged»: '.$rStatus['error'];}
+        else{header('Location: users.php?success=تمدید+شد');exit;}
     }
     if($act==='delete_user'){
         $uid=$_POST['user_id'];
@@ -293,17 +297,20 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     }
     if($act==='bulk_renew'){
         $ids=array_filter(explode(',',$_POST['user_ids']??''));
+        $okCount=0;$failCount=0;
         foreach($ids as $uid){
             $inf=ibsng_call('user.getUserInfo',['user_id'=>$uid]);
             $basic=$inf['result'][$uid]['basic_info']??[];$gn=$basic['group_name']??'';
             $gi=ibsng_call('group.getGroupInfo',['group_name'=>$gn]);
             $gc=$gi['result']['attrs']['group_credit']??($basic['credit']??100);
             $ga=$gi['result']['raw_attrs']??[];
-            ibsng_call('user.changeCredit',['user_id'=>$uid,'credit'=>(float)$gc,'is_absolute_change'=>true,'credit_comment'=>'تمدید گروهی']);
+            $rCredit=ibsng_call('user.changeCredit',['user_id'=>$uid,'credit'=>(float)$gc,'is_absolute_change'=>true,'credit_comment'=>'تمدید گروهی']);
             if(!empty($ga['rel_exp_date'])){$m=max(1,(int)round((int)$ga['rel_exp_date']/(30*24*3600)));ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['abs_exp_date'=>$m,'abs_exp_date_unit'=>'months'],'to_del_attrs'=>[]]);}
-            ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>'Recharged']);
+            $rStatus=ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>'Recharged']);
+            if(($rCredit['error']??null)||($rStatus['error']??null)) $failCount++; else $okCount++;
         }
-        header('Location: users.php?success='.count($ids).'+کاربر+تمدید+شد');exit;
+        $msg=$okCount.'+کاربر+تمدید+شد'.($failCount?'+|+'.$failCount.'+خطا':'');
+        header('Location: users.php?success='.$msg);exit;
     }
     // ساخت گروهی
     if($act==='bulk_create'){

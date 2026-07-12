@@ -277,22 +277,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $price = $grpData[$gn] ?? (float)getSetting('user_create_price', 5000);
             if ($balance < $price && $price > 0) { $error = 'موجودی کافی نیست'; }
             else {
-                ibsng_call('user.changeCredit', ['user_id' => $uid2, 'credit' => (float)$gc,
+                $rCredit = ibsng_call('user.changeCredit', ['user_id' => $uid2, 'credit' => (float)$gc,
                     'is_absolute_change' => true, 'credit_comment' => 'تمدید توسط ریسلر']);
+                $rExp = null;
                 if (!empty($ga['rel_exp_date'])) {
                     $m = max(1, (int)round((int)$ga['rel_exp_date'] / (30*24*3600)));
-                    ibsng_call('user.updateUserAttrs', ['user_id' => $uid2,
+                    $rExp = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2,
                         'attrs' => ['abs_exp_date' => $m, 'abs_exp_date_unit' => 'months'], 'to_del_attrs' => []]);
                 }
-                ibsng_call('user.changeStatus', ['user_id' => $uid2, 'status' => 'Recharged']);
-                if ($price > 0) {
-                    $pdo->prepare("UPDATE resellers SET balance=GREATEST(0,balance-?) WHERE id=?")->execute([$price, $rid]);
-                    $pdo->prepare("INSERT INTO transactions (reseller_id,type,amount,description) VALUES (?,?,?,?)")
-                        ->execute([$rid, 'renew', $price, 'تمدید کاربر']);
-                    $balance -= $price;
+                $rStatus = ibsng_call('user.changeStatus', ['user_id' => $uid2, 'status' => 'Recharged']);
+                if ($rCredit['error'] ?? null) { $error = 'خطا در شارژ اعتبار: ' . $rCredit['error']; }
+                elseif ($rExp && ($rExp['error'] ?? null)) { $error = 'خطا در تمدید تاریخ انقضا: ' . $rExp['error']; }
+                elseif ($rStatus['error'] ?? null) { $error = 'خطا در تغییر وضعیت به «Recharged»: ' . $rStatus['error']; }
+                else {
+                    if ($price > 0) {
+                        $pdo->prepare("UPDATE resellers SET balance=GREATEST(0,balance-?) WHERE id=?")->execute([$price, $rid]);
+                        $pdo->prepare("INSERT INTO transactions (reseller_id,type,amount,description) VALUES (?,?,?,?)")
+                            ->execute([$rid, 'renew', $price, 'تمدید کاربر']);
+                        $balance -= $price;
+                    }
+                    ibsng_clearCache('isp_full_*.json');
+                    header('Location: users.php?success=تمدید+شد'); exit;
                 }
-                ibsng_clearCache('isp_full_*.json');
-                header('Location: users.php?success=تمدید+شد'); exit;
             }
         }
     }
@@ -323,7 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($act === 'bulk_renew' && $canRenew) {
         $ids = array_filter(explode(',', $_POST['user_ids'] ?? ''));
-        $ok  = 0;
+        $ok  = 0; $fail = 0;
         foreach ($ids as $uid2) {
             $uid2  = trim($uid2);
             $inf   = ibsng_call('user.getUserInfo', ['user_id' => $uid2]);
@@ -333,17 +339,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $gi = ibsng_call('group.getGroupInfo', ['group_name' => $gn]);
             $gc = $gi['result']['attrs']['group_credit'] ?? ($basic['credit'] ?? 100);
             $ga = $gi['result']['raw_attrs'] ?? [];
-            ibsng_call('user.changeCredit', ['user_id' => $uid2, 'credit' => (float)$gc,
+            $rCredit = ibsng_call('user.changeCredit', ['user_id' => $uid2, 'credit' => (float)$gc,
                 'is_absolute_change' => true, 'credit_comment' => 'تمدید گروهی']);
             if (!empty($ga['rel_exp_date'])) {
                 $m = max(1, (int)round((int)$ga['rel_exp_date'] / (30*24*3600)));
                 ibsng_call('user.updateUserAttrs', ['user_id' => $uid2,
                     'attrs' => ['abs_exp_date' => $m, 'abs_exp_date_unit' => 'months'], 'to_del_attrs' => []]);
             }
-            ibsng_call('user.changeStatus', ['user_id' => $uid2, 'status' => 'Recharged']);
-            $ok++;
+            $rStatus = ibsng_call('user.changeStatus', ['user_id' => $uid2, 'status' => 'Recharged']);
+            if (($rCredit['error'] ?? null) || ($rStatus['error'] ?? null)) $fail++; else $ok++;
         }
-        header('Location: users.php?success=' . $ok . '+کاربر+تمدید+شد'); exit;
+        $msg = $ok . '+کاربر+تمدید+شد' . ($fail ? '+|+' . $fail . '+خطا' : '');
+        header('Location: users.php?success=' . $msg); exit;
     }
 }
 
