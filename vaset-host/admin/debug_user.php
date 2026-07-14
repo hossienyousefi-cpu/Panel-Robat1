@@ -22,23 +22,37 @@ if ($username !== '') {
         $raw = $inf['result'] ?? $inf;
     }
 }
+$ispCandidates = [];
 if ($ispName !== '') {
-    // خروجی خام searchUser فقط با فیلتر ISP (بدون یوزرنیم) - برای دیدن اینکه
-    // conds['isp_name'] واقعاً روی  فیلتر می‌کنه یا نه، بدون حدس زدن.
-    $r2 = ibsng_call('user.searchUser', [
-        'conds' => ['isp_name' => [$ispName]],
-        'from' => 0, 'to' => 10, 'order_by' => 'user_id', 'desc' => true,
-    ]);
-    $ispUids = $r2['result'][2] ?? [];
-    $ispInfos = [];
-    if (!empty($ispUids)) {
-        $ii = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $ispUids)]);
-        foreach ($ispUids as $u) {
-            $row = $ii['result'][$u] ?? $ii['result'][(string)$u] ?? null;
-            $ispInfos[$u] = $row['basic_info']['isp_name'] ?? '(نامشخص)';
+    // isp_name به‌صورت آرایه هیچ فیلتری اعمال نمی‌کرد (total همیشه کل کاربرها بود) -
+    // پس چند شکل مختلف conds رو موازی امتحان می‌کنیم تا بدون حدس زدن بیشتر ببینیم
+    // کدومش واقعاً روی  فیلتر می‌کنه.
+    $shapes = [
+        "isp_name => ['{$ispName}']"      => ['isp_name' => [$ispName]],
+        "isp_name => '{$ispName}'"        => ['isp_name' => $ispName],
+        "isp_name_1 => '{$ispName}'"      => ['isp_name_1' => $ispName],
+        "isp => ['{$ispName}']"           => ['isp' => [$ispName]],
+        "isp => '{$ispName}'"             => ['isp' => $ispName],
+        "owner_isp => ['{$ispName}']"     => ['owner_isp' => [$ispName]],
+        "owner_isp => '{$ispName}'"       => ['owner_isp' => $ispName],
+    ];
+    foreach ($shapes as $label => $conds) {
+        $rr = ibsng_call('user.searchUser', [
+            'conds' => $conds, 'from' => 0, 'to' => 5, 'order_by' => 'user_id', 'desc' => true,
+        ]);
+        $total = $rr['result'][0] ?? null;
+        $uids  = $rr['result'][2] ?? [];
+        $actualIsps = [];
+        if (!empty($uids)) {
+            $ii = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $uids)]);
+            foreach ($uids as $u) {
+                $row = $ii['result'][$u] ?? $ii['result'][(string)$u] ?? null;
+                $actualIsps[] = $row['basic_info']['isp_name'] ?? '?';
+            }
         }
+        $matches = $total !== null && !empty($actualIsps) && count(array_unique($actualIsps)) === 1 && $actualIsps[0] === $ispName;
+        $ispCandidates[$label] = ['total' => $total, 'uids' => $uids, 'actual_isps' => $actualIsps, 'looks_correct' => $matches, 'error' => $rr['error'] ?? null];
     }
-    $ispRaw = ['total' => $r2['result'][0] ?? null, 'uids' => $ispUids, 'actual_isp_of_each_uid' => $ispInfos, 'raw' => $r2];
 }
 ?>
 <!DOCTYPE html>
@@ -69,17 +83,25 @@ a{color:#60a5fa}
 <pre><?=htmlspecialchars(json_encode($raw, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
 <?php endif;?>
 
-<h2>خروجی خام IBSng فقط با فیلتر ISP (بدون یوزرنیم)</h2>
+<h2>تست چند شکل مختلف فیلتر ISP (بدون یوزرنیم)</h2>
 <form method="GET">
   <input type="text" name="isp" placeholder="اسم دقیق ISP، مثلاً Milad" value="<?=htmlspecialchars($ispName)?>">
-  <button type="submit">نمایش</button>
+  <button type="submit">تست همه</button>
 </form>
-<?php if($ispRaw!==null):?>
-<p>تعداد کل گزارش‌شده: <b><?=htmlspecialchars((string)($ispRaw['total']??'?'))?></b> — UIDهای برگشتی: <b><?=count($ispRaw['uids'])?></b></p>
-<p>ISP واقعی هر UID برگشتی (باید همه برابر با ISP جستجوشده باشند):</p>
-<pre><?=htmlspecialchars(json_encode($ispRaw['actual_isp_of_each_uid'], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
-<p>پاسخ خام کامل:</p>
-<pre><?=htmlspecialchars(json_encode($ispRaw['raw'], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
+<?php if(!empty($ispCandidates)):?>
+<p>هر ردیف یک شکل مختلف از conds هست. اگه یکیشون واقعاً درست باشه، total باید خیلی کمتر از کل کاربرها باشه و ستون "درسته؟" باید ✅ باشه.</p>
+<table style="width:100%;border-collapse:collapse;margin-bottom:20px" border="1" cellpadding="8">
+<tr style="background:#1e293b"><th>شکل conds</th><th>total</th><th>ISPهای واقعی برگشتی</th><th>درسته؟</th><th>خطا</th></tr>
+<?php foreach($ispCandidates as $label=>$c):?>
+<tr>
+  <td><code><?=htmlspecialchars($label)?></code></td>
+  <td><?=htmlspecialchars((string)($c['total']??'?'))?></td>
+  <td><?=htmlspecialchars(implode(', ', $c['actual_isps']))?></td>
+  <td><?=$c['looks_correct']?'✅':'❌'?></td>
+  <td><?=htmlspecialchars((string)($c['error']??''))?></td>
+</tr>
+<?php endforeach;?>
+</table>
 <?php endif;?>
 </body>
 </html>
