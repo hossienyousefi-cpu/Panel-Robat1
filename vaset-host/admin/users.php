@@ -296,7 +296,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         // Locked" توی خود پنل ) - نه یک مقدار status. با updateUserAttrs تنظیم می‌شه.
         $uid=$_POST['user_id'];$st=$_POST['new_status']??'Disable';
         $lock=($st==='Disable');
-        $rLock=ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['is_locked'=>$lock],'to_del_attrs'=>[]]);
+        $rLock=ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['lock'=>$lock],'to_del_attrs'=>[]]);
         if($rLock['error']??null){$error='خطا در '.($lock?'قفل کردن':'رفع قفل').': '.$rLock['error'];}
         else{header('Location: users.php?success='.($lock?'کاربر+قفل+شد':'قفل+برداشته+شد'));exit;}
     }

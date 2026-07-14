@@ -324,7 +324,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newSt = sanitize($_POST['new_status'] ?? 'Disable');
         if ($uid2 && in_array($newSt, ['Disable', 'Recharged'])) {
             $lock = ($newSt === 'Disable');
-            $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => ['is_locked' => $lock], 'to_del_attrs' => []]);
+            $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => ['lock' => $lock], 'to_del_attrs' => []]);
             if ($r2['error'] ?? null) $error = 'خطا در ' . ($lock ? 'قفل کردن' : 'رفع قفل') . ': ' . $r2['error'];
             else { header('Location: users.php?success=' . ($lock ? 'کاربر+قفل+شد' : 'قفل+برداشته+شد')); exit; }
         }
