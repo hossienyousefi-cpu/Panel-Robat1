@@ -90,6 +90,38 @@ if ($ispName !== '') {
             'tried_group' => $groups[0], 'total' => $rGrp['result'][0] ?? null, 'actual_groups' => $gActual,
         ];
     }
+
+    // ۴) خروجی کامل و خام getUserInfo برای یک کاربر شناخته‌شده‌ی این ISP (بدون
+    // محدود کردن به basic_info.isp_name) - شاید یک فیلد id عددی برای ISP هم توی
+    // پاسخ باشه که ما تا الان نادیده گرفتیمش.
+    $anyIspUids = $ispCandidates["isp_name => ['{$ispName}']"]['uids'] ?? [];
+    if (!empty($anyIspUids)) {
+        $fullDump = ibsng_call('user.getUserInfo', ['user_id' => (string)$anyIspUids[0]]);
+        $sanityChecks['full_user_dump'] = ['uid' => $anyIspUids[0], 'raw' => $fullDump];
+    }
+
+    // ۵) حدس زدن isp_id عددی (شاید ترتیب الفبایی اسم‌ها id واقعی نباشه، ولی امتحانش
+    // ارزش داره) - برای هر عدد از ۱ تا ۱۰ چک می‌کنیم total چقدره
+    $idGuesses = [];
+    for ($i = 1; $i <= 10; $i++) {
+        $rId = ibsng_call('user.searchUser', [
+            'conds' => ['isp_id' => $i], 'from' => 0, 'to' => 3, 'order_by' => 'user_id', 'desc' => true,
+        ]);
+        $total = $rId['result'][0] ?? null;
+        if ($total !== null && (int)$total !== 15315) {
+            $idUids = $rId['result'][2] ?? [];
+            $idActual = [];
+            if (!empty($idUids)) {
+                $iu = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $idUids)]);
+                foreach ($idUids as $u) {
+                    $row = $iu['result'][$u] ?? $iu['result'][(string)$u] ?? null;
+                    $idActual[] = $row['basic_info']['isp_name'] ?? '?';
+                }
+            }
+            $idGuesses[$i] = ['total' => $total, 'actual_isps' => $idActual];
+        }
+    }
+    if (!empty($idGuesses)) $sanityChecks['isp_id_guesses'] = $idGuesses;
 }
 ?>
 <!DOCTYPE html>
@@ -156,6 +188,16 @@ a{color:#60a5fa}
 <p>۲) فیلتر group_name با گروه "<?=htmlspecialchars($g['tried_group'])?>": total=<b><?=htmlspecialchars((string)($g['total']??'?'))?></b>،
 گروه‌های واقعی برگشتی: <b><?=htmlspecialchars(implode(', ', $g['actual_groups']))?></b>
 (اگه همه‌شون همون گروه باشن یعنی group_name درست فیلتر می‌کنه و مشکل فقط مال ISP هست؛ اگه نه، یعنی همه‌ی فیلترهای چندانتخابی خراب‌ان)</p>
+<?php endif;?>
+<?php if(isset($sanityChecks['full_user_dump'])): $fd=$sanityChecks['full_user_dump'];?>
+<p>۳) خروجی خام و کامل getUserInfo برای uid=<?=htmlspecialchars((string)$fd['uid'])?> (این کاربر توی همون ISP هست) - دنبال هر فیلد عددی مربوط به ISP بگرد (مثلاً چیزی شبیه isp_id):</p>
+<pre><?=htmlspecialchars(json_encode($fd['raw'], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
+<?php endif;?>
+<?php if(isset($sanityChecks['isp_id_guesses'])):?>
+<p>۴) حدس عددی isp_id که total غیر از کل کاربرها داشتن:</p>
+<pre><?=htmlspecialchars(json_encode($sanityChecks['isp_id_guesses'], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
+<?php else:?>
+<p>۴) هیچ‌کدوم از isp_id های ۱ تا ۱۰ روی total تأثیری نداشتن (یا همه دقیقاً 15315 برگردوندن).</p>
 <?php endif;?>
 <?php endif;?>
 </body>
