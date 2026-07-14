@@ -100,15 +100,29 @@ if ($ispName !== '') {
         $sanityChecks['full_user_dump'] = ['uid' => $anyIspUids[0], 'raw' => $fullDump];
     }
 
-    // ۵) حدس زدن isp_id عددی (شاید ترتیب الفبایی اسم‌ها id واقعی نباشه، ولی امتحانش
-    // ارزش داره) - برای هر عدد از ۱ تا ۱۰ چک می‌کنیم total چقدره
+    // ۵) حالا که فهمیدیم Milad دقیقاً isp_id=6 داره (از دامپ کامل بالا)، چند شکل
+    // مختلف رو مستقیم با همین id امتحان می‌کنیم - شامل حالتی که فیلدهای عددی مثل
+    // Credit1 توی فرم اصلی یک عملگر (isp_id_op=equals) هم دارن.
+    $realIspId = null;
+    if (!empty($sanityChecks['full_user_dump']['raw']['result'])) {
+        $firstRow = reset($sanityChecks['full_user_dump']['raw']['result']);
+        $realIspId = $firstRow['basic_info']['isp_id'] ?? null;
+    }
     $idGuesses = [];
-    for ($i = 1; $i <= 10; $i++) {
-        $rId = ibsng_call('user.searchUser', [
-            'conds' => ['isp_id' => $i], 'from' => 0, 'to' => 3, 'order_by' => 'user_id', 'desc' => true,
-        ]);
-        $total = $rId['result'][0] ?? null;
-        if ($total !== null && (int)$total !== 15315) {
+    if ($realIspId !== null) {
+        $idShapes = [
+            "isp_id => {$realIspId}"                         => ['isp_id' => $realIspId],
+            "isp_id => '{$realIspId}'"                       => ['isp_id' => (string)$realIspId],
+            "isp_id => [{$realIspId}]"                        => ['isp_id' => [$realIspId]],
+            "isp_id+op='=' "                                  => ['isp_id' => $realIspId, 'isp_id_op' => '='],
+            "isp_id+op='equals'"                              => ['isp_id' => $realIspId, 'isp_id_op' => 'equals'],
+            "group_id => 1 (sanity, matches earlier group)"   => ['group_id' => 1],
+        ];
+        foreach ($idShapes as $label => $conds) {
+            $rId = ibsng_call('user.searchUser', [
+                'conds' => $conds, 'from' => 0, 'to' => 5, 'order_by' => 'user_id', 'desc' => true,
+            ]);
+            $total = $rId['result'][0] ?? null;
             $idUids = $rId['result'][2] ?? [];
             $idActual = [];
             if (!empty($idUids)) {
@@ -118,7 +132,7 @@ if ($ispName !== '') {
                     $idActual[] = $row['basic_info']['isp_name'] ?? '?';
                 }
             }
-            $idGuesses[$i] = ['total' => $total, 'actual_isps' => $idActual];
+            $idGuesses[$label] = ['total' => $total, 'actual_isps' => $idActual, 'error' => $rId['error'] ?? null];
         }
     }
     if (!empty($idGuesses)) $sanityChecks['isp_id_guesses'] = $idGuesses;
