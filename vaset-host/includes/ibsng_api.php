@@ -91,13 +91,21 @@ function ibsng_getIspId($ispName) {
     if ($ispName === '') return null;
     static $mem = [];
     if (array_key_exists($ispName, $mem)) return $mem[$ispName];
-    $cKey = IBS_CACHE_DIR . 'ispid_' . md5($ispName) . '.json';
+    // پیشوند نسخه (v2) عمداً عوض شده تا کش قدیمیِ احتمالاً غلط (قبل از این تصحیح) نادیده گرفته بشه
+    $cKey = IBS_CACHE_DIR . 'ispid_v2_' . md5($ispName) . '.json';
     if (file_exists($cKey) && (time() - filemtime($cKey)) < 3600) {
         $cached = @json_decode(@file_get_contents($cKey), true);
         if ($cached !== null) { $mem[$ispName] = (int)$cached; return $mem[$ispName]; }
     }
     $r  = ibsng_call('admin.getAdminInfo', ['admin_username' => $ispName]);
-    $id = $r['result']['admin_id'] ?? null;
+    $info = $r['result'] ?? null;
+    // برای اسم‌های نامعتبر/بی‌تطابق، IBSng به‌جای خطا ممکنه اطلاعات یک ادمین دیگه
+    // (مثلاً همون ادمین احراز هویت API) رو برگردونه؛ بدون این چک، همه‌ی ISPهای
+    // نامعتبر به‌اشتباه به یک isp_id دیگه resolve می‌شن و کاربرهای یک ISP دیگه رو
+    // نشون می‌دن. پس فقط وقتی admin_username برگشتی دقیقاً همون اسم درخواستیه قبولش می‌کنیم.
+    $id = (is_array($info) && ($info['admin_username'] ?? null) === $ispName)
+        ? ($info['admin_id'] ?? null)
+        : null;
     $mem[$ispName] = $id !== null ? (int)$id : null;
     if ($id !== null) @file_put_contents($cKey, json_encode((int)$id));
     return $mem[$ispName];

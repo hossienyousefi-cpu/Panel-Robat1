@@ -22,6 +22,28 @@ if ($username !== '') {
         $raw = $inf['result'] ?? $inf;
     }
 }
+// ۷) تست admin.getAdminInfo برای همه‌ی ISPها با هم - چون بعد از دیپلوی fix معلوم شد
+// فقط Milad درست resolve می‌شه و بقیه همه به admin_id مربوط به Main می‌رن. اینجا
+// برای هر اسم ISP جدا جدا admin.getAdminInfo صدا می‌زنیم و admin_username واقعی
+// برگشتی رو با اسم درخواستی مقایسه می‌کنیم تا معلوم بشه IBSng برای اسم‌های نامعتبر
+// یه fallback (مثلاً اولین ادمین) برمی‌گردونه یا واقعاً match می‌کنه.
+$allIspLookup = [];
+$allIsps = ibsng_getIsps();
+if (!empty($allIsps)) {
+    foreach ($allIsps as $ispEach) {
+        $rEach = ibsng_call('admin.getAdminInfo', ['admin_username' => $ispEach]);
+        $infoEach = $rEach['result'] ?? null;
+        $allIspLookup[$ispEach] = [
+            'requested'          => $ispEach,
+            'returned_username'  => $infoEach['admin_username'] ?? null,
+            'returned_admin_id'  => $infoEach['admin_id'] ?? null,
+            'returned_isp_name'  => $infoEach['isp_name'] ?? null,
+            'username_matches'   => isset($infoEach['admin_username']) && $infoEach['admin_username'] === $ispEach,
+            'error'              => $rEach['error'] ?? null,
+        ];
+    }
+}
+
 $ispCandidates = [];
 $ispNamesRaw = null;
 $sanityChecks = [];
@@ -181,6 +203,26 @@ a{color:#60a5fa}
 <?php if($err):?><p class="err"><?=$err?></p><?php endif;?>
 <?php if($raw!==null):?>
 <pre><?=htmlspecialchars(json_encode($raw, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
+<?php endif;?>
+
+<h2>تست admin.getAdminInfo برای همه‌ی ISPها (خودکار، بدون نیاز به ورودی)</h2>
+<p>ستون "تطابق؟" باید ✅ باشه یعنی admin_username برگشتی دقیقاً همون اسمیه که خواستیم. اگه برای چند ISP مختلف admin_id یکسان برگرده (مثلاً همه‌شون admin_id ISP اصلی/Main رو نشون بدن)، یعنی IBSng برای اسم‌های نامعتبر/غیردقیق یک fallback (احتمالاً اولین ادمین) برمی‌گردونه به‌جای خطا.</p>
+<?php if(!empty($allIspLookup)):?>
+<table style="width:100%;border-collapse:collapse;margin-bottom:20px" border="1" cellpadding="8">
+<tr style="background:#1e293b"><th>اسم ISP درخواستی</th><th>admin_username برگشتی</th><th>admin_id برگشتی</th><th>isp_name برگشتی</th><th>تطابق؟</th><th>خطا</th></tr>
+<?php foreach($allIspLookup as $label=>$c):?>
+<tr>
+  <td><code><?=htmlspecialchars($label)?></code></td>
+  <td><?=htmlspecialchars((string)($c['returned_username']??'—'))?></td>
+  <td><?=htmlspecialchars((string)($c['returned_admin_id']??'—'))?></td>
+  <td><?=htmlspecialchars((string)($c['returned_isp_name']??'—'))?></td>
+  <td><?=$c['username_matches']?'✅':'❌'?></td>
+  <td><?=htmlspecialchars((string)($c['error']??''))?></td>
+</tr>
+<?php endforeach;?>
+</table>
+<?php else:?>
+<p class="err">isp.getAllISPNames چیزی برنگردوند.</p>
 <?php endif;?>
 
 <h2>تست چند شکل مختلف فیلتر ISP (بدون یوزرنیم)</h2>
