@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/ibsng_api.php';
 requireAdmin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
     http_response_code(403);
@@ -31,6 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pendingCount = $pdo->query("SELECT COUNT(*) FROM payment_requests WHERE status='pending'")->fetchColumn();
 $resellers = $pdo->query("SELECT r.*, (SELECT COUNT(*) FROM users u WHERE u.reseller_id=r.id) as user_count FROM resellers r ORDER BY r.username ASC")->fetchAll();
+// user_count از جدول محلی users فقط کاربرهای ساخته‌شده از همین پنل رو می‌شمرد؛
+// تعداد واقعی کاربرهای هر ISP توی IBSng باید جایگزینش بشه.
+foreach ($resellers as &$rDebt) {
+    $rDebt['user_count'] = $rDebt['isp_name'] ? ibsng_getIspUserCount($rDebt['isp_name']) : 0;
+}
+unset($rDebt);
 $totalDebt = $pdo->query("SELECT SUM(debt) FROM resellers")->fetchColumn() ?: 0;
 $totalBalance = $pdo->query("SELECT SUM(balance) FROM resellers")->fetchColumn() ?: 0;
 $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchColumn();

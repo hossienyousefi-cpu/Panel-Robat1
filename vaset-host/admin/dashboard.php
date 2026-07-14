@@ -360,9 +360,8 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
           </thead>
           <tbody>
             <?php foreach ($recentResellers as $r):
-              $uc = $pdo->prepare("SELECT COUNT(*) FROM users WHERE reseller_id=?");
-              $uc->execute([$r['id']]);
-              $userCount = $uc->fetchColumn();
+              // تعداد واقعی کاربرهای ISP این ریسلر توی IBSng (نه فقط کاربرهایی که از همین پنل ساخته شدن)
+              $userCount = $r['isp_name'] ? ibsng_getIspUserCount($r['isp_name']) : 0;
             ?>
             <tr>
               <td style="color:var(--text);font-weight:600"><?= sanitize($r['username']) ?></td>

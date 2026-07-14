@@ -590,6 +590,46 @@ function ibsng_clearUserCache($uid) {
     @unlink(IBS_CACHE_DIR . 'u_' . $uid . '.json');
 }
 
+// ─── Kick کردن (قطع اتصال آنلاین) یک کاربر ───
+// هیچ مستندی از اسم دقیق متد IBSng برای Kick نداریم، پس چند اسم محتمل رو به
+// ترتیب امتحان می‌کنیم. خطای "Handler --x-- has not method --y--" یعنی حدس
+// غلط بوده (میریم سراغ بعدی)؛ هر خطای دیگه یا موفقیت یعنی متد واقعی همینه (چه
+// جواب بده چه ایراد پارامتر داشته باشه) - در اون صورت دیگه لازم نیست حدس بعدی
+// رو امتحان کنیم، همون نتیجه رو برمی‌گردونیم.
+function ibsng_kickUser($uid) {
+    $uid = (string)$uid;
+    $info = ibsng_getUserInfo($uid);
+    $username = $info['attrs']['normal_username'] ?? ($info['user_repr'] ?? '');
+
+    $candidates = [
+        'ras.kickUser'        => ['user_id' => $uid],
+        'ras.kickUser (user)' => ['normal_username' => $username],
+        'report.kickUser'     => ['user_id' => $uid],
+        'user.kickUser'       => ['user_id' => $uid],
+        'onlineuser.kickUser' => ['user_id' => $uid],
+        'radius.kickUser'     => ['user_id' => $uid],
+        'ras.disconnectUser'  => ['user_id' => $uid],
+    ];
+    $lastError = 'هیچ متد شناخته‌شده‌ای برای Kick کار نکرد';
+    foreach ($candidates as $label => $params) {
+        $method = explode(' ', $label)[0];
+        $r = ibsng_call($method, $params);
+        $err = $r['error'] ?? null;
+        if ($err === null) {
+            ibsng_clearUserCache($uid);
+            return ['error' => null, 'method' => $label];
+        }
+        if (stripos((string)$err, 'has not method') !== false) {
+            $lastError = $err;
+            continue;
+        }
+        // متد واقعاً وجود داره ولی خطای دیگه‌ای داده (مثلاً پارامتر اشتباه یا
+        // کاربر آنلاین نیست) - همینو برمی‌گردونیم چون این متد درسته.
+        return ['error' => "$label: $err", 'method' => $label];
+    }
+    return ['error' => $lastError, 'method' => null];
+}
+
 // ─── فرمت مدت اتصال ───
 function ibsng_formatDuration($secs) {
     $secs = (int)$secs;

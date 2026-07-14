@@ -11,8 +11,10 @@ $reseller->execute([$rid]);
 $reseller = $reseller->fetch();
 
 // Stats
-$totalUsers = $pdo->prepare("SELECT COUNT(*) FROM users WHERE reseller_id=?");
-$totalUsers->execute([$rid]); $totalUsers = $totalUsers->fetchColumn();
+// «کل کاربران من» باید تعداد واقعی کاربرهای این ISP توی IBSng باشه، نه شمارش
+// جدول محلی users (که فقط کاربرهایی رو داره که از همین پنل ساخته شدن - برای
+// کاربرهایی که قبلاً توی IBSng بودن یا از پنل اصلی ساخته شدن صفر/خیلی کم بود).
+$totalUsers = ibsng_getIspUserCount($reseller['isp_name'] ?? '');
 
 $activeUsers = $pdo->prepare("SELECT COUNT(*) FROM users WHERE reseller_id=? AND status='active'");
 $activeUsers->execute([$rid]); $activeUsers = $activeUsers->fetchColumn();

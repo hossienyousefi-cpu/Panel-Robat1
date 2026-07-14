@@ -141,6 +141,12 @@ if (isset($_GET['ajax']) && $_GET['ajax']==='isp_users') {
 }
 
 $resellers=$pdo->query("SELECT r.*,(SELECT COUNT(*) FROM users u WHERE u.reseller_id=r.id) uc,(SELECT COUNT(*) FROM reseller_groups rg WHERE rg.reseller_id=r.id) gc FROM resellers r ORDER BY r.created_at DESC")->fetchAll();
+// ستون uc (تعداد کاربران) از جدول محلی users فقط کاربرهایی رو می‌شمرد که از همین
+// پنل ساخته شدن؛ برای نمایش باید تعداد واقعی کاربرهای هر ISP توی IBSng باشه.
+foreach ($resellers as &$rRow) {
+    $rRow['uc'] = $rRow['isp_name'] ? ibsng_getIspUserCount($rRow['isp_name']) : 0;
+}
+unset($rRow);
 $pendingCount=$pdo->query("SELECT COUNT(*) FROM payment_requests WHERE status='pending'")->fetchColumn();
 
 // وضعیت فعلی شناسه‌ی عددی هر ISP - برای نمایش توی مودال «مدیریت شناسه ISP».

@@ -334,6 +334,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($act === 'kick_user') {
+        $uid2 = sanitize($_POST['user_id'] ?? '');
+        $inf  = ibsng_call('user.getUserInfo', ['user_id' => $uid2]);
+        $uIsp = $inf['result'][$uid2]['basic_info']['isp_name'] ?? '';
+        if ($uid2 && ($ispName === '' || $uIsp === $ispName)) {
+            $rKick = ibsng_kickUser($uid2);
+            if ($rKick['error'] ?? null) $error = 'خطا در Kick کردن: ' . $rKick['error'];
+            else { header('Location: users.php?success=' . urlencode('کاربر Kick شد (روش ' . ($rKick['method'] ?? '?') . ')')); exit; }
+        }
+    }
+
 }
 
 $error   = $_GET['error']   ?? $error;
@@ -544,7 +555,7 @@ input:focus,select:focus{border-color:var(--acc)}
             <th class="th-sort" onclick="setSort('username')">کاربر <span id="s_username">↕</span></th><th>رمز</th><th>وضعیت</th>
             <th class="th-sort" onclick="setSort('group')">گروه <span id="s_group">↕</span></th>
             <th class="th-sort" onclick="setSort('isp')">ISP <span id="s_isp">↕</span></th>
-            <th class="th-sort" onclick="setSort('ras')">RAS <span id="s_ras">↕</span></th>
+            <th>وضعیت اتصال</th>
             <th class="th-sort" onclick="setSort('exp')">انقضا <span id="s_exp">↕</span></th><th>عملیات</th>
           </tr></thead>
           <tbody id="tbody"><tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr></tbody>
@@ -716,6 +727,21 @@ input:focus,select:focus{border-color:var(--acc)}
   </div>
 </div>
 
+<!-- Kick (قطع اتصال آنلاین) -->
+<div class="mbg" id="kickM">
+  <div class="modal msm">
+    <div class="mh"><div class="mt">⚡ Kick کاربر</div><button class="mc" onclick="closeM('kickM')" title="بستن">✕</button></div>
+    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="kick_user">
+      <input type="hidden" name="user_id" id="kUid">
+      <div class="mb"><p style="color:var(--txt2)">اتصال آنلاین کاربر «<b id="kUname"></b>» قطع بشه؟</p></div>
+      <div class="mf">
+        <button type="button" class="btn bg" onclick="closeM('kickM')">انصراف</button>
+        <button type="submit" class="btn bpu2">⚡ Kick</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 let curP=0,curSort='',curDir='desc',curTab='all',ptM='m',ptP='m',ptB='m';
 var CR=<?=$canRenew?'true':'false'?>, CD=<?=$canDel?'true':'false'?>;
@@ -829,13 +855,14 @@ function renderTable(d,pp){
     if(CR) acts+=`<button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید">🔄</button>`;
     acts+=`<button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>`;
     acts+=`<button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>`;
+    if(u.online) acts+=`<button class="btn bpu2 bsm" onclick="openKick('${u.id}','${u.username}')" title="Kick (قطع اتصال)">⚡</button>`;
     if(CD) acts+=`<button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')" title="حذف کاربر">🗑</button>`;
     return `<tr>
       <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
       <td>${pw}</td><td>${st}</td>
       <td><span class="badge bpu2">${u.group}</span></td>
       <td style="font-size:11px">${u.isp}</td>
-      <td style="font-size:11px">${u.ras}</td>
+      <td>${u.online?'<span class="badge bok">🟢 آنلاین</span>':'<span class="badge ber">🔴 آفلاین</span>'}</td>
       <td style="font-size:11px">${expT}</td>
       <td><div class="acts">${acts}</div></td>
     </tr>`;
@@ -858,6 +885,12 @@ function openLk(uid,un,st){
   document.getElementById('lockTitle').textContent=lock?'🔒 قفل کاربر':'🔓 رفع قفل';
   document.getElementById('lockMsg').textContent=(lock?'کاربر «':'قفل «')+un+(lock?'» قفل می‌شود':'»  برداشته می‌شود');
   openM('lockM');
+}
+
+function openKick(uid,un){
+  document.getElementById('kUid').value=uid;
+  document.getElementById('kUname').textContent=un;
+  openM('kickM');
 }
 
 load();
