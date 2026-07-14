@@ -92,6 +92,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             $fastTried=true;
             $fastConds=$conds;
             $fastConds['normal_username']=$search;
+            $fastConds['normal_username_op']='like';
             $fr=ibsng_call('user.searchUser',['conds'=>$fastConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]);
             $fastUids=$fr['result'][2]??[];
             if(!empty($fastUids)){
@@ -121,6 +122,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
                 $tryConds=$conds;
                 $tryConds['isp_name']=[$ispTry];
                 $tryConds['normal_username']=$search;
+                $tryConds['normal_username_op']='like';
                 $tr=ibsng_call('user.searchUser',['conds'=>$tryConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]);
                 $tUids=$tr['result'][2]??[];
                 if(empty($tUids))continue;
@@ -290,10 +292,13 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         header('Location: users.php?success=رمز+تغییر+کرد');exit;
     }
     if($act==='toggle_lock'){
+        // «لاک/آنلاک» توی  یک فیلد کاملاً جدا از status هست (چک‌باکس "User is
+        // Locked" توی خود پنل ) - نه یک مقدار status. با updateUserAttrs تنظیم می‌شه.
         $uid=$_POST['user_id'];$st=$_POST['new_status']??'Disable';
-        $rLock=ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>$st]);
-        if($rLock['error']??null){$error='خطا در تغییر وضعیت به «'.$st.'»: '.$rLock['error'];}
-        else{header('Location: users.php?success=وضعیت+تغییر+کرد');exit;}
+        $lock=($st==='Disable');
+        $rLock=ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['is_locked'=>$lock],'to_del_attrs'=>[]]);
+        if($rLock['error']??null){$error='خطا در '.($lock?'قفل کردن':'رفع قفل').': '.$rLock['error'];}
+        else{header('Location: users.php?success='.($lock?'کاربر+قفل+شد':'قفل+برداشته+شد'));exit;}
     }
     if($act==='bulk_renew'){
         $ids=array_filter(explode(',',$_POST['user_ids']??''));
@@ -805,7 +810,9 @@ function renderTable(d,pp){
     const ec=u.days_left===null?'bbl':u.days_left<0?'ber':u.days_left<=7?'bwa':'bok';
     const expT=u.exp+(u.days_left!==null?`<br><span class="badge ${ec}" style="margin-top:2px">${u.days_left<0?'منقضی':u.days_left+'روز'}</span>`:'');
     const pw=`<span class="pass-box">${u.password}</span>`;
-    const isLocked=u.status==='Disable';
+    // «وضعیت» و «لاک بودن» توی  دو مفهوم کاملاً جدا هستند (status هیچ‌وقت مقدار
+    // لاک/آنلاک رو نشون نمی‌ده)، برای همین نمی‌تونیم مطمئن حدس بزنیم کاربر الان
+    // لاکه یا نه - هر دو دکمه رو همیشه نشون می‌دیم.
     return `<tr>
       <td><input type="checkbox" class="rcb" value="${u.id}" onchange="onChk(this)"></td>
       <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
@@ -817,7 +824,8 @@ function renderTable(d,pp){
       <td><div class="acts">
         <button class="btn by bsm" onclick="openPM('${u.id}','${u.username}')">🔑</button>
         <button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')">🔄</button>
-        <button class="btn ${isLocked?'bc':'bwa'} bsm" onclick="openLk('${u.id}','${u.username}','${isLocked?'Recharged':'Disable'}')">${isLocked?'🔓':'🔒'}</button>
+        <button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>
+        <button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>
         <button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')">🗑</button>
       </div></td>
     </tr>`;

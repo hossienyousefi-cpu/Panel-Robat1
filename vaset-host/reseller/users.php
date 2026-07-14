@@ -318,12 +318,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($act === 'toggle_lock') {
+        // «لاک/آنلاک» یک فیلد جدا از status هست (چک‌باکس "User is Locked" توی
+        // خود ) - با updateUserAttrs تنظیم می‌شه، نه changeStatus.
         $uid2  = sanitize($_POST['user_id']    ?? '');
         $newSt = sanitize($_POST['new_status'] ?? 'Disable');
-        if ($uid2 && in_array($newSt, ['Disable', 'Active', 'Recharged'])) {
-            $r2 = ibsng_call('user.changeStatus', ['user_id' => $uid2, 'status' => $newSt]);
-            if ($r2['error'] ?? null) $error = 'خطا در تغییر وضعیت به «' . $newSt . '»: ' . $r2['error'];
-            else { header('Location: users.php?success=وضعیت+تغییر+کرد'); exit; }
+        if ($uid2 && in_array($newSt, ['Disable', 'Recharged'])) {
+            $lock = ($newSt === 'Disable');
+            $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => ['is_locked' => $lock], 'to_del_attrs' => []]);
+            if ($r2['error'] ?? null) $error = 'خطا در ' . ($lock ? 'قفل کردن' : 'رفع قفل') . ': ' . $r2['error'];
+            else { header('Location: users.php?success=' . ($lock ? 'کاربر+قفل+شد' : 'قفل+برداشته+شد')); exit; }
         }
     }
 
@@ -849,12 +852,12 @@ function renderTable(d,pp){
     const ec=u.days_left===null?'bbl':u.days_left<0?'ber':u.days_left<=7?'bwa':'bok';
     const expT=u.exp+(u.days_left!==null?`<br><span class="badge ${ec}" style="margin-top:2px">${u.days_left<0?'منقضی':u.days_left+'روز'}</span>`:'');
     const pw=`<span class="pass-box" onclick="cp(this)">${u.password}</span>`;
-    const isLocked=u.status==='Disable';
+    // status هیچ‌وقت لاک/آنلاک بودن رو نشون نمی‌ده (فیلد جداست توی )، پس نمی‌شه
+    // مطمئن حدس زد الان لاکه یا نه - هر دو دکمه رو همیشه نشون می‌دیم.
     let acts=`<button class="btn by bsm" onclick="openPM('${u.id}','${u.username}')">🔑</button>`;
     if(CR) acts+=`<button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')">🔄</button>`;
-    acts+=isLocked
-      ?`<button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')">🔓</button>`
-      :`<button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')">🔒</button>`;
+    acts+=`<button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>`;
+    acts+=`<button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>`;
     if(CD) acts+=`<button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')">🗑</button>`;
     return `<tr>
       <td><input type="checkbox" class="rcb" value="${u.id}" onchange="onChk(this)"></td>

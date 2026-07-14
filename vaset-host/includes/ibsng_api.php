@@ -327,6 +327,7 @@ function ibsng_searchUsersForReseller($ispName, $search, $group, $page, $perPage
     if ($search !== '') {
         // ابتدا با کلید اصلی سعی می‌کنیم
         $conds['normal_username'] = $search;
+        $conds['normal_username_op'] = 'like';
         $r = ibsng_call('user.searchUser', [
             'conds'    => $conds,
             'from'     => $page * $perPage,
@@ -339,7 +340,7 @@ function ibsng_searchUsersForReseller($ispName, $search, $group, $page, $perPage
 
         // اگر نتیجه‌ای نبود، با partial match در PHP فیلتر کن
         if (empty($uids)) {
-            unset($conds['normal_username']);
+            unset($conds['normal_username'], $conds['normal_username_op']);
             $r2 = ibsng_call('user.searchUser', [
                 'conds'    => $conds,
                 'from'     => 0,

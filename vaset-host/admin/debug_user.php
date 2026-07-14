@@ -10,7 +10,7 @@ $username = trim($_GET['username'] ?? '');
 $raw = null; $err = '';
 if ($username !== '') {
     $r = ibsng_call('user.searchUser', [
-        'conds' => ['normal_username' => $username],
+        'conds' => ['normal_username' => $username, 'normal_username_op' => 'like'],
         'from' => 0, 'to' => 5, 'order_by' => 'user_id', 'desc' => true,
     ]);
     $uids = $r['result'][2] ?? [];
