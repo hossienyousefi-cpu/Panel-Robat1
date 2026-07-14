@@ -237,17 +237,6 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
   <div class="content">
 
     <!-- Expiring Warning -->
-    <?php if (!empty($expiringSoon)): ?>
-    <div class="alert-warning">
-      <div class="alert-warning-title">⚠️ کاربران در حال انقضا (۷ روز آینده)</div>
-      <div class="expiry-list">
-        <?php foreach ($expiringSoon as $u): ?>
-        <span class="expiry-chip"><?= sanitize($u['username']) ?> · <?= $u['expire_date'] ?></span>
-        <?php endforeach; ?>
-      </div>
-    </div>
-    <?php endif; ?>
-
     <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card green">
@@ -262,12 +251,12 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
         <div class="stat-value"><?= $onlineCount ?></div>
         <div class="stat-label">آنلاین الان</div>
       </div>
-      <div class="stat-card red">
+      <a href="users.php?tab=exp&days=7" class="stat-card red" style="text-decoration:none;color:inherit;cursor:pointer">
         <div class="stat-glow"></div>
         <div class="stat-icon">⚠️</div>
         <div class="stat-value"><?= count($expiringSoon) ?></div>
         <div class="stat-label">در حال انقضا</div>
-      </div>
+      </a>
     </div>
 
     <!-- Quick Actions -->

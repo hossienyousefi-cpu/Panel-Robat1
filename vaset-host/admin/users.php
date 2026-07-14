@@ -38,23 +38,28 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
     $grpF   =trim($_GET['group'] ??'');
     $ispF   =trim($_GET['isp']   ??'');
     $rasF   =trim($_GET['ras']   ??'');
+    $onlineF=trim($_GET['online']??''); // '' = همه, '1' = فقط آنلاین, '0' = فقط آفلاین
     $sortBy =trim($_GET['sort']  ??'');
     $sortDir=($_GET['dir']??'desc')==='asc'?'asc':'desc';
     $page   =max(0,(int)($_GET['page']??0));
     $perPage=50;
+    // وضعیت آنلاین واقعی: online_status توی getUserInfo وقتی صدها کاربر یک‌جا
+    // (bulk) خونده می‌شه همیشه false برمی‌گرده، پس از لیست واقعیِ آنلاین‌ها می‌گیریم.
+    $onlineSetGlobal = ibsng_getOnlineUsernameSet('');
 
-    // اگر ISP یا search داریم → از کش استفاده کن یا pagination بزن
-    if($ispF!==''||$search!==''){
+    // اگر ISP یا search یا فیلتر وضعیت آنلاین داریم → از کش استفاده کن یا pagination بزن
+    if($ispF!==''||$search!==''||$onlineF!==''){
         $conds=[];
         if($grpF!=='') $conds['group_name']=$grpF;
         if($ispF!=='') $conds=array_merge($conds,ibsng_ispCond($ispF));
 
-        // اگر فقط ISP (یا ISP+گروه) فیلتر است، بدون RAS/search: مستقیم همون صفحه‌ی
-        // درخواستی رو از  می‌گیریم (دقیقاً مثل حالت بدون فیلتر پایین این فایل) -
+        // اگر فقط ISP (یا ISP+گروه) فیلتر است، بدون RAS/search/آنلاین: مستقیم همون
+        // صفحه‌ی درخواستی رو از  می‌گیریم (دقیقاً مثل حالت بدون فیلتر پایین این فایل) -
         // قبلاً اینجا کل کاربرهای آن ISP (تا 15000+) طی ده‌ها request fetch می‌شد که
         // هم خیلی کند بود و هم می‌توانست منابع هاست را برای بقیه‌ی کاربران هم‌زمان
-        // اشغال کند.
-        if($ispF!==''&&$search===''&&$rasF===''){
+        // اشغال کند. فیلتر آنلاین باید بعد از fetch کامل انجام بشه (چون pagination
+        // سمت  از قبل انجام می‌شه)، پس این مسیر سریع رو رد می‌کنیم.
+        if($ispF!==''&&$search===''&&$rasF===''&&$onlineF===''){
             $r=ibsng_call('user.searchUser',['conds'=>$conds,'from'=>$page*$perPage,'to'=>($page+1)*$perPage,'order_by'=>'user_id','desc'=>true]);
             $total=(int)($r['result'][0]??0);
             $uids=$r['result'][2]??[];
@@ -68,7 +73,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
                     $exp=$basic['nearest_exp_date']??'';
                     $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
                     $ras=$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—');
-                    $rows[]=['id'=>$uid,'username'=>$attrs['normal_username']??'—','password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+                    $rows[]=['id'=>$uid,'username'=>$attrs['normal_username']??'—','password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>isset($onlineSetGlobal[$attrs['normal_username']??'']),'credit'=>$basic['credit']??0];
                 }
             }
             if(!empty($rows)&&in_array($sortBy,['username','group','isp','ras','exp','status'])){
@@ -109,7 +114,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
                     if($ispF!==''&&$uIsp!==$ispF)continue;
                     $exp=$basic['nearest_exp_date']??'';
                     $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
-                    $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$uIsp,'ras'=>$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—'),'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+                    $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$uIsp,'ras'=>$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—'),'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>isset($onlineSetGlobal[$un]),'credit'=>$basic['credit']??0];
                 }
             }
         }
@@ -137,7 +142,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
                     $un=$attrs['normal_username']??$attrs['username']??'';
                     $exp=$basic['nearest_exp_date']??'';
                     $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
-                    $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??$ispTry,'ras'=>$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—'),'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+                    $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??$ispTry,'ras'=>$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—'),'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>isset($onlineSetGlobal[$un]),'credit'=>$basic['credit']??0];
                 }
             }
         }
@@ -165,10 +170,14 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
                 if($rasF!==''&&stripos($ras,$rasF)===false)continue;
                 $exp=$basic['nearest_exp_date']??'';
                 $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
-                $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$uIsp,'ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+                $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$uIsp,'ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>isset($onlineSetGlobal[$un]),'credit'=>$basic['credit']??0];
             }
         }
 
+        if($onlineF!==''){
+            $wantOnline=($onlineF==='1');
+            $filtered=array_values(array_filter($filtered,fn($r)=>(bool)($r['online']??false)===$wantOnline));
+        }
         $total=count($filtered);
         if(!empty($filtered)&&in_array($sortBy,['username','group','isp','ras','exp','status'])){
             usort($filtered,function($a,$b)use($sortBy,$sortDir){
@@ -198,7 +207,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
             $ras=$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—');
             if($rasF!==''&&stripos($ras,$rasF)===false)continue;
-            $rows[]=['id'=>$uid,'username'=>$attrs['normal_username']??'—','password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>$u['online_status']??false,'credit'=>$basic['credit']??0];
+            $rows[]=['id'=>$uid,'username'=>$attrs['normal_username']??'—','password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>isset($onlineSetGlobal[$attrs['normal_username']??'']),'credit'=>$basic['credit']??0];
         }
     }
     // sort در PHP
@@ -217,6 +226,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
 if(isset($_GET['ajax'])&&$_GET['ajax']==='expiring'){
     header('Content-Type: application/json');
     $days=(int)($_GET['days']??3);
+    $onlineSetGlobal = ibsng_getOnlineUsernameSet('');
     $now=date('Y/m/d');$future=date('Y/m/d',strtotime("+{$days} days"));
     $r=ibsng_call('user.searchExpiredUsersExtended',['conds'=>['exp_date_from'=>$now,'exp_date_from_unit'=>'gregorian','exp_date_to'=>$future,'exp_date_to_unit'=>'gregorian'],'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>false]);
     $users=$r['result'][2]??[];
@@ -228,7 +238,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='expiring'){
         $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
         $exp=$basic['nearest_exp_date']??'';
         $dL=null;if($exp){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
-        $rows[]=['id'=>$uid,'username'=>$attrs['normal_username']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','exp'=>$exp?substr($exp,0,10):'—','days_left'=>$dL,'online'=>$u['online_status']??false];
+        $rows[]=['id'=>$uid,'username'=>$attrs['normal_username']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','exp'=>$exp?substr($exp,0,10):'—','days_left'=>$dL,'online'=>isset($onlineSetGlobal[$attrs['normal_username']??''])];
     }
     echo json_encode(['total'=>count($rows),'rows'=>$rows]);exit;
 }
@@ -540,6 +550,11 @@ input:focus,select:focus{border-color:var(--acc)}
           <?php foreach($isps as $isp):?><option value="<?=sanitize($isp)?>"><?=sanitize($isp)?></option><?php endforeach;?>
         </select>
         <input type="text" class="si si-med" id="fRas" placeholder="🔌 RAS...">
+        <select class="si si-med" id="fOnline">
+          <option value="">📶 وضعیت اتصال (همه)</option>
+          <option value="1">🟢 فقط آنلاین</option>
+          <option value="0">🔴 فقط آفلاین</option>
+        </select>
         <button class="btn bp" onclick="curP=0;load()">🔍 جستجو</button>
         <button class="btn bc" onclick="clrSrch()">✕ پاک</button>
         <button class="btn bg" onclick="load()" style="padding:8px 10px" title="بروزرسانی">🔄</button>
@@ -759,7 +774,7 @@ function closeM(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.mbg').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open')}));
 
 function setTab(t,el){curTab=t;curP=0;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');load();}
-function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';document.getElementById('fIsp').value='';document.getElementById('fRas').value='';curP=0;load();}
+function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';document.getElementById('fIsp').value='';document.getElementById('fRas').value='';document.getElementById('fOnline').value='';curP=0;load();}
 
 function sPT(t){ptM=t;['m','c','n'].forEach(x=>document.getElementById('pt_'+x).classList.toggle('on',x===t));}
 function sPT2(t){ptP=t;['m','c','n'].forEach(x=>document.getElementById('pp_'+x).classList.toggle('on',x===t));}
@@ -774,7 +789,7 @@ function genPW(fid,lid,pfx){
 
 let srchT=null;
 document.getElementById('fSrch').addEventListener('input',()=>{clearTimeout(srchT);srchT=setTimeout(()=>{curP=0;load();},500)});
-['fGrp','fIsp'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{curP=0;load();}));
+['fGrp','fIsp','fOnline'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{curP=0;load();}));
 
 function setSort(col){
   if(curSort===col) curDir=curDir==='asc'?'desc':'asc';
@@ -794,7 +809,8 @@ function load(){
   const g=document.getElementById('fGrp').value;
   const isp=document.getElementById('fIsp').value;
   const ras=document.getElementById('fRas').value.trim();
-  fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&isp=${encodeURIComponent(isp)}&ras=${encodeURIComponent(ras)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
+  const onl=document.getElementById('fOnline').value;
+  fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&isp=${encodeURIComponent(isp)}&ras=${encodeURIComponent(ras)}&online=${encodeURIComponent(onl)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
     .then(r=>r.json()).then(d=>renderTable(d,50))
     .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }

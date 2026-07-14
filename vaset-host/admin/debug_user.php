@@ -6,6 +6,18 @@ requireAdmin();
 // ابزار موقت دیباگ: خروجی خام  رو برای یک یوزرنیم نشون می‌ده تا مقادیر واقعی
 // فیلدهایی مثل status رو بدون حدس زدن ببینیم. فقط خواندنی (read-only) و هیچ
 // تغییری روی IBSng یا دیتابیس اعمال نمی‌کنه.
+// تلاش برای پیدا کردن متد واقعی Kick: چون هیچ‌کدوم از حدس‌های handler.method
+// (ras/report/user/onlineuser/radius) جواب نداد، چند روش introspection استاندارد
+// JSON-RPC رو امتحان می‌کنیم تا لیست واقعی متدها/handlerها رو از خودِ  بگیریم.
+$introspection = [];
+$introspectionMethods = [
+    'system.listMethods', 'system.methodHelp', 'help', 'listMethods',
+    'user.getUserAttrs', // فقط برای مقایسه‌ی فرمت خطا با یک متد شناخته‌شده‌ی معتبر
+];
+foreach ($introspectionMethods as $m) {
+    $introspection[$m] = ibsng_call($m, []);
+}
+
 $username = trim($_GET['username'] ?? '');
 $ispName  = trim($_GET['isp'] ?? '');
 $raw = null; $err = ''; $ispRaw = null;
@@ -216,6 +228,10 @@ a{color:#60a5fa}
 </head>
 <body>
 <a href="users.php">← بازگشت به کاربران</a>
+<h2>تلاش برای پیدا کردن متد Kick (introspection)</h2>
+<p>خطای "user.getUserAttrs" باید شبیه فرمت آشنای پارامتر-گم‌شده باشه (چون این متد واقعی احتمالاً وجود داره) - برای مقایسه با بقیه که باید "not found"/"has not method" بدن.</p>
+<pre><?=htmlspecialchars(json_encode($introspection, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
+
 <h2>خروجی خام IBSng برای یک یوزرنیم</h2>
 <form method="GET">
   <input type="text" name="username" placeholder="یوزرنیم دقیق، مثلاً TR069" value="<?=htmlspecialchars($username)?>" autofocus>

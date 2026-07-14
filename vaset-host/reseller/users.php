@@ -83,6 +83,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'list') {
     header('Content-Type: application/json');
     $search  = trim($_GET['search'] ?? '');
     $grpF    = trim($_GET['group']  ?? '');
+    $onlineF = trim($_GET['online'] ?? ''); // '' = همه, '1' = فقط آنلاین, '0' = فقط آفلاین
     $sortBy  = trim($_GET['sort']   ?? '');
     $sortDir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
     $page    = max(0, (int)($_GET['page'] ?? 0));
@@ -94,7 +95,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'list') {
         exit;
     }
 
-    $result = ibsng_getIspUsersPage($ispName, $grpF, $search, $sortBy, $sortDir, $page, $perPage);
+    $result = ibsng_getIspUsersPage($ispName, $grpF, $search, $sortBy, $sortDir, $page, $perPage, $onlineF);
     echo json_encode([
         'total'     => $result['total'],
         'total_isp' => $result['total_isp'],
@@ -117,6 +118,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'expiring') {
     if (empty($users)) { echo json_encode(['total' => 0, 'rows' => []]); exit; }
     $inf   = ibsng_call('user.getUserInfo', ['user_id' => implode(',', array_keys($users))]);
     $infos = $inf['result'] ?? [];
+    // online_status توی getUserInfo وقتی صدها کاربر یک‌جا (bulk) خونده می‌شه
+    // همیشه false برمی‌گرده، پس از لیست واقعیِ آنلاین‌های این ISP می‌گیریم.
+    $onlineSetExp = ibsng_getOnlineUsernameSet($ispName);
     $rows  = [];
     foreach (array_keys($users) as $uid) {
         $u     = $infos[$uid] ?? null; if (!$u) continue;
@@ -131,7 +135,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'expiring') {
             'status' => $basic['status'] ?? '—', 'group' => $basic['group_name'] ?? '—',
             'isp' => $basic['isp_name'] ?? '—', 'ras' => $basic['ras_ip_addr'] ?? '—',
             'exp' => $exp ? substr($exp, 0, 10) : '—', 'exp_ts' => $exp ? (strtotime($exp) ?: 0) : 0,
-            'days_left' => $dL, 'online' => (bool)($u['online_status'] ?? false)];
+            'days_left' => $dL, 'online' => isset($onlineSetExp[$attrs['normal_username'] ?? ''])];
     }
     echo json_encode(['total' => count($rows), 'rows' => $rows]);
     exit;
@@ -529,8 +533,8 @@ input:focus,select:focus{border-color:var(--acc)}
     <?php endif;?>
 
     <div class="tabs">
-      <button class="tab active" onclick="setTab('all',this)">📋 همه کاربران</button>
-      <button class="tab" onclick="setTab('exp3',this)">⚠️ رو به اتمام (۳ روز)</button>
+      <button class="tab active" id="tabAll" onclick="setTab('all',this)">📋 همه کاربران</button>
+      <button class="tab" id="tabExp" onclick="setTab('exp3',this)">⚠️ رو به اتمام (۳ روز)</button>
     </div>
 
     <div class="sbox">
@@ -540,6 +544,11 @@ input:focus,select:focus{border-color:var(--acc)}
         <select class="si si-med" id="fGrp">
           <option value="">📦 همه گروه‌ها</option>
           <?php foreach($grpList as $g):?><option value="<?=sanitize($g)?>"><?=sanitize($g)?></option><?php endforeach;?>
+        </select>
+        <select class="si si-med" id="fOnline">
+          <option value="">📶 وضعیت اتصال (همه)</option>
+          <option value="1">🟢 فقط آنلاین</option>
+          <option value="0">🔴 فقط آفلاین</option>
         </select>
         <button class="btn bp" onclick="curP=0;load()">🔍 جستجو</button>
         <button class="btn bc" onclick="clrSrch()">✕ پاک</button>
@@ -753,7 +762,7 @@ function closeM(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.mbg').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open')}));
 
 function setTab(t,el){curTab=t;curP=0;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');load();}
-function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';curP=0;load();}
+function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';document.getElementById('fOnline').value='';curP=0;load();}
 
 function sPT(t){ptM=t;['m','c','n'].forEach(x=>document.getElementById('pt_'+x).classList.toggle('on',x===t));}
 function sPT2(t){ptP=t;['m','c','n'].forEach(x=>document.getElementById('pp_'+x).classList.toggle('on',x===t));}
@@ -789,6 +798,7 @@ function copyBulk(){
 let srchT=null;
 document.getElementById('fSrch').addEventListener('input',()=>{clearTimeout(srchT);srchT=setTimeout(()=>{curP=0;load();},500)});
 document.getElementById('fGrp').addEventListener('change',()=>{curP=0;load();});
+document.getElementById('fOnline').addEventListener('change',()=>{curP=0;load();});
 
 function setSort(col){
   if(curSort===col) curDir=curDir==='asc'?'desc':'asc';
@@ -817,12 +827,14 @@ function load(){
   if(curTab==='exp3'){loadExp();return;}
   const s=document.getElementById('fSrch').value.trim();
   const g=document.getElementById('fGrp').value;
-  fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
+  const onl=document.getElementById('fOnline').value;
+  fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&online=${encodeURIComponent(onl)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
     .then(r=>r.json()).then(d=>renderTable(d,50))
     .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }
+let expDays=3;
 function loadExp(){
-  fetch('users.php?ajax=expiring&days=3').then(r=>r.json()).then(d=>renderTable(d,200))
+  fetch('users.php?ajax=expiring&days='+expDays).then(r=>r.json()).then(d=>renderTable(d,200))
     .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }
 
@@ -893,6 +905,16 @@ function openKick(uid,un){
   openM('kickM');
 }
 
+(function(){
+  const p = new URLSearchParams(location.search);
+  if (p.get('tab') === 'exp') {
+    expDays = Math.max(1, parseInt(p.get('days') || '3', 10));
+    curTab = 'exp3';
+    document.getElementById('tabAll').classList.remove('active');
+    document.getElementById('tabExp').classList.add('active');
+    document.getElementById('tabExp').textContent = `⚠️ رو به اتمام (${expDays} روز)`;
+  }
+})();
 load();
 </script>
 </body>

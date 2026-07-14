@@ -281,7 +281,20 @@ function ibsng_getAllUidsForIsp($conds) {
 }
 
 // ─── تبدیل یک UID به row ───
-function ibsng_uidToRow($uid, $u, $ispName) {
+// ─── مجموعه‌ی یوزرنیم‌های آنلاینِ یک ISP (از report.getOnlineUsers) - چون
+// online_status توی getUserInfo وقتی برای صدها کاربر یک‌جا (bulk) خونده می‌شه
+// همیشه false برمی‌گرده، وضعیت آنلاین واقعی رو باید جدا از همین لیست گرفت ───
+function ibsng_getOnlineUsernameSet($ispName) {
+    $r = ibsng_getOnlineForIsp($ispName);
+    $set = [];
+    foreach ($r['data'] ?? [] as $u) {
+        $un = $u['normal_username'] ?? $u['username'] ?? '';
+        if ($un !== '') $set[$un] = true;
+    }
+    return $set;
+}
+
+function ibsng_uidToRow($uid, $u, $ispName, $onlineSet = []) {
     $basic = $u['basic_info'] ?? []; $attrs = $u['attrs'] ?? [];
     $un = $attrs['normal_username'] ?? $attrs['username'] ?? '';
     if ($un === '') foreach ($attrs as $k=>$v) if(stripos($k,'username')!==false&&is_string($v)&&$v!==''){$un=$v;break;}
@@ -303,7 +316,7 @@ function ibsng_uidToRow($uid, $u, $ispName) {
         'exp'      => $exp ? substr($exp, 0, 10) : '∞',
         'exp_ts'   => $et ?: 0,
         'days_left'=> $dL,
-        'online'   => false,
+        'online'   => isset($onlineSet[$un]),
     ];
 }
 
@@ -343,11 +356,12 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
         return [];
     }
 
+    $onlineSet = ibsng_getOnlineUsernameSet($ispName);
     $rows = [];
     foreach (array_chunk($uids, 100) as $chunk) {
         $inf = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
         foreach ($inf['result'] ?? [] as $uid => $u) {
-            $row = ibsng_uidToRow($uid, $u, $ispName);
+            $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
             if ($row) $rows[] = $row;
         }
     }
@@ -358,7 +372,8 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
 
 // ─── گرفتن سریع صفحه اول بدون کش کامل ───
 // فقط UIDs صفحه اول رو میگیره + getUserInfo - خیلی سریعتر
-function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDir, $page, $perPage) {
+// $onlineF: '' = همه, '1' = فقط آنلاین, '0' = فقط آفلاین (فیلتر بعد از fetch انجام می‌شه)
+function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDir, $page, $perPage, $onlineF = '') {
     if ($ispName === '') return ['total' => 0, 'total_isp' => 0, 'rows' => [], 'cached' => false];
 
     // اگه کش کامل داریم، از اون استفاده کن
@@ -369,6 +384,13 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
             $totalIsp = count($allRows);
             if ($search !== '') {
                 $allRows = array_values(array_filter($allRows, fn($r) => stripos($r['username'], $search) !== false));
+            }
+            if ($onlineF !== '') {
+                // کش هر ۵ دقیقه ساخته می‌شه، پس وضعیت آنلاین توش ممکنه قدیمی باشه -
+                // برای فیلتر آنلاین از لیست زنده‌ی همین لحظه استفاده می‌کنیم.
+                $liveOnline = ibsng_getOnlineUsernameSet($ispName);
+                $wantOnline = ($onlineF === '1');
+                $allRows = array_values(array_filter($allRows, fn($r) => isset($liveOnline[$r['username']]) === $wantOnline));
             }
             $total = count($allRows);
             if (!empty($allRows) && in_array($sortBy, ['username','group','isp','ras','exp','status'])) {
@@ -391,35 +413,42 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
     $rCount = ibsng_call('user.searchUser', ['conds'=>$conds,'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
     $totalIsp = (int)($rCount['result'][0] ?? 0);
 
-    // اگه search داریم باید همه رو بگیریم (کند) وگرنه فقط صفحه اول
-    if ($search !== '') {
+    // اگه search یا فیلتر آنلاین داریم باید همه رو بگیریم (کند، چون pagination
+    // سمت  قبل از این فیلترها بی‌معنیه) وگرنه فقط صفحه اول
+    if ($search !== '' || $onlineF !== '') {
         $allUids = ibsng_getAllUidsForIsp($conds);
         $inf = [];
         foreach (array_chunk($allUids, 100) as $chunk) {
             $r2 = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
             $inf += $r2['result'] ?? [];
         }
+        $onlineSet = ibsng_getOnlineUsernameSet($ispName);
+        $wantOnline = ($onlineF === '1');
         $allRows = [];
         foreach ($allUids as $uid) {
             $u = $inf[(string)$uid] ?? $inf[$uid] ?? null;
             if (!$u) continue;
-            $row = ibsng_uidToRow($uid, $u, $ispName);
-            if ($row && stripos($row['username'], $search) !== false) $allRows[] = $row;
+            $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
+            if (!$row) continue;
+            if ($search !== '' && stripos($row['username'], $search) === false) continue;
+            if ($onlineF !== '' && (bool)$row['online'] !== $wantOnline) continue;
+            $allRows[] = $row;
         }
         $total = count($allRows);
         return ['total'=>$total,'total_isp'=>$totalIsp,'rows'=>array_slice($allRows,$page*$perPage,$perPage),'cached'=>false];
     }
 
-    // بدون search: فقط صفحه فعلی رو بگیر
+    // بدون search/فیلتر آنلاین: فقط صفحه فعلی رو بگیر
     $rPage = ibsng_call('user.searchUser', ['conds'=>$conds,'from'=>$page*$perPage,'to'=>($page+1)*$perPage,'order_by'=>'user_id','desc'=>true]);
     $pageUids = $rPage['result'][2] ?? [];
     $rows = [];
     if (!empty($pageUids)) {
         $inf = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $pageUids)]);
+        $onlineSet = ibsng_getOnlineUsernameSet($ispName);
         foreach ($pageUids as $uid) {
             $u = ($inf['result'][(string)$uid] ?? $inf['result'][$uid] ?? null);
             if (!$u) continue;
-            $row = ibsng_uidToRow($uid, $u, $ispName);
+            $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
             if ($row) $rows[] = $row;
         }
     }
