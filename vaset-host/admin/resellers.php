@@ -104,7 +104,7 @@ if (isset($_GET['ajax']) && $_GET['ajax']==='isp_users') {
     header('Content-Type: application/json');
     $isp=sanitize($_GET['isp']??'');
     if(!$isp){echo json_encode(['total'=>0,'rows'=>[]]);exit;}
-    $r=ibsng_call('user.searchUser',['conds'=>['isp_name'=>[$isp]],'from'=>0,'to'=>300,'order_by'=>'user_id','desc'=>true]);
+    $r=ibsng_call('user.searchUser',['conds'=>['isp_name'=>[$isp],'isp_name_op'=>'equals'],'from'=>0,'to'=>300,'order_by'=>'user_id','desc'=>true]);
     $total=$r['result'][0]??0; $uids=$r['result'][2]??[];
     $rows=[];
     if(!empty($uids)){
@@ -237,7 +237,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 </head>
 <body>
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
-<button class="hamburger" onclick="toggleSidebar()">☰</button>
+<button class="hamburger" onclick="toggleSidebar()" title="منو">☰</button>
 
 <aside id="sidebar">
     <div class="logo">
@@ -320,14 +320,14 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
             <td><span class="badge <?=$r['status']==='active'?'bok':'ber'?>"><?=$r['status']==='active'?'فعال':'غیرفعال'?></span></td>
             <td>
               <div class="acts">
-                <button class="btn bpu bsm" onclick="openSet(<?=$r['id']?>)">⚙️</button>
-                <button class="btn bc bsm" onclick="openReport(<?=$r['id']?>,'<?=sanitize($r['username'])?>')">📊</button>
+                <button class="btn bpu bsm" onclick="openSet(<?=$r['id']?>)" title="تنظیمات ریسلر">⚙️</button>
+                <button class="btn bc bsm" onclick="openReport(<?=$r['id']?>,'<?=sanitize($r['username'])?>')" title="گزارش فروش">📊</button>
                 <form method="POST" style="display:inline"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
                   <input type="hidden" name="action" value="toggle_status">
                   <input type="hidden" name="reseller_id" value="<?=$r['id']?>">
-                  <button type="submit" class="btn <?=$r['status']==='active'?'bd':'bg'?> bsm"><?=$r['status']==='active'?'⏸':'▶'?></button>
+                  <button type="submit" class="btn <?=$r['status']==='active'?'bd':'bg'?> bsm" title="<?=$r['status']==='active'?'غیرفعال کردن':'فعال کردن'?>"><?=$r['status']==='active'?'⏸':'▶'?></button>
                 </form>
-                <button class="btn bd bsm" onclick="cDel(<?=$r['id']?>,'<?=sanitize($r['username'])?>')">🗑</button>
+                <button class="btn bd bsm" onclick="cDel(<?=$r['id']?>,'<?=sanitize($r['username'])?>')" title="حذف ریسلر">🗑</button>
               </div>
             </td>
           </tr>
@@ -345,7 +345,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <!-- افزودن ریسلر -->
 <div class="mbg" id="addM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">➕ ریسلر جدید</div><button class="mc" onclick="closeM('addM')">✕</button></div>
+    <div class="mh"><div class="mt">➕ ریسلر جدید</div><button class="mc" onclick="closeM('addM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="action" value="add_reseller">
       <div class="mb">
@@ -378,7 +378,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
   <div class="modal mlg">
     <div class="mh">
       <div class="mt">⚙️ تنظیمات: <span id="setName" style="color:var(--acc)">...</span></div>
-      <button class="mc" onclick="closeM('setM')">✕</button>
+      <button class="mc" onclick="closeM('setM')" title="بستن">✕</button>
     </div>
     <form method="POST" id="setForm"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="action" value="update_settings">
@@ -433,7 +433,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <!-- گزارش ریسلر -->
 <div class="mbg" id="repM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">📊 گزارش: <span id="repName" style="color:var(--acc)"></span></div><button class="mc" onclick="closeM('repM')">✕</button></div>
+    <div class="mh"><div class="mt">📊 گزارش: <span id="repName" style="color:var(--acc)"></span></div><button class="mc" onclick="closeM('repM')" title="بستن">✕</button></div>
     <div class="mb">
       <div class="fr" style="margin-bottom:12px">
         <div class="fg"><label class="lbl">از تاریخ</label><input type="date" id="repFrom" value="<?=date('Y-m-01')?>"></div>
@@ -448,7 +448,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <!-- کاربران ISP -->
 <div class="mbg" id="ispM">
   <div class="modal mlg">
-    <div class="mh"><div class="mt">🌐 کاربران ISP</div><button class="mc" onclick="closeM('ispM')">✕</button></div>
+    <div class="mh"><div class="mt">🌐 کاربران ISP</div><button class="mc" onclick="closeM('ispM')" title="بستن">✕</button></div>
     <div class="mb">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
         <select id="ispSel" style="flex:1;min-width:160px;padding:9px 12px;background:var(--surf);border:1px solid var(--bor);border-radius:8px;color:var(--txt);font-family:'Vazirmatn';font-size:13px;outline:none">

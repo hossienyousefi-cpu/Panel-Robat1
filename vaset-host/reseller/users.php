@@ -58,7 +58,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'rebuild_cache') {
         ibsng_clearCache('isp_full_' . md5($ispName) . '.json');
         ibsng_clearCache('isp_full_' . md5($ispName . '') . '.json');
         // سریع تعداد کل رو بگیر
-        $rC = ibsng_call('user.searchUser', ['conds'=>['isp_name'=>[$ispName]],'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
+        $rC = ibsng_call('user.searchUser', ['conds'=>['isp_name'=>[$ispName],'isp_name_op'=>'equals'],'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
         $cnt = (int)($rC['result'][0] ?? 0);
         echo json_encode(['ok'=>true,'total'=>$cnt,'isp'=>$ispName]);
     } else {
@@ -72,7 +72,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'count') {
     header('Content-Type: application/json');
     if ($ispName === '') { echo json_encode(['count' => 0, 'isp' => '']); exit; }
     $r = ibsng_call('user.searchUser', [
-        'conds' => ['isp_name' => [$ispName]],
+        'conds' => ['isp_name' => [$ispName], 'isp_name_op' => 'equals'],
         'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => true,
     ]);
     echo json_encode(['count' => (int)($r['result'][0] ?? 0), 'isp' => $ispName]);
@@ -324,7 +324,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newSt = sanitize($_POST['new_status'] ?? 'Disable');
         if ($uid2 && in_array($newSt, ['Disable', 'Recharged'])) {
             $lock = ($newSt === 'Disable');
-            $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => ['lock' => $lock], 'to_del_attrs' => []]);
+            // چک‌باکس‌های HTML وقتی تیک نمی‌خورن submit نمی‌شن، پس رفع قفل یعنی حذف
+            // کامل attr (to_del_attrs) نه ست کردن مقدار false
+            if ($lock) $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => ['lock' => true], 'to_del_attrs' => []]);
+            else $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => [], 'to_del_attrs' => ['lock']]);
             if ($r2['error'] ?? null) $error = 'خطا در ' . ($lock ? 'قفل کردن' : 'رفع قفل') . ': ' . $r2['error'];
             else { header('Location: users.php?success=' . ($lock ? 'کاربر+قفل+شد' : 'قفل+برداشته+شد')); exit; }
         }
@@ -445,7 +448,7 @@ input:focus,select:focus{border-color:var(--acc)}
 </head>
 <body>
 <div class="overlay" id="overlay" onclick="closeSB()"></div>
-<button class="hamburger" onclick="toggleSB()">☰</button>
+<button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
 
 <aside id="sidebar">
   <div class="logo">
@@ -498,7 +501,7 @@ input:focus,select:focus{border-color:var(--acc)}
     <div class="card" style="margin-bottom:14px">
       <div style="padding:10px 14px;border-bottom:1px solid var(--bor);font-weight:700;font-size:13px;display:flex;align-items:center;gap:10px">
         📋 <?=count($bulkResult)?> کاربر ساخته شد
-        <button onclick="copyBulk()" class="btn bg bsm">📋 کپی همه</button>
+        <button onclick="copyBulk()" class="btn bg bsm" title="کپی نتایج ساخت گروهی">📋 کپی همه</button>
       </div>
       <div style="overflow-x:auto;max-height:260px;overflow-y:auto">
         <table class="bulk-tbl">
@@ -528,7 +531,7 @@ input:focus,select:focus{border-color:var(--acc)}
         </select>
         <button class="btn bp" onclick="curP=0;load()">🔍 جستجو</button>
         <button class="btn bc" onclick="clrSrch()">✕ پاک</button>
-        <button class="btn bg" onclick="load()" style="padding:8px 10px">🔄</button>
+        <button class="btn bg" onclick="load()" style="padding:8px 10px" title="بروزرسانی">🔄</button>
       </div>
     </div>
 
@@ -554,7 +557,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <!-- ایجاد کاربر -->
 <div class="mbg" id="addM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">➕ کاربر جدید</div><button class="mc" onclick="closeM('addM')">✕</button></div>
+    <div class="mh"><div class="mt">➕ کاربر جدید</div><button class="mc" onclick="closeM('addM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="create_user">
       <input type="hidden" name="isp_name" value="<?=sanitize($ispName)?>">
       <div class="mb">
@@ -580,7 +583,7 @@ input:focus,select:focus{border-color:var(--acc)}
             <button type="button" class="pt" id="pt_c" onclick="sPT('c')">حروف</button>
             <button type="button" class="pt" id="pt_n" onclick="sPT('n')">عدد</button>
             <input type="number" id="pLen" value="6" min="4" max="20" class="li">
-            <button type="button" class="gb" onclick="genPW('newPw','pLen','m_')">🎲</button>
+            <button type="button" class="gb" onclick="genPW('newPw','pLen','m_')" title="تولید رمز تصادفی">🎲</button>
           </div>
         </div>
       </div>
@@ -595,7 +598,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <!-- ساخت گروهی -->
 <div class="mbg" id="bulkM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">📦 ساخت گروهی</div><button class="mc" onclick="closeM('bulkM')">✕</button></div>
+    <div class="mh"><div class="mt">📦 ساخت گروهی</div><button class="mc" onclick="closeM('bulkM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="bulk_create">
       <input type="hidden" name="isp_name" value="<?=sanitize($ispName)?>">
       <div class="mb">
@@ -634,7 +637,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <!-- تغییر رمز -->
 <div class="mbg" id="passM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">🔑 تغییر رمز</div><button class="mc" onclick="closeM('passM')">✕</button></div>
+    <div class="mh"><div class="mt">🔑 تغییر رمز</div><button class="mc" onclick="closeM('passM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="change_password">
       <input type="hidden" name="user_id" id="pUid">
       <div class="mb">
@@ -647,7 +650,7 @@ input:focus,select:focus{border-color:var(--acc)}
             <button type="button" class="pt" id="pp_c" onclick="sPT2('c')">حروف</button>
             <button type="button" class="pt" id="pp_n" onclick="sPT2('n')">عدد</button>
             <input type="number" id="pLen2" value="6" min="4" max="20" class="li">
-            <button type="button" class="gb" onclick="genPW('chPw','pLen2','p_')">🎲</button>
+            <button type="button" class="gb" onclick="genPW('chPw','pLen2','p_')" title="تولید رمز تصادفی">🎲</button>
           </div>
         </div>
       </div>
@@ -663,7 +666,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <?php if($canRenew):?>
 <div class="mbg" id="rnM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">🔄 تمدید کاربر</div><button class="mc" onclick="closeM('rnM')">✕</button></div>
+    <div class="mh"><div class="mt">🔄 تمدید کاربر</div><button class="mc" onclick="closeM('rnM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="renew_user">
       <input type="hidden" name="user_id" id="rnUid">
       <div class="mb">
@@ -683,7 +686,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <?php if($canDel):?>
 <div class="mbg" id="delM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">🗑 حذف کاربر</div><button class="mc" onclick="closeM('delM')">✕</button></div>
+    <div class="mh"><div class="mt">🗑 حذف کاربر</div><button class="mc" onclick="closeM('delM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="delete_user">
       <input type="hidden" name="user_id" id="dUid">
       <div class="mb"><p style="color:var(--txt2)">کاربر <strong id="dUname" style="color:var(--red)"></strong> حذف می‌شود. قابل بازگشت نیست.</p></div>
@@ -699,7 +702,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <!-- Lock/Unlock -->
 <div class="mbg" id="lockM">
   <div class="modal msm">
-    <div class="mh"><div class="mt" id="lockTitle">🔒 قفل کاربر</div><button class="mc" onclick="closeM('lockM')">✕</button></div>
+    <div class="mh"><div class="mt" id="lockTitle">🔒 قفل کاربر</div><button class="mc" onclick="closeM('lockM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="toggle_lock">
       <input type="hidden" name="user_id" id="lkUid">
       <input type="hidden" name="new_status" id="lkSt">
@@ -821,11 +824,11 @@ function renderTable(d,pp){
     const pw=`<span class="pass-box" onclick="cp(this)">${u.password}</span>`;
     // status هیچ‌وقت لاک/آنلاک بودن رو نشون نمی‌ده (فیلد جداست توی )، پس نمی‌شه
     // مطمئن حدس زد الان لاکه یا نه - هر دو دکمه رو همیشه نشون می‌دیم.
-    let acts=`<button class="btn by bsm" onclick="openPM('${u.id}','${u.username}')">🔑</button>`;
-    if(CR) acts+=`<button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')">🔄</button>`;
+    let acts=`<button class="btn by bsm" onclick="openPM('${u.id}','${u.username}')" title="تغییر رمز">🔑</button>`;
+    if(CR) acts+=`<button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید">🔄</button>`;
     acts+=`<button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>`;
     acts+=`<button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>`;
-    if(CD) acts+=`<button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')">🗑</button>`;
+    if(CD) acts+=`<button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')" title="حذف کاربر">🗑</button>`;
     return `<tr>
       <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
       <td>${pw}</td><td>${st}</td>
@@ -837,10 +840,10 @@ function renderTable(d,pp){
     </tr>`;
   }).join('');
   const tp=Math.ceil(total/pp);let pg='';
-  if(curP>0)pg+=`<button onclick="goP(${curP-1})">«</button>`;
+  if(curP>0)pg+=`<button onclick="goP(${curP-1})" title="صفحه قبل">«</button>`;
   const s=Math.max(0,curP-2),e=Math.min(tp-1,curP+2);
-  for(let i=s;i<=e;i++)pg+=`<button class="${i===curP?'active':''}" onclick="goP(${i})">${i+1}</button>`;
-  if(curP<tp-1)pg+=`<button onclick="goP(${curP+1})">»</button>`;
+  for(let i=s;i<=e;i++)pg+=`<button class="${i===curP?'active':''}" onclick="goP(${i})" title="صفحه ${i+1}">${i+1}</button>`;
+  if(curP<tp-1)pg+=`<button onclick="goP(${curP+1})" title="صفحه بعد">»</button>`;
   document.getElementById('pag').innerHTML=pg;
 }
 

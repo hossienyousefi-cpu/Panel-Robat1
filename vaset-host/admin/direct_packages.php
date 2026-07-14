@@ -187,11 +187,11 @@ input:focus,select:focus{border-color:var(--acc)}
             </td>
             <td>
               <div class="acts">
-                <button class="btn bpu bsm" onclick='openEdit(<?=json_encode($p, JSON_UNESCAPED_UNICODE)?>)'>✏️</button>
+                <button class="btn bpu bsm" onclick='openEdit(<?=json_encode($p, JSON_UNESCAPED_UNICODE)?>)' title="ویرایش بسته">✏️</button>
                 <form method="POST" style="display:inline" onsubmit="return confirm('حذف این بسته؟')"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
                   <input type="hidden" name="action" value="delete_package">
                   <input type="hidden" name="id" value="<?=$p['id']?>">
-                  <button type="submit" class="btn bd bsm">🗑</button>
+                  <button type="submit" class="btn bd bsm" title="حذف بسته">🗑</button>
                 </form>
               </div>
             </td>
@@ -209,7 +209,7 @@ input:focus,select:focus{border-color:var(--acc)}
 
 <div class="mbg" id="pkgM">
   <div class="modal">
-    <div class="mh"><div class="mt" id="pkgTitle">➕ بسته جدید</div><button class="mc" onclick="closeM()">✕</button></div>
+    <div class="mh"><div class="mt" id="pkgTitle">➕ بسته جدید</div><button class="mc" onclick="closeM()" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="action" value="save_package">
       <input type="hidden" name="id" id="fId" value="">

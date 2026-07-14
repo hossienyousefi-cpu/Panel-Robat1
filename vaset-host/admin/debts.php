@@ -215,7 +215,7 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title" id="modalTitle">مدیریت موجودی</div>
-      <button class="modal-close" onclick="document.getElementById('debtModal').style.display='none'">✕</button>
+      <button class="modal-close" onclick="document.getElementById('debtModal').style.display='none'" title="بستن">✕</button>
     </div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="reseller_id" id="modalResellerId">

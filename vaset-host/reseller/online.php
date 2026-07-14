@@ -187,8 +187,8 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
     <div class="pg-t">🟢 کاربران آنلاین <span id="hCnt" style="font-size:13px;color:var(--grn)"></span></div>
     <div style="display:flex;gap:7px;align-items:center">
       <span id="autoTxt" style="font-size:12px;color:var(--muted)"></span>
-      <button class="btn bg bsm" onclick="refresh()">🔄 بروزرسانی</button>
-      <button class="btn bc bsm" id="autoBtn" onclick="toggleAuto()">⏱ خودکار</button>
+      <button class="btn bg bsm" onclick="refresh()" title="بروزرسانی لیست">🔄 بروزرسانی</button>
+      <button class="btn bc bsm" id="autoBtn" onclick="toggleAuto()" title="بروزرسانی خودکار">⏱ خودکار</button>
     </div>
   </div>
   <div class="content">
@@ -212,7 +212,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
     <div class="sbox">
       <div class="srow">
         <input type="text" class="si" id="srch" placeholder="🔍 جستجو نام کاربری...">
-        <button class="btn bp bsm" onclick="loadData()">🔍</button>
+        <button class="btn bp bsm" onclick="loadData()" title="جستجو">🔍</button>
         <button class="btn bc bsm" onclick="document.getElementById('srch').value='';curGrp='';loadData()">✕ پاک</button>
       </div>
     </div>

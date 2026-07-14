@@ -149,7 +149,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 </style>
 </head>
 <body>
-<button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+<button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')" title="منو">☰</button>
 <aside id="sidebar">
   <div class="logo">
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
@@ -191,8 +191,8 @@ main{margin-right:var(--sw);flex:1;min-width:0}
     <div class="pg-t">🟢 کاربران آنلاین <span id="hCnt" style="font-size:13px;color:var(--grn)"></span></div>
     <div style="display:flex;gap:7px">
       <span id="autoTxt" style="font-size:12px;color:var(--muted);align-self:center"></span>
-      <button class="btn bg bsm" onclick="refresh()">🔄 بروزرسانی</button>
-      <button class="btn bc bsm" id="autoBtn" onclick="toggleAuto()">⏱ خودکار</button>
+      <button class="btn bg bsm" onclick="refresh()" title="بروزرسانی لیست">🔄 بروزرسانی</button>
+      <button class="btn bc bsm" id="autoBtn" onclick="toggleAuto()" title="بروزرسانی خودکار">⏱ خودکار</button>
     </div>
   </div>
   <div class="content">
