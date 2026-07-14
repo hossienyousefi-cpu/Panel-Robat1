@@ -198,7 +198,10 @@ function ibsng_getRasList() {
     return [];
 }
 
-// ─── تعداد کاربران یک ISP با کش 60 ثانیه ───
+// ─── تعداد کاربران یک ISP با کش ۱۰ دقیقه‌ای ───
+// صفحات لیست ریسلرها/داشبورد ادمین/مدیریت موجودی این تابع رو برای هر ریسلر جدا
+// جدا صدا می‌زنن؛ کش کوتاه (۶۰ ثانیه) باعث می‌شد اکثر بازدیدها چند تماس زنده و
+// پشت‌سرهم به  بزنن و کل صفحه کند بشه. تعداد کاربر یک ISP به این تازگی نیاز نداره.
 function ibsng_getIspUserCount($ispName) {
     $r = ibsng_call('user.searchUser', [
         'conds'    => ibsng_ispCond($ispName),
@@ -206,7 +209,7 @@ function ibsng_getIspUserCount($ispName) {
         'to'       => 1,
         'order_by' => 'user_id',
         'desc'     => false,
-    ], 60);
+    ], 600);
     return (int)($r['result'][0] ?? 0);
 }
 

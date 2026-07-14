@@ -6,16 +6,66 @@ requireAdmin();
 // ابزار موقت دیباگ: خروجی خام  رو برای یک یوزرنیم نشون می‌ده تا مقادیر واقعی
 // فیلدهایی مثل status رو بدون حدس زدن ببینیم. فقط خواندنی (read-only) و هیچ
 // تغییری روی IBSng یا دیتابیس اعمال نمی‌کنه.
-// تلاش برای پیدا کردن متد واقعی Kick: چون هیچ‌کدوم از حدس‌های handler.method
-// (ras/report/user/onlineuser/radius) جواب نداد، چند روش introspection استاندارد
-// JSON-RPC رو امتحان می‌کنیم تا لیست واقعی متدها/handlerها رو از خودِ  بگیریم.
+// این صفحه قبلاً چند ده‌ها تماس API رو بدون قید و شرط توی هر بار بازدید اجرا
+// می‌کرد (اسکن isp_id تا ۵۰ + تست همه‌ی ISPها + introspection) که هم خیلی کند
+// بود هم می‌تونست timeout بده. الان همه‌ی این تشخیص‌های سنگین فقط با ?diag=1
+// اجرا می‌شن؛ بازدید معمولی این صفحه سریعه.
+$runDiag = isset($_GET['diag']);
 $introspection = [];
-$introspectionMethods = [
-    'system.listMethods', 'system.methodHelp', 'help', 'listMethods',
-    'user.getUserAttrs', // فقط برای مقایسه‌ی فرمت خطا با یک متد شناخته‌شده‌ی معتبر
-];
-foreach ($introspectionMethods as $m) {
-    $introspection[$m] = ibsng_call($m, []);
+$allIspLookup  = [];
+$ispIdScan     = [];
+if ($runDiag) {
+    // تلاش برای پیدا کردن متد واقعی Kick: چون هیچ‌کدوم از حدس‌های handler.method
+    // (ras/report/user/onlineuser/radius) جواب نداد، چند روش introspection استاندارد
+    // JSON-RPC رو امتحان می‌کنیم تا لیست واقعی متدها/handlerها رو از خودِ  بگیریم.
+    $introspectionMethods = [
+        'system.listMethods', 'system.methodHelp', 'help', 'listMethods',
+        'user.getUserAttrs', // فقط برای مقایسه‌ی فرمت خطا با یک متد شناخته‌شده‌ی معتبر
+    ];
+    foreach ($introspectionMethods as $m) {
+        $introspection[$m] = ibsng_call($m, []);
+    }
+
+    // ۷) تست admin.getAdminInfo(admin_username=اسم ISP) برای همه‌ی ISPها با هم - معلوم
+    // شد این فقط وقتی کار می‌کنه که یوزرنیم ادمین دقیقاً همون اسم ISP باشه (فقط Milad).
+    // فیلد صحیح پاسخ "username" هست نه "admin_username".
+    $allIsps = ibsng_getIsps();
+    if (!empty($allIsps)) {
+        foreach ($allIsps as $ispEach) {
+            $rEach = ibsng_call('admin.getAdminInfo', ['admin_username' => $ispEach]);
+            $infoEach = $rEach['result'] ?? null;
+            $allIspLookup[$ispEach] = [
+                'requested'          => $ispEach,
+                'returned_username'  => $infoEach['username'] ?? null,
+                'returned_admin_id'  => $infoEach['admin_id'] ?? null,
+                'returned_isp_name'  => $infoEach['isp_name'] ?? null,
+                'username_matches'   => isset($infoEach['username']) && $infoEach['username'] === $ispEach,
+                'error'              => $rEach['error'] ?? null,
+            ];
+        }
+    }
+
+    // ۸) admin.getAdminInfo با admin_id عددی اصلاً کار نمی‌کنه (تست شد: برای هر عددی
+    // همون خطای "argument admin_username not found" رو می‌ده - یعنی admin_id پارامتر
+    // معتبری براش نیست). پس به‌جاش از خودِ فیلتر کارکردِ isp_id روی user.searchUser
+    // استفاده می‌کنیم: برای هر عدد کاندید ۱ تا ۵۰، یک کاربر نمونه می‌گیریم و
+    // isp_name واقعیش رو می‌خونیم - این باید کل نگاشت واقعی اسم‌ISP↔isp_id رو نشون بده.
+    for ($iid = 1; $iid <= 50; $iid++) {
+        $rI = ibsng_call('user.searchUser', [
+            'conds' => ['isp_id' => [(string)$iid]], 'from' => 0, 'to' => 1,
+            'order_by' => 'user_id', 'desc' => true,
+        ]);
+        $total = $rI['result'][0] ?? 0;
+        $uidsI = $rI['result'][2] ?? [];
+        if (empty($uidsI)) continue;
+        $infI = ibsng_call('user.getUserInfo', ['user_id' => (string)$uidsI[0]]);
+        $rowI = $infI['result'][$uidsI[0]] ?? $infI['result'][(string)$uidsI[0]] ?? null;
+        $ispIdScan[$iid] = [
+            'isp_id'   => $iid,
+            'total'    => $total,
+            'isp_name' => $rowI['basic_info']['isp_name'] ?? null,
+        ];
+    }
 }
 
 $username = trim($_GET['username'] ?? '');
@@ -33,48 +83,6 @@ if ($username !== '') {
         $inf = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $uids)]);
         $raw = $inf['result'] ?? $inf;
     }
-}
-// ۷) تست admin.getAdminInfo(admin_username=اسم ISP) برای همه‌ی ISPها با هم - معلوم
-// شد این فقط وقتی کار می‌کنه که یوزرنیم ادمین دقیقاً همون اسم ISP باشه (فقط Milad).
-// فیلد صحیح پاسخ "username" هست نه "admin_username".
-$allIspLookup = [];
-$allIsps = ibsng_getIsps();
-if (!empty($allIsps)) {
-    foreach ($allIsps as $ispEach) {
-        $rEach = ibsng_call('admin.getAdminInfo', ['admin_username' => $ispEach]);
-        $infoEach = $rEach['result'] ?? null;
-        $allIspLookup[$ispEach] = [
-            'requested'          => $ispEach,
-            'returned_username'  => $infoEach['username'] ?? null,
-            'returned_admin_id'  => $infoEach['admin_id'] ?? null,
-            'returned_isp_name'  => $infoEach['isp_name'] ?? null,
-            'username_matches'   => isset($infoEach['username']) && $infoEach['username'] === $ispEach,
-            'error'              => $rEach['error'] ?? null,
-        ];
-    }
-}
-
-// ۸) admin.getAdminInfo با admin_id عددی اصلاً کار نمی‌کنه (تست شد: برای هر عددی
-// همون خطای "argument admin_username not found" رو می‌ده - یعنی admin_id پارامتر
-// معتبری براش نیست). پس به‌جاش از خودِ فیلتر کارکردِ isp_id روی user.searchUser
-// استفاده می‌کنیم: برای هر عدد کاندید ۱ تا ۵۰، یک کاربر نمونه می‌گیریم و
-// isp_name واقعیش رو می‌خونیم - این باید کل نگاشت واقعی اسم‌ISP↔isp_id رو نشون بده.
-$ispIdScan = [];
-for ($iid = 1; $iid <= 50; $iid++) {
-    $rI = ibsng_call('user.searchUser', [
-        'conds' => ['isp_id' => [(string)$iid]], 'from' => 0, 'to' => 1,
-        'order_by' => 'user_id', 'desc' => true,
-    ]);
-    $total = $rI['result'][0] ?? 0;
-    $uidsI = $rI['result'][2] ?? [];
-    if (empty($uidsI)) continue;
-    $infI = ibsng_call('user.getUserInfo', ['user_id' => (string)$uidsI[0]]);
-    $rowI = $infI['result'][$uidsI[0]] ?? $infI['result'][(string)$uidsI[0]] ?? null;
-    $ispIdScan[$iid] = [
-        'isp_id'   => $iid,
-        'total'    => $total,
-        'isp_name' => $rowI['basic_info']['isp_name'] ?? null,
-    ];
 }
 
 $ispCandidates = [];
@@ -228,9 +236,14 @@ a{color:#60a5fa}
 </head>
 <body>
 <a href="users.php">← بازگشت به کاربران</a>
+<?php if($runDiag):?>
 <h2>تلاش برای پیدا کردن متد Kick (introspection)</h2>
 <p>خطای "user.getUserAttrs" باید شبیه فرمت آشنای پارامتر-گم‌شده باشه (چون این متد واقعی احتمالاً وجود داره) - برای مقایسه با بقیه که باید "not found"/"has not method" بدن.</p>
 <pre><?=htmlspecialchars(json_encode($introspection, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
+<?php else:?>
+<p>تشخیص‌های سنگین (اسکن isp_id، تست همه‌ی ISPها، introspection) غیرفعال‌ان تا این صفحه سریع باز بشه.
+<a href="?diag=1">برای اجرای کامل‌شون کلیک کن (چند ده ثانیه طول می‌کشه)</a>.</p>
+<?php endif;?>
 
 <h2>خروجی خام IBSng برای یک یوزرنیم</h2>
 <form method="GET">
