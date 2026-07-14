@@ -23,18 +23,19 @@ if ($username !== '') {
     }
 }
 $ispCandidates = [];
+$ispNamesRaw = null;
+$sanityChecks = [];
 if ($ispName !== '') {
     // isp_name به‌صورت آرایه هیچ فیلتری اعمال نمی‌کرد (total همیشه کل کاربرها بود) -
     // پس چند شکل مختلف conds رو موازی امتحان می‌کنیم تا بدون حدس زدن بیشتر ببینیم
     // کدومش واقعاً روی  فیلتر می‌کنه.
     $shapes = [
-        "isp_name => ['{$ispName}']"      => ['isp_name' => [$ispName]],
-        "isp_name => '{$ispName}'"        => ['isp_name' => $ispName],
-        "isp_name_1 => '{$ispName}'"      => ['isp_name_1' => $ispName],
-        "isp => ['{$ispName}']"           => ['isp' => [$ispName]],
-        "isp => '{$ispName}'"             => ['isp' => $ispName],
-        "owner_isp => ['{$ispName}']"     => ['owner_isp' => [$ispName]],
-        "owner_isp => '{$ispName}'"       => ['owner_isp' => $ispName],
+        "isp_name => ['{$ispName}']"            => ['isp_name' => [$ispName]],
+        "isp_name => '{$ispName}'"              => ['isp_name' => $ispName],
+        "isp_name+op => 'equals'"               => ['isp_name' => [$ispName], 'isp_name_op' => 'equals'],
+        "isp_name_1 => '{$ispName}'"            => ['isp_name_1' => $ispName],
+        "isp => ['{$ispName}']"                 => ['isp' => [$ispName]],
+        "owner_isp => ['{$ispName}']"           => ['owner_isp' => [$ispName]],
     ];
     foreach ($shapes as $label => $conds) {
         $rr = ibsng_call('user.searchUser', [
@@ -52,6 +53,42 @@ if ($ispName !== '') {
         }
         $matches = $total !== null && !empty($actualIsps) && count(array_unique($actualIsps)) === 1 && $actualIsps[0] === $ispName;
         $ispCandidates[$label] = ['total' => $total, 'uids' => $uids, 'actual_isps' => $actualIsps, 'looks_correct' => $matches, 'error' => $rr['error'] ?? null];
+    }
+
+    // ۱) خروجی خام isp.getAllISPNames - شاید id هر ISP رو هم برگردونه، نه فقط اسم
+    $ispNamesRaw = ibsng_call('isp.getAllISPNames', [], 0);
+
+    // ۲) sanity check: آیا ترکیب یک کلید ناشناخته با normal_username (که خودش کار
+    // می‌کنه) باعث می‌شه کل conds نادیده گرفته بشه؟ اگه اینجا هم total کامل برگرده
+    // یعنی مشکل کلی‌تر از اسم فیلده. اگه فیلتر یوزرنیم درست کار کنه، یعنی کلید
+    // ناشناخته فقط خودش نادیده گرفته می‌شه و مشکل مختص isp_name/معادل‌هاشه.
+    $rSanity = ibsng_call('user.searchUser', [
+        'conds' => ['normal_username' => 'a', 'normal_username_op' => 'like', 'zzz_bogus_field' => 'x'],
+        'from' => 0, 'to' => 5, 'order_by' => 'user_id', 'desc' => true,
+    ]);
+    $sanityChecks['bogus_key_with_working_username_filter'] = [
+        'total' => $rSanity['result'][0] ?? null,
+        'error' => $rSanity['error'] ?? null,
+    ];
+    // ۳) آیا group_name هم همین مشکل رو داره؟ (یعنی مشکل فقط ISP نیست، همه‌ی
+    // فیلترهای چندانتخابی/چک‌باکسی همینطور نادیده گرفته می‌شن)
+    $groups = ibsng_getGroups();
+    if (!empty($groups)) {
+        $rGrp = ibsng_call('user.searchUser', [
+            'conds' => ['group_name' => $groups[0]], 'from' => 0, 'to' => 5, 'order_by' => 'user_id', 'desc' => true,
+        ]);
+        $gUids = $rGrp['result'][2] ?? [];
+        $gActual = [];
+        if (!empty($gUids)) {
+            $gi = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $gUids)]);
+            foreach ($gUids as $u) {
+                $row = $gi['result'][$u] ?? $gi['result'][(string)$u] ?? null;
+                $gActual[] = $row['basic_info']['group_name'] ?? '?';
+            }
+        }
+        $sanityChecks['group_name_filter_test'] = [
+            'tried_group' => $groups[0], 'total' => $rGrp['result'][0] ?? null, 'actual_groups' => $gActual,
+        ];
     }
 }
 ?>
@@ -102,6 +139,24 @@ a{color:#60a5fa}
 </tr>
 <?php endforeach;?>
 </table>
+<?php endif;?>
+
+<?php if($ispNamesRaw!==null):?>
+<h2>خروجی خام isp.getAllISPNames</h2>
+<pre><?=htmlspecialchars(json_encode($ispNamesRaw, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
+<?php endif;?>
+
+<?php if(!empty($sanityChecks)):?>
+<h2>تست‌های کمکی</h2>
+<?php if(isset($sanityChecks['bogus_key_with_working_username_filter'])): $b=$sanityChecks['bogus_key_with_working_username_filter'];?>
+<p>۱) فیلتر یوزرنیم "a" + یک کلید ناشناخته (zzz_bogus_field) با هم: total=<b><?=htmlspecialchars((string)($b['total']??'?'))?></b>
+(اگه این عدد خیلی کمتر از کل کاربرهاست، یعنی فیلتر یوزرنیم درست کار می‌کنه حتی با وجود کلید ناشناخته - پس مشکل مختص isp_name است نه کل conds)</p>
+<?php endif;?>
+<?php if(isset($sanityChecks['group_name_filter_test'])): $g=$sanityChecks['group_name_filter_test'];?>
+<p>۲) فیلتر group_name با گروه "<?=htmlspecialchars($g['tried_group'])?>": total=<b><?=htmlspecialchars((string)($g['total']??'?'))?></b>،
+گروه‌های واقعی برگشتی: <b><?=htmlspecialchars(implode(', ', $g['actual_groups']))?></b>
+(اگه همه‌شون همون گروه باشن یعنی group_name درست فیلتر می‌کنه و مشکل فقط مال ISP هست؛ اگه نه، یعنی همه‌ی فیلترهای چندانتخابی خراب‌ان)</p>
+<?php endif;?>
 <?php endif;?>
 </body>
 </html>
