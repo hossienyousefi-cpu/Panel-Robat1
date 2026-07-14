@@ -97,18 +97,43 @@ function ibsng_getIspId($ispName) {
         $cached = @json_decode(@file_get_contents($cKey), true);
         if ($cached !== null) { $mem[$ispName] = (int)$cached; return $mem[$ispName]; }
     }
+    // راه اول (ثابت‌شده برای Milad): شاید یوزرنیم ادمین دقیقاً همون اسم ISP باشه.
+    $id = null;
     $r  = ibsng_call('admin.getAdminInfo', ['admin_username' => $ispName]);
     $info = $r['result'] ?? null;
-    // برای اسم‌های نامعتبر/بی‌تطابق، IBSng به‌جای خطا ممکنه اطلاعات یک ادمین دیگه
-    // (مثلاً همون ادمین احراز هویت API) رو برگردونه؛ بدون این چک، همه‌ی ISPهای
-    // نامعتبر به‌اشتباه به یک isp_id دیگه resolve می‌شن و کاربرهای یک ISP دیگه رو
-    // نشون می‌دن. پس فقط وقتی admin_username برگشتی دقیقاً همون اسم درخواستیه قبولش می‌کنیم.
-    $id = (is_array($info) && ($info['admin_username'] ?? null) === $ispName)
-        ? ($info['admin_id'] ?? null)
-        : null;
+    if (is_array($info) && ($info['username'] ?? null) === $ispName) {
+        $id = $info['admin_id'] ?? null;
+    }
+    // راه دوم (برای بقیه‌ی ISPها که یوزرنیم ادمین‌شون با اسم ISP فرق داره): از روی
+    // نگاشت کامل اسم‌ISP→admin_id که با اسکن عددی admin_id ساخته شده پیدا می‌کنیم.
+    if ($id === null) {
+        $map = ibsng_getIspIdMap();
+        $id  = $map[$ispName] ?? null;
+    }
     $mem[$ispName] = $id !== null ? (int)$id : null;
     if ($id !== null) @file_put_contents($cKey, json_encode((int)$id));
     return $mem[$ispName];
+}
+
+// ─── ساخت کامل نگاشت اسم‌ISP → admin_id با اسکن عددیِ admin_id (چون admin_username
+// هر ادمین لزوماً با isp_name اون یکی نیست - این با اسکن شماره واقعی admin_id،
+// فارغ از یوزرنیم لاگین هر ادمین، درست کار می‌کنه) - نتیجه یک‌جا کش می‌شه ───
+function ibsng_getIspIdMap($maxAdminId = 60) {
+    $cKey = IBS_CACHE_DIR . 'ispid_map_v1.json';
+    if (file_exists($cKey) && (time() - filemtime($cKey)) < 3600) {
+        $cached = @json_decode(@file_get_contents($cKey), true);
+        if (is_array($cached) && !empty($cached)) return $cached;
+    }
+    $map = [];
+    for ($i = 1; $i <= $maxAdminId; $i++) {
+        $r = ibsng_call('admin.getAdminInfo', ['admin_id' => $i]);
+        $info = $r['result'] ?? null;
+        if (!is_array($info)) continue;
+        $isp = $info['isp_name'] ?? null;
+        if ($isp !== null && $isp !== '') $map[$isp] = (int)$i;
+    }
+    if (!empty($map)) @file_put_contents($cKey, json_encode($map));
+    return $map;
 }
 
 // ─── ساخت شرط conds برای فیلتر یک ISP - همیشه از این تابع استفاده کن، نه از
