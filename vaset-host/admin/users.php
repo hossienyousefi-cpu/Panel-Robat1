@@ -47,7 +47,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
     if($ispF!==''||$search!==''){
         $conds=[];
         if($grpF!=='') $conds['group_name']=$grpF;
-        if($ispF!==''){ $conds['isp_name']=[$ispF]; $conds['isp_name_op']='equals'; }
+        if($ispF!=='') $conds['isp_name']=[$ispF];
 
         // اگر فقط ISP (یا ISP+گروه) فیلتر است، بدون RAS/search: مستقیم همون صفحه‌ی
         // درخواستی رو از  می‌گیریم (دقیقاً مثل حالت بدون فیلتر پایین این فایل) -
@@ -121,7 +121,6 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             foreach(ibsng_getIsps() as $ispTry){
                 $tryConds=$conds;
                 $tryConds['isp_name']=[$ispTry];
-                $tryConds['isp_name_op']='equals';
                 $tryConds['normal_username']=$search;
                 $tryConds['normal_username_op']='like';
                 $tr=ibsng_call('user.searchUser',['conds'=>$tryConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]);
@@ -299,8 +298,12 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         $lock=($st==='Disable');
         // چک‌باکس‌های HTML وقتی تیک نمی‌خورن اصلاً submit نمی‌شن، پس  برای "رفع قفل"
         // انتظار حذف کامل attr رو داره (to_del_attrs) نه ست کردن مقدار false
+        // آرایه‌ی خالی PHP همیشه به صورت [] در JSON نوشته می‌شه نه {} - و اگر  انتظار
+        // یک آبجکت برای attrs داشته باشه، [] می‌تونه باعث رفتار عجیب/خراب بشه (دیده
+        // شد که "false" توی فیلد Reason نوشته می‌شد به‌جای حذف واقعی قفل). با کست
+        // به object مطمئن می‌شیم همیشه {} فرستاده می‌شه.
         if($lock) $rLock=ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['lock'=>true],'to_del_attrs'=>[]]);
-        else $rLock=ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>[],'to_del_attrs'=>['lock']]);
+        else $rLock=ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>(object)[],'to_del_attrs'=>['lock']]);
         if($rLock['error']??null){$error='خطا در '.($lock?'قفل کردن':'رفع قفل').': '.$rLock['error'];}
         else{header('Location: users.php?success='.($lock?'کاربر+قفل+شد':'قفل+برداشته+شد'));exit;}
     }

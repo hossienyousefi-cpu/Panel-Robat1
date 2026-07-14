@@ -104,7 +104,7 @@ if (isset($_GET['ajax']) && $_GET['ajax']==='isp_users') {
     header('Content-Type: application/json');
     $isp=sanitize($_GET['isp']??'');
     if(!$isp){echo json_encode(['total'=>0,'rows'=>[]]);exit;}
-    $r=ibsng_call('user.searchUser',['conds'=>['isp_name'=>[$isp],'isp_name_op'=>'equals'],'from'=>0,'to'=>300,'order_by'=>'user_id','desc'=>true]);
+    $r=ibsng_call('user.searchUser',['conds'=>['isp_name'=>[$isp]],'from'=>0,'to'=>300,'order_by'=>'user_id','desc'=>true]);
     $total=$r['result'][0]??0; $uids=$r['result'][2]??[];
     $rows=[];
     if(!empty($uids)){

@@ -58,7 +58,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'rebuild_cache') {
         ibsng_clearCache('isp_full_' . md5($ispName) . '.json');
         ibsng_clearCache('isp_full_' . md5($ispName . '') . '.json');
         // سریع تعداد کل رو بگیر
-        $rC = ibsng_call('user.searchUser', ['conds'=>['isp_name'=>[$ispName],'isp_name_op'=>'equals'],'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
+        $rC = ibsng_call('user.searchUser', ['conds'=>['isp_name'=>[$ispName]],'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
         $cnt = (int)($rC['result'][0] ?? 0);
         echo json_encode(['ok'=>true,'total'=>$cnt,'isp'=>$ispName]);
     } else {
@@ -72,7 +72,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'count') {
     header('Content-Type: application/json');
     if ($ispName === '') { echo json_encode(['count' => 0, 'isp' => '']); exit; }
     $r = ibsng_call('user.searchUser', [
-        'conds' => ['isp_name' => [$ispName], 'isp_name_op' => 'equals'],
+        'conds' => ['isp_name' => [$ispName]],
         'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => true,
     ]);
     echo json_encode(['count' => (int)($r['result'][0] ?? 0), 'isp' => $ispName]);
@@ -325,9 +325,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($uid2 && in_array($newSt, ['Disable', 'Recharged'])) {
             $lock = ($newSt === 'Disable');
             // چک‌باکس‌های HTML وقتی تیک نمی‌خورن submit نمی‌شن، پس رفع قفل یعنی حذف
-            // کامل attr (to_del_attrs) نه ست کردن مقدار false
+            // کامل attr (to_del_attrs) نه ست کردن مقدار false. آرایه‌ی خالی PHP همیشه
+            // []‌ نوشته می‌شه نه {} توی JSON - کست به object مطمئن می‌شه {} فرستاده می‌شه.
             if ($lock) $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => ['lock' => true], 'to_del_attrs' => []]);
-            else $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => [], 'to_del_attrs' => ['lock']]);
+            else $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2, 'attrs' => (object)[], 'to_del_attrs' => ['lock']]);
             if ($r2['error'] ?? null) $error = 'خطا در ' . ($lock ? 'قفل کردن' : 'رفع قفل') . ': ' . $r2['error'];
             else { header('Location: users.php?success=' . ($lock ? 'کاربر+قفل+شد' : 'قفل+برداشته+شد')); exit; }
         }
