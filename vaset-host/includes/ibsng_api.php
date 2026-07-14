@@ -105,7 +105,8 @@ function ibsng_getIspId($ispName) {
         $id = $info['admin_id'] ?? null;
     }
     // راه دوم (برای بقیه‌ی ISPها که یوزرنیم ادمین‌شون با اسم ISP فرق داره): از روی
-    // نگاشت کامل اسم‌ISP→admin_id که با اسکن عددی admin_id ساخته شده پیدا می‌کنیم.
+    // نگاشت کامل اسم‌ISP→isp_id که با اسکن عددی isp_id روی user.searchUser ساخته
+    // شده پیدا می‌کنیم.
     if ($id === null) {
         $map = ibsng_getIspIdMap();
         $id  = $map[$ispName] ?? null;
@@ -115,22 +116,33 @@ function ibsng_getIspId($ispName) {
     return $mem[$ispName];
 }
 
-// ─── ساخت کامل نگاشت اسم‌ISP → admin_id با اسکن عددیِ admin_id (چون admin_username
-// هر ادمین لزوماً با isp_name اون یکی نیست - این با اسکن شماره واقعی admin_id،
-// فارغ از یوزرنیم لاگین هر ادمین، درست کار می‌کنه) - نتیجه یک‌جا کش می‌شه ───
-function ibsng_getIspIdMap($maxAdminId = 60) {
-    $cKey = IBS_CACHE_DIR . 'ispid_map_v1.json';
+// ─── ساخت کامل نگاشت اسم‌ISP → isp_id با اسکن عددیِ isp_id از روی خودِ
+// user.searchUser (نه admin.getAdminInfo - اون فقط با admin_username دقیق کار
+// می‌کنه و admin_id رو اصلاً قبول نمی‌کنه، تست شد). چون فیلتر isp_id روی
+// user.searchUser ثابت‌شده کار می‌کنه، برای هر عدد کاندید یک کاربر نمونه می‌گیریم
+// و اسم واقعی ISP اون کاربر رو می‌خونیم. این روش برای ISP جدید هم خودکار کار
+// می‌کنه (به محض اینکه اون ISP حداقل یک کاربر داشته باشه) - فقط با کش ۱ ساعته
+// منتظر می‌مونه تا نگاشت رفرش بشه.
+function ibsng_getIspIdMap($maxId = 50) {
+    $cKey = IBS_CACHE_DIR . 'ispid_map_v2.json';
     if (file_exists($cKey) && (time() - filemtime($cKey)) < 3600) {
         $cached = @json_decode(@file_get_contents($cKey), true);
         if (is_array($cached) && !empty($cached)) return $cached;
     }
     $map = [];
-    for ($i = 1; $i <= $maxAdminId; $i++) {
-        $r = ibsng_call('admin.getAdminInfo', ['admin_id' => $i]);
-        $info = $r['result'] ?? null;
-        if (!is_array($info)) continue;
-        $isp = $info['isp_name'] ?? null;
+    $wanted = count(ibsng_getIsps());
+    for ($i = 1; $i <= $maxId; $i++) {
+        $r = ibsng_call('user.searchUser', [
+            'conds' => ['isp_id' => [(string)$i]], 'from' => 0, 'to' => 1,
+            'order_by' => 'user_id', 'desc' => true,
+        ]);
+        $uids = $r['result'][2] ?? [];
+        if (empty($uids)) continue;
+        $inf = ibsng_call('user.getUserInfo', ['user_id' => (string)$uids[0]]);
+        $row = $inf['result'][$uids[0]] ?? $inf['result'][(string)$uids[0]] ?? null;
+        $isp = $row['basic_info']['isp_name'] ?? null;
         if ($isp !== null && $isp !== '') $map[$isp] = (int)$i;
+        if ($wanted > 0 && count($map) >= $wanted) break;
     }
     if (!empty($map)) @file_put_contents($cKey, json_encode($map));
     return $map;

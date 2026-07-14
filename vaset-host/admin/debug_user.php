@@ -42,24 +42,27 @@ if (!empty($allIsps)) {
     }
 }
 
-// ۸) چون یوزرنیم ادمین لزوماً با اسم ISP یکی نیست، این‌بار مستقیم با شماره‌ی
-// عددی admin_id (۱ تا ۶۰) هر ادمین رو می‌خونیم و isp_name/username واقعیش رو
-// می‌بینیم - این باید کل نگاشت واقعی اسم‌ISP↔admin_id رو بدون حدس زدن نشون بده.
-$adminIdScan = [];
-for ($aid = 1; $aid <= 60; $aid++) {
-    $rA = ibsng_call('admin.getAdminInfo', ['admin_id' => $aid]);
-    $infoA = $rA['result'] ?? null;
-    if (is_array($infoA)) {
-        $adminIdScan[$aid] = [
-            'admin_id' => $aid,
-            'username' => $infoA['username'] ?? null,
-            'isp_name' => $infoA['isp_name'] ?? null,
-            'name'     => $infoA['name'] ?? null,
-            'error'    => null,
-        ];
-    } elseif (!empty($rA['error'])) {
-        $adminIdScan[$aid] = ['admin_id' => $aid, 'error' => $rA['error']];
-    }
+// ۸) admin.getAdminInfo با admin_id عددی اصلاً کار نمی‌کنه (تست شد: برای هر عددی
+// همون خطای "argument admin_username not found" رو می‌ده - یعنی admin_id پارامتر
+// معتبری براش نیست). پس به‌جاش از خودِ فیلتر کارکردِ isp_id روی user.searchUser
+// استفاده می‌کنیم: برای هر عدد کاندید ۱ تا ۵۰، یک کاربر نمونه می‌گیریم و
+// isp_name واقعیش رو می‌خونیم - این باید کل نگاشت واقعی اسم‌ISP↔isp_id رو نشون بده.
+$ispIdScan = [];
+for ($iid = 1; $iid <= 50; $iid++) {
+    $rI = ibsng_call('user.searchUser', [
+        'conds' => ['isp_id' => [(string)$iid]], 'from' => 0, 'to' => 1,
+        'order_by' => 'user_id', 'desc' => true,
+    ]);
+    $total = $rI['result'][0] ?? 0;
+    $uidsI = $rI['result'][2] ?? [];
+    if (empty($uidsI)) continue;
+    $infI = ibsng_call('user.getUserInfo', ['user_id' => (string)$uidsI[0]]);
+    $rowI = $infI['result'][$uidsI[0]] ?? $infI['result'][(string)$uidsI[0]] ?? null;
+    $ispIdScan[$iid] = [
+        'isp_id'   => $iid,
+        'total'    => $total,
+        'isp_name' => $rowI['basic_info']['isp_name'] ?? null,
+    ];
 }
 
 $ispCandidates = [];
@@ -243,23 +246,21 @@ a{color:#60a5fa}
 <p class="err">isp.getAllISPNames چیزی برنگردوند.</p>
 <?php endif;?>
 
-<h2>اسکن admin_id از ۱ تا ۶۰ (نگاشت واقعی اسم‌ISP ↔ admin_id)</h2>
-<p>چون یوزرنیم ادمین لزوماً با اسم ISP یکی نیست، این جدول با شماره‌ی عددی هر ادمین (admin_id) اطلاعاتش رو می‌خونه. ستون isp_name همون اسمیه که باید توی فیلتر پنل استفاده بشه؛ اگه هر ۸ تا ISP اینجا با admin_id درست دیده بشن، یعنی راه‌حل (اسکن عددی) کار می‌کنه.</p>
-<?php if(!empty($adminIdScan)):?>
+<h2>اسکن isp_id از ۱ تا ۵۰ روی user.searchUser (نگاشت واقعی اسم‌ISP ↔ isp_id)</h2>
+<p>admin.getAdminInfo با admin_id عددی اصلاً کار نکرد (همون خطای «admin_username پیدا نشد» رو برای هر عددی داد). این جدول به‌جاش مستقیماً فیلتر isp_id روی user.searchUser رو (که ثابت‌شده کار می‌کنه) امتحان می‌کنه: برای هر عدد کاندید، یک کاربر نمونه می‌گیره و اسم واقعی ISP اون کاربر رو می‌خونه. اگه هر ۸ تا ISP اینجا دیده بشن، یعنی این راه‌حل کار می‌کنه.</p>
+<?php if(!empty($ispIdScan)):?>
 <table style="width:100%;border-collapse:collapse;margin-bottom:20px" border="1" cellpadding="8">
-<tr style="background:#1e293b"><th>admin_id</th><th>username (لاگین ادمین)</th><th>isp_name</th><th>name</th><th>خطا</th></tr>
-<?php foreach($adminIdScan as $row):?>
+<tr style="background:#1e293b"><th>isp_id</th><th>total کاربر</th><th>isp_name واقعی</th></tr>
+<?php foreach($ispIdScan as $row):?>
 <tr>
-  <td><?=htmlspecialchars((string)$row['admin_id'])?></td>
-  <td><?=htmlspecialchars((string)($row['username']??'—'))?></td>
+  <td><?=htmlspecialchars((string)$row['isp_id'])?></td>
+  <td><?=htmlspecialchars((string)($row['total']??'—'))?></td>
   <td><?=htmlspecialchars((string)($row['isp_name']??'—'))?></td>
-  <td><?=htmlspecialchars((string)($row['name']??'—'))?></td>
-  <td><?=htmlspecialchars((string)($row['error']??''))?></td>
 </tr>
 <?php endforeach;?>
 </table>
 <?php else:?>
-<p class="err">هیچ admin_id ای (از ۱ تا ۶۰) جواب معتبر برنگردوند.</p>
+<p class="err">هیچ isp_id ای (از ۱ تا ۵۰) کاربری برنگردوند.</p>
 <?php endif;?>
 
 <h2>تست چند شکل مختلف فیلتر ISP (بدون یوزرنیم)</h2>
