@@ -82,6 +82,36 @@ function ibsng_getIsps() {
     return is_array($r['result']) ? $r['result'] : [];
 }
 
+// ─── تبدیل اسم ISP به شناسه‌ی عددی‌اش (isp_id) با کش طولانی ───
+// conds['isp_name'] توی user.searchUser هیچ تأثیری نداره (تست شد: total همیشه کل
+// کاربرها بود) - فیلتر واقعی روی conds['isp_id'] انجام می‌شه که همون admin_id
+// حساب ادمینِ صاحب اون ISP هست (یوزرنیم ادمین = اسم ISP). چون ISPها به‌ندرت تغییر
+// می‌کنن، کش طولانی (۱ ساعت) کافیه.
+function ibsng_getIspId($ispName) {
+    if ($ispName === '') return null;
+    static $mem = [];
+    if (array_key_exists($ispName, $mem)) return $mem[$ispName];
+    $cKey = IBS_CACHE_DIR . 'ispid_' . md5($ispName) . '.json';
+    if (file_exists($cKey) && (time() - filemtime($cKey)) < 3600) {
+        $cached = @json_decode(@file_get_contents($cKey), true);
+        if ($cached !== null) { $mem[$ispName] = (int)$cached; return $mem[$ispName]; }
+    }
+    $r  = ibsng_call('admin.getAdminInfo', ['admin_username' => $ispName]);
+    $id = $r['result']['admin_id'] ?? null;
+    $mem[$ispName] = $id !== null ? (int)$id : null;
+    if ($id !== null) @file_put_contents($cKey, json_encode((int)$id));
+    return $mem[$ispName];
+}
+
+// ─── ساخت شرط conds برای فیلتر یک ISP - همیشه از این تابع استفاده کن، نه از
+// isp_name مستقیم که کار نمی‌کنه. اگه ISP پیدا نشه، شرطی برمی‌گردونه که هیچ
+// کاربری رو برنمی‌گردونه (به‌جای نادیده گرفتن سایلنت فیلتر و برگردوندن کل لیست).
+function ibsng_ispCond($ispName) {
+    $id = ibsng_getIspId($ispName);
+    if ($id === null) return ['isp_id' => ['0']];
+    return ['isp_id' => [(string)$id]];
+}
+
 // ─── RAS ها با کش 10 دقیقه ───
 function ibsng_getRasList() {
     $r = ibsng_call('ras.getAllRasNames', [], 600);
@@ -93,7 +123,7 @@ function ibsng_getRasList() {
 // ─── تعداد کاربران یک ISP با کش 60 ثانیه ───
 function ibsng_getIspUserCount($ispName) {
     $r = ibsng_call('user.searchUser', [
-        'conds'    => ['isp_name' => [$ispName]],
+        'conds'    => ibsng_ispCond($ispName),
         'from'     => 0,
         'to'       => 1,
         'order_by' => 'user_id',
@@ -225,7 +255,7 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
     // مطمئن می‌شویم قفل در هر صورت پاک می‌شود.
     register_shutdown_function(function () use ($lockFile) { @unlink($lockFile); });
 
-    $conds = ['isp_name' => [$ispName]];
+    $conds = ibsng_ispCond($ispName);
     if ($groupFilter !== '') $conds['group_name'] = $groupFilter;
 
     $uids = ibsng_getAllUidsForIsp($conds);
@@ -276,7 +306,7 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
     }
 
     // کش نداریم → فقط تعداد کل + صفحه اول رو سریع بگیر
-    $conds = ['isp_name' => [$ispName]];
+    $conds = ibsng_ispCond($ispName);
     if ($groupFilter !== '') $conds['group_name'] = $groupFilter;
 
     // تعداد کل
@@ -320,7 +350,7 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
 
 function ibsng_searchUsersForReseller($ispName, $search, $group, $page, $perPage = 50) {
     $conds = [];
-    if ($ispName !== '') { $conds['isp_name'] = [$ispName]; }
+    if ($ispName !== '') $conds = ibsng_ispCond($ispName);
     if ($group   !== '') $conds['group_name'] = $group;
 
     // ─ جستجو با username ─
@@ -460,7 +490,7 @@ function ibsng_getIspUsernameMap($ispName) {
     }
     try {
         // از pagination کامل استفاده کن
-        $uids = ibsng_getAllUidsForIsp(['isp_name' => [$ispName]]);
+        $uids = ibsng_getAllUidsForIsp(ibsng_ispCond($ispName));
         if (empty($uids)) { @file_put_contents($cKey, '{}'); return []; }
         $map = [];
         foreach (array_chunk($uids, 100) as $chunk) {

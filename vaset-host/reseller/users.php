@@ -58,7 +58,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'rebuild_cache') {
         ibsng_clearCache('isp_full_' . md5($ispName) . '.json');
         ibsng_clearCache('isp_full_' . md5($ispName . '') . '.json');
         // سریع تعداد کل رو بگیر
-        $rC = ibsng_call('user.searchUser', ['conds'=>['isp_name'=>[$ispName]],'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
+        $rC = ibsng_call('user.searchUser', ['conds'=>ibsng_ispCond($ispName),'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
         $cnt = (int)($rC['result'][0] ?? 0);
         echo json_encode(['ok'=>true,'total'=>$cnt,'isp'=>$ispName]);
     } else {
@@ -72,7 +72,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'count') {
     header('Content-Type: application/json');
     if ($ispName === '') { echo json_encode(['count' => 0, 'isp' => '']); exit; }
     $r = ibsng_call('user.searchUser', [
-        'conds' => ['isp_name' => [$ispName]],
+        'conds' => ibsng_ispCond($ispName),
         'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => true,
     ]);
     echo json_encode(['count' => (int)($r['result'][0] ?? 0), 'isp' => $ispName]);

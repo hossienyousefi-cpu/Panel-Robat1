@@ -47,7 +47,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
     if($ispF!==''||$search!==''){
         $conds=[];
         if($grpF!=='') $conds['group_name']=$grpF;
-        if($ispF!=='') $conds['isp_name']=[$ispF];
+        if($ispF!=='') $conds=array_merge($conds,ibsng_ispCond($ispF));
 
         // اگر فقط ISP (یا ISP+گروه) فیلتر است، بدون RAS/search: مستقیم همون صفحه‌ی
         // درخواستی رو از  می‌گیریم (دقیقاً مثل حالت بدون فیلتر پایین این فایل) -
@@ -120,7 +120,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
         if(empty($filtered)&&$search!==''&&$ispF===''&&$rasF===''){
             foreach(ibsng_getIsps() as $ispTry){
                 $tryConds=$conds;
-                $tryConds['isp_name']=[$ispTry];
+                $tryConds=array_merge($tryConds,ibsng_ispCond($ispTry));
                 $tryConds['normal_username']=$search;
                 $tryConds['normal_username_op']='like';
                 $tr=ibsng_call('user.searchUser',['conds'=>$tryConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]);
