@@ -602,13 +602,20 @@ function ibsng_kickUser($uid) {
     $username = $info['attrs']['normal_username'] ?? ($info['user_repr'] ?? '');
 
     $candidates = [
-        'ras.kickUser'        => ['user_id' => $uid],
-        'ras.kickUser (user)' => ['normal_username' => $username],
-        'report.kickUser'     => ['user_id' => $uid],
-        'user.kickUser'       => ['user_id' => $uid],
-        'onlineuser.kickUser' => ['user_id' => $uid],
-        'radius.kickUser'     => ['user_id' => $uid],
-        'ras.disconnectUser'  => ['user_id' => $uid],
+        'ras.kickUser'          => ['user_id' => $uid],
+        'ras.kickUser (user)'   => ['normal_username' => $username],
+        'report.kickUser'       => ['user_id' => $uid],
+        'user.kickUser'         => ['user_id' => $uid],
+        'onlineuser.kickUser'   => ['user_id' => $uid],
+        'radius.kickUser'       => ['user_id' => $uid],
+        'ras.disconnectUser'    => ['user_id' => $uid],
+        'user.kickOnlineUser'   => ['user_id' => $uid],
+        'ras.kickOnlineUser'    => ['user_id' => $uid],
+        'report.kickOnlineUser' => ['user_id' => $uid],
+        'user.disconnectUser'   => ['user_id' => $uid],
+        'report.disconnectUser' => ['user_id' => $uid],
+        'ras.kick'              => ['user_id' => $uid],
+        'radius.disconnectUser' => ['user_id' => $uid],
     ];
     $lastError = 'هیچ متد شناخته‌شده‌ای برای Kick کار نکرد';
     foreach ($candidates as $label => $params) {
@@ -619,7 +626,11 @@ function ibsng_kickUser($uid) {
             ibsng_clearUserCache($uid);
             return ['error' => null, 'method' => $label];
         }
-        if (stripos((string)$err, 'has not method') !== false) {
+        // هم "Handler --x-- has not method --y--" (هندلر هست، متد غلطه) هم
+        // "Handler --x-- not found" (کلاً همچین هندلری وجود نداره) یعنی حدس
+        // غلط بوده - میریم سراغ بعدی. فقط وقتی خطا این دو فرمت نباشه یعنی به
+        // متد واقعی رسیدیم (چه جواب بده چه ایراد پارامتر داشته باشه).
+        if (preg_match('/Handler\s*--[^-]*--\s*(has not method|not found)/i', (string)$err)) {
             $lastError = $err;
             continue;
         }

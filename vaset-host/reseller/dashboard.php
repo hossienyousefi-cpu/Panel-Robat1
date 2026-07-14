@@ -16,14 +16,34 @@ $reseller = $reseller->fetch();
 // کاربرهایی که قبلاً توی IBSng بودن یا از پنل اصلی ساخته شدن صفر/خیلی کم بود).
 $totalUsers = ibsng_getIspUserCount($reseller['isp_name'] ?? '');
 
-$activeUsers = $pdo->prepare("SELECT COUNT(*) FROM users WHERE reseller_id=? AND status='active'");
-$activeUsers->execute([$rid]); $activeUsers = $activeUsers->fetchColumn();
-
 $expiredUsers = $pdo->prepare("SELECT COUNT(*) FROM users WHERE reseller_id=? AND (status='expired' OR expire_date < CURDATE())");
 $expiredUsers->execute([$rid]); $expiredUsers = $expiredUsers->fetchColumn();
 
-$expiringSoon = $pdo->prepare("SELECT * FROM users WHERE reseller_id=? AND expire_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND status='active' ORDER BY expire_date ASC");
-$expiringSoon->execute([$rid]); $expiringSoon = $expiringSoon->fetchAll();
+// کاربران رو به اتمام (۷ روز آینده) از خودِ IBSng - نه جدول محلی users (که فقط
+// کاربرهای ساخته‌شده از همین پنل رو داره).
+$expiringSoon = [];
+$ispName_dash0 = $reseller['isp_name'] ?? '';
+if ($ispName_dash0 !== '') {
+    $now    = date('Y/m/d');
+    $future = date('Y/m/d', strtotime('+7 days'));
+    $rExp = ibsng_call('user.searchExpiredUsersExtended', [
+        'conds' => ['exp_date_from' => $now, 'exp_date_from_unit' => 'gregorian',
+                    'exp_date_to'   => $future, 'exp_date_to_unit' => 'gregorian'],
+        'from' => 0, 'to' => 200, 'order_by' => 'user_id', 'desc' => false,
+    ]);
+    $expUsers = $rExp['result'][2] ?? [];
+    if (!empty($expUsers)) {
+        $infExp = ibsng_call('user.getUserInfo', ['user_id' => implode(',', array_keys($expUsers))]);
+        $infosExp = $infExp['result'] ?? [];
+        foreach (array_keys($expUsers) as $uidExp) {
+            $uExp = $infosExp[$uidExp] ?? null; if (!$uExp) continue;
+            $basicExp = $uExp['basic_info'] ?? []; $attrsExp = $uExp['attrs'] ?? [];
+            if (($basicExp['isp_name'] ?? '') !== $ispName_dash0) continue;
+            $expDate = $basicExp['nearest_exp_date'] ?? '';
+            $expiringSoon[] = ['username' => $attrsExp['normal_username'] ?? '—', 'expire_date' => $expDate ? substr($expDate, 0, 10) : '—'];
+        }
+    }
+}
 
 // کاربران آنلاین از IBSng
 $onlineUsers = [];
@@ -235,12 +255,6 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
         <div class="stat-icon">👥</div>
         <div class="stat-value"><?= $totalUsers ?></div>
         <div class="stat-label">کل کاربران من</div>
-      </div>
-      <div class="stat-card cyan">
-        <div class="stat-glow"></div>
-        <div class="stat-icon">✅</div>
-        <div class="stat-value"><?= $activeUsers ?></div>
-        <div class="stat-label">کاربران فعال</div>
       </div>
       <div class="stat-card gold">
         <div class="stat-glow"></div>
