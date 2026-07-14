@@ -64,6 +64,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("DELETE FROM resellers WHERE id=?")->execute([$rid]);
         $success="ریسلر $nm حذف شد";
     }
+
+    if ($action === 'set_isp_id') {
+        $ispN = sanitize($_POST['isp_name'] ?? '');
+        $ispIdVal = (int)($_POST['isp_id'] ?? 0);
+        if ($ispN === '' || $ispIdVal <= 0) { $error = 'اسم ISP و شناسه‌ی عددی معتبر لازمه'; }
+        else {
+            ibsng_setIspIdManual($ispN, $ispIdVal);
+            logActivity('admin',$_SESSION['admin_id'],'set_isp_id',"ISP $ispN => isp_id $ispIdVal");
+            $success = "شناسه‌ی ISP «$ispN» روی $ispIdVal ثبت شد";
+        }
+    }
+
+    if ($action === 'clear_isp_id') {
+        $ispN = sanitize($_POST['isp_name'] ?? '');
+        if ($ispN !== '') {
+            ibsng_clearIspIdManual($ispN);
+            logActivity('admin',$_SESSION['admin_id'],'clear_isp_id',"ISP $ispN نگاشت دستی پاک شد");
+            $success = "نگاشت دستی ISP «$ispN» پاک شد (دوباره به‌صورت خودکار تشخیص داده می‌شه)";
+        }
+    }
 }
 
 // AJAX: اطلاعات ریسلر
@@ -122,6 +142,17 @@ if (isset($_GET['ajax']) && $_GET['ajax']==='isp_users') {
 
 $resellers=$pdo->query("SELECT r.*,(SELECT COUNT(*) FROM users u WHERE u.reseller_id=r.id) uc,(SELECT COUNT(*) FROM reseller_groups rg WHERE rg.reseller_id=r.id) gc FROM resellers r ORDER BY r.created_at DESC")->fetchAll();
 $pendingCount=$pdo->query("SELECT COUNT(*) FROM payment_requests WHERE status='pending'")->fetchColumn();
+
+// وضعیت فعلی شناسه‌ی عددی هر ISP - برای نمایش توی مودال «مدیریت شناسه ISP».
+// اگه اتوماتیک/دستی پیدا شده، عددشو نشون می‌ده؛ اگه نه، فیلد خالی برای ثبت دستی.
+$ispIdManualMap = ibsng_getIspIdManualMap();
+$ispIdStatus = [];
+foreach ($ibsIsps as $ispEach) {
+    $ispIdStatus[$ispEach] = [
+        'id'       => ibsng_getIspId($ispEach),
+        'isManual' => isset($ispIdManualMap[$ispEach]),
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -284,6 +315,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
     <div class="pg-title">👥 مدیریت ریسلرها</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn bc" onclick="openM('ispM')">🌐 کاربران ISP</button>
+      <button class="btn bc" onclick="openM('ispIdM')">🔧 شناسه ISP</button>
       <button class="btn bp" onclick="openM('addM')">➕ ریسلر جدید</button>
     </div>
   </div>
@@ -458,6 +490,54 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
         <button class="btn bp" onclick="loadIsp()">🔍 نمایش</button>
       </div>
       <div id="ispRes"></div>
+    </div>
+  </div>
+</div>
+
+<!-- مدیریت شناسه عددی ISP (isp_id) -->
+<div class="mbg" id="ispIdM">
+  <div class="modal mlg">
+    <div class="mh"><div class="mt">🔧 مدیریت شناسه‌ی عددی ISP</div><button class="mc" onclick="closeM('ispIdM')" title="بستن">✕</button></div>
+    <div class="mb">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+        فیلتر کردن کاربرهای هر ISP توی IBSng از روی یک شناسه‌ی عددی (isp_id) انجام می‌شه، نه اسمش.
+        این عدد معمولاً به‌صورت خودکار پیدا می‌شه؛ ولی اگه برای یک ISP «ثبت‌نشده» بود، می‌تونی
+        عدد Admin ID اونو از پنل اصلی IBSng (بخش Admin Information همون ادمین/ISP) پیدا کنی و
+        اینجا دستی ثبت کنی تا فیلترش همیشه درست کار کنه.
+      </p>
+      <div class="tw">
+        <table class="t">
+          <thead><tr><th>ISP</th><th>isp_id فعلی</th><th>منبع</th><th>ثبت/ویرایش دستی</th><th></th></tr></thead>
+          <tbody>
+          <?php foreach($ispIdStatus as $ispEach=>$st):?>
+          <tr>
+            <td><span class="badge bbl"><?=sanitize($ispEach)?></span></td>
+            <td><?=$st['id']!==null?'<b>'.(int)$st['id'].'</b>':'<span class="badge bwa">⚠️ ثبت‌نشده</span>'?></td>
+            <td style="font-size:11px;color:var(--muted)"><?=$st['id']===null?'—':($st['isManual']?'دستی':'خودکار')?></td>
+            <td>
+              <form method="POST" style="display:flex;gap:6px" onsubmit="return true;">
+                <input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+                <input type="hidden" name="action" value="set_isp_id">
+                <input type="hidden" name="isp_name" value="<?=sanitize($ispEach)?>">
+                <input type="number" name="isp_id" min="1" placeholder="مثلاً 6" value="<?=$st['isManual']?(int)$st['id']:''?>" style="width:90px;padding:6px 8px;background:var(--surf);border:1px solid var(--bor);border-radius:6px;color:var(--txt);font-size:12px">
+                <button type="submit" class="btn bp" style="padding:6px 10px;font-size:12px">ذخیره</button>
+              </form>
+            </td>
+            <td>
+              <?php if($st['isManual']):?>
+              <form method="POST" onsubmit="return confirm('نگاشت دستی این ISP پاک بشه؟');">
+                <input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+                <input type="hidden" name="action" value="clear_isp_id">
+                <input type="hidden" name="isp_name" value="<?=sanitize($ispEach)?>">
+                <button type="submit" class="btn bd" style="padding:6px 10px;font-size:12px">حذف نگاشت</button>
+              </form>
+              <?php endif;?>
+            </td>
+          </tr>
+          <?php endforeach;?>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>

@@ -82,21 +82,53 @@ function ibsng_getIsps() {
     return is_array($r['result']) ? $r['result'] : [];
 }
 
-// ─── تبدیل اسم ISP به شناسه‌ی عددی‌اش (isp_id) با کش طولانی ───
+// ─── نگاشت دستی/دائمیِ اسم‌ISP → isp_id، ذخیره‌شده توی جدول settings (کلید
+// isp_id_map، یک JSON از اسم به عدد). این منبع اصلی و همیشگیه: هم ادمین از
+// پنل می‌تونه دستی یک ISP رو (که کشف خودکار روش جواب نداد) ثبت کنه، هم خودِ
+// ibsng_getIspId بعد از هر کشف موفق، نتیجه رو همین‌جا برای همیشه ذخیره می‌کنه
+// تا دیگه لازم نباشه دوباره اسکن بشه ───
+function ibsng_getIspIdManualMap() {
+    global $pdo;
+    $v = $pdo->query("SELECT setting_value FROM settings WHERE setting_key='isp_id_map' LIMIT 1")->fetchColumn();
+    $d = $v ? json_decode($v, true) : null;
+    return is_array($d) ? $d : [];
+}
+
+function ibsng_setIspIdManual($ispName, $id) {
+    global $pdo;
+    $map = ibsng_getIspIdManualMap();
+    $map[$ispName] = (int)$id;
+    $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('isp_id_map', ?)
+                   ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")
+        ->execute([json_encode($map, JSON_UNESCAPED_UNICODE)]);
+}
+
+function ibsng_clearIspIdManual($ispName) {
+    global $pdo;
+    $map = ibsng_getIspIdManualMap();
+    unset($map[$ispName]);
+    $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('isp_id_map', ?)
+                   ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")
+        ->execute([json_encode($map, JSON_UNESCAPED_UNICODE)]);
+}
+
+// ─── تبدیل اسم ISP به شناسه‌ی عددی‌اش (isp_id) ───
 // conds['isp_name'] توی user.searchUser هیچ تأثیری نداره (تست شد: total همیشه کل
-// کاربرها بود) - فیلتر واقعی روی conds['isp_id'] انجام می‌شه که همون admin_id
-// حساب ادمینِ صاحب اون ISP هست (یوزرنیم ادمین = اسم ISP). چون ISPها به‌ندرت تغییر
-// می‌کنن، کش طولانی (۱ ساعت) کافیه.
+// کاربرها بود) - فیلتر واقعی روی conds['isp_id'] انجام می‌شه. این عدد همون
+// admin_id حساب ادمینِ صاحب اون ISP هست، ولی یوزرنیم لاگین اون ادمین لزوماً با
+// اسم ISP یکی نیست (فقط برای Milad این‌طور بود) - پس اول نگاشت دائمی ذخیره‌شده
+// رو چک می‌کنیم، بعد راه‌های خودکار کشف رو امتحان می‌کنیم.
 function ibsng_getIspId($ispName) {
     if ($ispName === '') return null;
     static $mem = [];
     if (array_key_exists($ispName, $mem)) return $mem[$ispName];
-    // پیشوند نسخه (v2) عمداً عوض شده تا کش قدیمیِ احتمالاً غلط (قبل از این تصحیح) نادیده گرفته بشه
-    $cKey = IBS_CACHE_DIR . 'ispid_v2_' . md5($ispName) . '.json';
-    if (file_exists($cKey) && (time() - filemtime($cKey)) < 3600) {
-        $cached = @json_decode(@file_get_contents($cKey), true);
-        if ($cached !== null) { $mem[$ispName] = (int)$cached; return $mem[$ispName]; }
+
+    $manual = ibsng_getIspIdManualMap();
+    if (isset($manual[$ispName])) {
+        $mem[$ispName] = (int)$manual[$ispName];
+        return $mem[$ispName];
     }
+
     // راه اول (ثابت‌شده برای Milad): شاید یوزرنیم ادمین دقیقاً همون اسم ISP باشه.
     $id = null;
     $r  = ibsng_call('admin.getAdminInfo', ['admin_username' => $ispName]);
@@ -112,7 +144,9 @@ function ibsng_getIspId($ispName) {
         $id  = $map[$ispName] ?? null;
     }
     $mem[$ispName] = $id !== null ? (int)$id : null;
-    if ($id !== null) @file_put_contents($cKey, json_encode((int)$id));
+    // چون کشفش گرون بود (اسکن عددی)، برای همیشه ذخیره‌اش می‌کنیم تا دیگه لازم
+    // نباشه دوباره اسکن بشه.
+    if ($id !== null) ibsng_setIspIdManual($ispName, (int)$id);
     return $mem[$ispName];
 }
 
@@ -120,10 +154,9 @@ function ibsng_getIspId($ispName) {
 // user.searchUser (نه admin.getAdminInfo - اون فقط با admin_username دقیق کار
 // می‌کنه و admin_id رو اصلاً قبول نمی‌کنه، تست شد). چون فیلتر isp_id روی
 // user.searchUser ثابت‌شده کار می‌کنه، برای هر عدد کاندید یک کاربر نمونه می‌گیریم
-// و اسم واقعی ISP اون کاربر رو می‌خونیم. این روش برای ISP جدید هم خودکار کار
-// می‌کنه (به محض اینکه اون ISP حداقل یک کاربر داشته باشه) - فقط با کش ۱ ساعته
-// منتظر می‌مونه تا نگاشت رفرش بشه.
-function ibsng_getIspIdMap($maxId = 50) {
+// و اسم واقعی ISP اون کاربر رو می‌خونیم. این فقط وقتی صدا زده می‌شه که نگاشت
+// دستی/ذخیره‌شده جواب نداده - نتیجه‌اش هم دائمی ذخیره می‌شه (نه فقط کش موقت).
+function ibsng_getIspIdMap($maxId = 100) {
     $cKey = IBS_CACHE_DIR . 'ispid_map_v2.json';
     if (file_exists($cKey) && (time() - filemtime($cKey)) < 3600) {
         $cached = @json_decode(@file_get_contents($cKey), true);
