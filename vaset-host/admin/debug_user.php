@@ -136,6 +136,23 @@ if ($ispName !== '') {
         }
     }
     if (!empty($idGuesses)) $sanityChecks['isp_id_guesses'] = $idGuesses;
+
+    // ۶) حالا که فهمیدیم isp_id (به‌صورت رشته یا آرایه) واقعاً فیلتر می‌کنه، باید
+    // بتونیم بدون داشتن یک کاربر از قبل، فقط از روی اسم ISP این عدد رو پیدا کنیم.
+    // از روی عکس‌های ادمین پنل، isp_id همون Admin ID حساب ادمینِ صاحب آن ISP هست
+    // (یوزرنیم ادمین = اسم ISP). چند متد احتمالی رو امتحان می‌کنیم.
+    $ispIdLookup = [];
+    $lookupMethods = [
+        'isp.getIspInfo (isp_name)'         => ['isp.getIspInfo', ['isp_name' => $ispName]],
+        'admin.getAdminInfo (admin_username)' => ['admin.getAdminInfo', ['admin_username' => $ispName]],
+        'admin.getAdminInfo (username)'     => ['admin.getAdminInfo', ['username' => $ispName]],
+        'admin.searchAdmin (admin_username)' => ['admin.searchAdmin', ['conds' => ['admin_username' => $ispName], 'from' => 0, 'to' => 3]],
+    ];
+    foreach ($lookupMethods as $label => [$method, $params]) {
+        $res = ibsng_call($method, $params);
+        $ispIdLookup[$label] = $res;
+    }
+    $sanityChecks['isp_id_lookup_attempts'] = $ispIdLookup;
 }
 ?>
 <!DOCTYPE html>
@@ -212,6 +229,10 @@ a{color:#60a5fa}
 <pre><?=htmlspecialchars(json_encode($sanityChecks['isp_id_guesses'], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
 <?php else:?>
 <p>۴) هیچ‌کدوم از isp_id های ۱ تا ۱۰ روی total تأثیری نداشتن (یا همه دقیقاً 15315 برگردوندن).</p>
+<?php endif;?>
+<?php if(isset($sanityChecks['isp_id_lookup_attempts'])):?>
+<p>۵) تست چند متد مختلف برای پیدا کردن isp_id فقط از روی اسم ISP (بدون نیاز به کاربر از قبل):</p>
+<pre><?=htmlspecialchars(json_encode($sanityChecks['isp_id_lookup_attempts'], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
 <?php endif;?>
 <?php endif;?>
 </body>
