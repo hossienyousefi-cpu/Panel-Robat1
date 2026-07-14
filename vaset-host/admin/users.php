@@ -300,23 +300,6 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         if($rLock['error']??null){$error='خطا در '.($lock?'قفل کردن':'رفع قفل').': '.$rLock['error'];}
         else{header('Location: users.php?success='.($lock?'کاربر+قفل+شد':'قفل+برداشته+شد'));exit;}
     }
-    if($act==='bulk_renew'){
-        $ids=array_filter(explode(',',$_POST['user_ids']??''));
-        $okCount=0;$failCount=0;
-        foreach($ids as $uid){
-            $inf=ibsng_call('user.getUserInfo',['user_id'=>$uid]);
-            $basic=$inf['result'][$uid]['basic_info']??[];$gn=$basic['group_name']??'';
-            $gi=ibsng_call('group.getGroupInfo',['group_name'=>$gn]);
-            $gc=$gi['result']['attrs']['group_credit']??($basic['credit']??100);
-            $ga=$gi['result']['raw_attrs']??[];
-            $rCredit=ibsng_call('user.changeCredit',['user_id'=>$uid,'credit'=>(float)$gc,'is_absolute_change'=>true,'credit_comment'=>'تمدید گروهی']);
-            if(!empty($ga['rel_exp_date'])){$m=max(1,(int)round((int)$ga['rel_exp_date']/(30*24*3600)));ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['abs_exp_date'=>$m,'abs_exp_date_unit'=>'months'],'to_del_attrs'=>[]]);}
-            $rStatus=ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>'Recharged']);
-            if(($rCredit['error']??null)||($rStatus['error']??null)) $failCount++; else $okCount++;
-        }
-        $msg=$okCount.'+کاربر+تمدید+شد'.($failCount?'+|+'.$failCount.'+خطا':'');
-        header('Location: users.php?success='.$msg);exit;
-    }
     // ساخت گروهی
     if($act==='bulk_create'){
         $pfx   =sanitize($_POST['bulk_prefix']??'user');
@@ -555,23 +538,17 @@ input:focus,select:focus{border-color:var(--acc)}
       <div class="tw">
         <table class="t">
           <thead><tr>
-            <th class="cb-col"><input type="checkbox" id="chkAll" onchange="selAll(this)"></th>
             <th class="th-sort" onclick="setSort('username')">کاربر <span id="s_username">↕</span></th><th>رمز</th><th>وضعیت</th>
             <th class="th-sort" onclick="setSort('group')">گروه <span id="s_group">↕</span></th>
             <th class="th-sort" onclick="setSort('isp')">ISP <span id="s_isp">↕</span></th>
             <th class="th-sort" onclick="setSort('ras')">RAS <span id="s_ras">↕</span></th>
             <th class="th-sort" onclick="setSort('exp')">انقضا <span id="s_exp">↕</span></th><th>عملیات</th>
           </tr></thead>
-          <tbody id="tbody"><tr><td colspan="9" class="loading">⏳ در حال بارگذاری...</td></tr></tbody>
+          <tbody id="tbody"><tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr></tbody>
         </table>
       </div>
     </div>
     <div class="pag" id="pag"></div>
-    <div id="bulkBar" style="display:none;position:fixed;bottom:20px;right:50%;transform:translateX(50%);background:var(--card);border:1px solid var(--bor);border-radius:12px;padding:10px 16px;display:flex;gap:8px;align-items:center;z-index:50;box-shadow:0 8px 32px rgba(0,0,0,.5)">
-      <span id="selCnt" style="font-size:13px;font-weight:600"></span>
-      <button class="btn bg bsm" onclick="bulkRenew()">🔄 تمدید گروهی</button>
-      <button class="btn bd bsm" onclick="closeBulkBar()">✕</button>
-    </div>
   </div>
 </main>
 
@@ -744,10 +721,8 @@ input:focus,select:focus{border-color:var(--acc)}
   </div>
 </div>
 
-<form method="POST" id="brForm"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="bulk_renew"><input type="hidden" name="user_ids" id="brIds"></form>
-
 <script>
-let curP=0,curSort='',curDir='desc',curTab='all',selIds=new Set(),ptM='m',ptP='m',ptB='m';
+let curP=0,curSort='',curDir='desc',curTab='all',ptM='m',ptP='m',ptB='m';
 function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').style.display='block'}
 function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').style.display='none'}
 function openM(id){document.getElementById(id).classList.add('open')}
@@ -784,7 +759,7 @@ function setSort(col){
   curP=0; load();
 }
 function load(){
-  document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">⏳ در حال بارگذاری...</td></tr>';
+  document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr>';
   if(curTab==='exp3'){loadExp();return;}
   const s=document.getElementById('fSrch').value.trim();
   const g=document.getElementById('fGrp').value;
@@ -792,19 +767,19 @@ function load(){
   const ras=document.getElementById('fRas').value.trim();
   fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&isp=${encodeURIComponent(isp)}&ras=${encodeURIComponent(ras)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
     .then(r=>r.json()).then(d=>renderTable(d,50))
-    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">❌ خطا</td></tr>';});
+    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }
 
 function loadExp(){
   fetch('users.php?ajax=expiring&days=3')
     .then(r=>r.json()).then(d=>renderTable(d,200))
-    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">❌ خطا</td></tr>';});
+    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }
 
 function renderTable(d,pp){
   const total=d.total,rows=d.rows||[];
   document.getElementById('tinfo').textContent=rows.length?`نمایش ${curP*pp+1}–${Math.min((curP+1)*pp,total)} از ${total.toLocaleString()} کاربر`:'هیچ کاربری یافت نشد';
-  if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
+  if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
   document.getElementById('tbody').innerHTML=rows.map(u=>{
     const st=u.status==='Active'||u.status==='Recharged'?`<span class="badge bok">${u.status}</span>`:`<span class="badge ber">${u.status}</span>`;
     const ec=u.days_left===null?'bbl':u.days_left<0?'ber':u.days_left<=7?'bwa':'bok';
@@ -814,7 +789,6 @@ function renderTable(d,pp){
     // لاک/آنلاک رو نشون نمی‌ده)، برای همین نمی‌تونیم مطمئن حدس بزنیم کاربر الان
     // لاکه یا نه - هر دو دکمه رو همیشه نشون می‌دیم.
     return `<tr>
-      <td><input type="checkbox" class="rcb" value="${u.id}" onchange="onChk(this)"></td>
       <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
       <td>${pw}</td><td>${st}</td>
       <td><span class="badge bpu2">${u.group}</span></td>
@@ -852,11 +826,6 @@ function openLk(uid,un,st){
   document.getElementById('lockMsg').textContent=(lock?'کاربر ':'رفع قفل ')+un+(lock?' قفل می‌شود':' می‌شود');
   openM('lockM');
 }
-function selAll(cb){document.querySelectorAll('.rcb').forEach(c=>{c.checked=cb.checked;cb.checked?selIds.add(c.value):selIds.delete(c.value);});updBulkBar();}
-function onChk(cb){cb.checked?selIds.add(cb.value):selIds.delete(cb.value);updBulkBar();}
-function updBulkBar(){const n=selIds.size;const bar=document.getElementById('bulkBar');bar.style.display=n>0?'flex':'none';document.getElementById('selCnt').textContent=n+' کاربر انتخاب شده';}
-function closeBulkBar(){selIds.clear();document.querySelectorAll('.rcb').forEach(c=>c.checked=false);document.getElementById('chkAll').checked=false;document.getElementById('bulkBar').style.display='none';}
-function bulkRenew(){if(!selIds.size)return;if(confirm('تمدید '+selIds.size+' کاربر؟')){document.getElementById('brIds').value=[...selIds].join(',');document.getElementById('brForm').submit();}}
 
 load();
 </script>

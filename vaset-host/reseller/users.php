@@ -330,31 +330,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($act === 'bulk_renew' && $canRenew) {
-        $ids = array_filter(explode(',', $_POST['user_ids'] ?? ''));
-        $ok  = 0; $fail = 0;
-        foreach ($ids as $uid2) {
-            $uid2  = trim($uid2);
-            $inf   = ibsng_call('user.getUserInfo', ['user_id' => $uid2]);
-            $basic = $inf['result'][$uid2]['basic_info'] ?? [];
-            if ($ispName !== '' && ($basic['isp_name'] ?? '') !== $ispName) continue;
-            $gn = $basic['group_name'] ?? '';
-            $gi = ibsng_call('group.getGroupInfo', ['group_name' => $gn]);
-            $gc = $gi['result']['attrs']['group_credit'] ?? ($basic['credit'] ?? 100);
-            $ga = $gi['result']['raw_attrs'] ?? [];
-            $rCredit = ibsng_call('user.changeCredit', ['user_id' => $uid2, 'credit' => (float)$gc,
-                'is_absolute_change' => true, 'credit_comment' => 'تمدید گروهی']);
-            if (!empty($ga['rel_exp_date'])) {
-                $m = max(1, (int)round((int)$ga['rel_exp_date'] / (30*24*3600)));
-                ibsng_call('user.updateUserAttrs', ['user_id' => $uid2,
-                    'attrs' => ['abs_exp_date' => $m, 'abs_exp_date_unit' => 'months'], 'to_del_attrs' => []]);
-            }
-            $rStatus = ibsng_call('user.changeStatus', ['user_id' => $uid2, 'status' => 'Recharged']);
-            if (($rCredit['error'] ?? null) || ($rStatus['error'] ?? null)) $fail++; else $ok++;
-        }
-        $msg = $ok . '+کاربر+تمدید+شد' . ($fail ? '+|+' . $fail . '+خطا' : '');
-        header('Location: users.php?success=' . $msg); exit;
-    }
 }
 
 $error   = $_GET['error']   ?? $error;
@@ -562,23 +537,17 @@ input:focus,select:focus{border-color:var(--acc)}
       <div class="tw">
         <table class="t">
           <thead><tr>
-            <th class="cb-col"><input type="checkbox" id="chkAll" onchange="selAll(this)"></th>
             <th class="th-sort" onclick="setSort('username')">کاربر <span id="s_username">↕</span></th><th>رمز</th><th>وضعیت</th>
             <th class="th-sort" onclick="setSort('group')">گروه <span id="s_group">↕</span></th>
             <th class="th-sort" onclick="setSort('isp')">ISP <span id="s_isp">↕</span></th>
             <th class="th-sort" onclick="setSort('ras')">RAS <span id="s_ras">↕</span></th>
             <th class="th-sort" onclick="setSort('exp')">انقضا <span id="s_exp">↕</span></th><th>عملیات</th>
           </tr></thead>
-          <tbody id="tbody"><tr><td colspan="9" class="loading">⏳ در حال بارگذاری...</td></tr></tbody>
+          <tbody id="tbody"><tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr></tbody>
         </table>
       </div>
     </div>
     <div class="pag" id="pag"></div>
-    <div id="bulkBar" style="display:none;position:fixed;bottom:20px;right:50%;transform:translateX(50%);background:var(--card);border:1px solid var(--bor);border-radius:12px;padding:10px 16px;gap:8px;align-items:center;z-index:50;box-shadow:0 8px 32px rgba(0,0,0,.5)">
-      <span id="selCnt" style="font-size:13px;font-weight:600"></span>
-      <?php if($canRenew):?><button class="btn bg bsm" onclick="bulkRenew()">🔄 تمدید گروهی</button><?php endif;?>
-      <button class="btn bd bsm" onclick="closeBulkBar()">✕</button>
-    </div>
   </div>
 </main>
 
@@ -743,10 +712,8 @@ input:focus,select:focus{border-color:var(--acc)}
   </div>
 </div>
 
-<form method="POST" id="brForm"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="bulk_renew"><input type="hidden" name="user_ids" id="brIds"></form>
-
 <script>
-let curP=0,curSort='',curDir='desc',curTab='all',selIds=new Set(),ptM='m',ptP='m',ptB='m';
+let curP=0,curSort='',curDir='desc',curTab='all',ptM='m',ptP='m',ptB='m';
 var CR=<?=$canRenew?'true':'false'?>, CD=<?=$canDel?'true':'false'?>;
 
 function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').style.display='block'}
@@ -806,7 +773,7 @@ function setSort(col){
 }
 
 function hardRefresh(){
-  document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">⏳ در حال بروزرسانی...</td></tr>';
+  document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">⏳ در حال بروزرسانی...</td></tr>';
   fetch('users.php?ajax=rebuild_cache')
     .then(r=>r.json())
     .then(d=>{
@@ -816,24 +783,24 @@ function hardRefresh(){
 }
 
 function load(){
-  document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">⏳ در حال بارگذاری...</td></tr>';
+  document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr>';
   if(curTab==='exp3'){loadExp();return;}
   const s=document.getElementById('fSrch').value.trim();
   const g=document.getElementById('fGrp').value;
   fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
     .then(r=>r.json()).then(d=>renderTable(d,50))
-    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">❌ خطا</td></tr>';});
+    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }
 function loadExp(){
   fetch('users.php?ajax=expiring&days=3').then(r=>r.json()).then(d=>renderTable(d,200))
-    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">❌ خطا</td></tr>';});
+    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }
 
 function renderTable(d,pp){
   const total=d.total,rows=d.rows||[];
   if(d.error_msg){
     document.getElementById('tinfo').textContent='';
-    document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading" style="color:var(--yel)">⚠️ '+d.error_msg+'</td></tr>';
+    document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading" style="color:var(--yel)">⚠️ '+d.error_msg+'</td></tr>';
     document.getElementById('pag').innerHTML='';return;
   }
   const totalIsp=d.total_isp||total;
@@ -846,7 +813,7 @@ function renderTable(d,pp){
     // اگه کش نداشت، در background بساز
     if(d.cached===false && curP===0) setTimeout(()=>fetch('users.php?ajax=rebuild_cache'),2000);
   }
-  if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="9" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
+  if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
   document.getElementById('tbody').innerHTML=rows.map(u=>{
     const st=u.status==='Active'||u.status==='Recharged'?`<span class="badge bok">${u.status}</span>`:`<span class="badge ber">${u.status}</span>`;
     const ec=u.days_left===null?'bbl':u.days_left<0?'ber':u.days_left<=7?'bwa':'bok';
@@ -860,7 +827,6 @@ function renderTable(d,pp){
     acts+=`<button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>`;
     if(CD) acts+=`<button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')">🗑</button>`;
     return `<tr>
-      <td><input type="checkbox" class="rcb" value="${u.id}" onchange="onChk(this)"></td>
       <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
       <td>${pw}</td><td>${st}</td>
       <td><span class="badge bpu2">${u.group}</span></td>
@@ -889,11 +855,6 @@ function openLk(uid,un,st){
   document.getElementById('lockMsg').textContent=(lock?'کاربر «':'قفل «')+un+(lock?'» قفل می‌شود':'»  برداشته می‌شود');
   openM('lockM');
 }
-function selAll(cb){document.querySelectorAll('.rcb').forEach(c=>{c.checked=cb.checked;cb.checked?selIds.add(c.value):selIds.delete(c.value);});updBulkBar();}
-function onChk(cb){cb.checked?selIds.add(cb.value):selIds.delete(cb.value);updBulkBar();}
-function updBulkBar(){const n=selIds.size;const bar=document.getElementById('bulkBar');bar.style.display=n>0?'flex':'none';document.getElementById('selCnt').textContent=n+' کاربر انتخاب شده';}
-function closeBulkBar(){selIds.clear();document.querySelectorAll('.rcb').forEach(c=>c.checked=false);document.getElementById('chkAll').checked=false;document.getElementById('bulkBar').style.display='none';}
-function bulkRenew(){if(!selIds.size||!CR)return;if(confirm('تمدید '+selIds.size+' کاربر؟')){document.getElementById('brIds').value=[...selIds].join(',');document.getElementById('brForm').submit();}}
 
 load();
 </script>
