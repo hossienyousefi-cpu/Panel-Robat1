@@ -822,7 +822,39 @@ function hardRefresh(){
     });
 }
 
+// چون عملیات‌هایی مثل تمدید/قفل/حذف/Kick با یک POST معمولی و redirect کامل صفحه
+// انجام می‌شن، هر بار صفحه از نو لود می‌شه و صفحه/فیلترها به حالت پیش‌فرض
+// برمی‌گردن. برای جلوگیری از این، وضعیت فعلی رو قبل از هر load توی sessionStorage
+// ذخیره می‌کنیم و موقع لود شدن صفحه (بعد از redirect) دوباره برش می‌گردونیم.
+function saveUsersState(){
+  try{
+    sessionStorage.setItem('resellerUsersState', JSON.stringify({
+      curP, curSort, curDir, curTab,
+      search: document.getElementById('fSrch').value,
+      group: document.getElementById('fGrp').value,
+      online: document.getElementById('fOnline').value,
+    }));
+  }catch(e){}
+}
+function restoreUsersState(){
+  try{
+    const raw = sessionStorage.getItem('resellerUsersState');
+    if(!raw) return false;
+    const st = JSON.parse(raw);
+    curP = st.curP||0; curSort = st.curSort||''; curDir = st.curDir||'desc'; curTab = st.curTab||'all';
+    document.getElementById('fSrch').value = st.search||'';
+    document.getElementById('fGrp').value = st.group||'';
+    document.getElementById('fOnline').value = st.online||'';
+    if(curTab==='exp3'){
+      document.getElementById('tabAll').classList.remove('active');
+      document.getElementById('tabExp').classList.add('active');
+    }
+    return true;
+  }catch(e){return false;}
+}
+
 function load(){
+  saveUsersState();
   document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr>';
   if(curTab==='exp3'){loadExp();return;}
   const s=document.getElementById('fSrch').value.trim();
@@ -852,8 +884,6 @@ function renderTable(d,pp){
     document.getElementById('tinfo').innerHTML=rows.length?`${total.toLocaleString()} نتیجه از ${totalIsp.toLocaleString()} کاربر`+cacheNote:'هیچ کاربری یافت نشد';
   } else {
     document.getElementById('tinfo').innerHTML=rows.length?`نمایش ${curP*pp+1}–${Math.min((curP+1)*pp,totalIsp)} از ${totalIsp.toLocaleString()} کاربر`+cacheNote:'هیچ کاربری یافت نشد';
-    // اگه کش نداشت، در background بساز
-    if(d.cached===false && curP===0) setTimeout(()=>fetch('users.php?ajax=rebuild_cache'),2000);
   }
   if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
   document.getElementById('tbody').innerHTML=rows.map(u=>{
@@ -905,6 +935,7 @@ function openKick(uid,un){
   openM('kickM');
 }
 
+restoreUsersState();
 (function(){
   const p = new URLSearchParams(location.search);
   if (p.get('tab') === 'exp') {

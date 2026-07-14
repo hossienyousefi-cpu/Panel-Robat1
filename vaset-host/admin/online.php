@@ -7,22 +7,16 @@ requireAdmin();
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_stats') {
     header('Content-Type: application/json');
 
-    // کش 30 ثانیه برای آنلاین
-    $cacheOnline = sys_get_temp_dir() . '/ibs_online_cache.json';
-    $allOnline = [];
-    if (file_exists($cacheOnline) && (time() - filemtime($cacheOnline)) < 30) {
-        $allOnline = json_decode(file_get_contents($cacheOnline), true) ?? [];
-    } else {
-        $r   = ibsng_call('report.getOnlineUsers', ['normal_sort_by' => 'username', 'normal_desc' => false, 'voip_sort_by' => 'username', 'voip_desc' => false, 'conds' => []]);
-        $raw = is_array($r['result'][0] ?? null) ? $r['result'][0] : [];
-        $uniq = [];
-        foreach ($raw as $u) {
-            $un = $u['normal_username'] ?? $u['attrs']['username'] ?? '';
-            if (!isset($uniq[$un])) $uniq[$un] = $u;
-        }
-        $allOnline = array_values($uniq);
-        file_put_contents($cacheOnline, json_encode($allOnline));
+    // از همون تابع مشترک ibsng_getOnlineRaw استفاده می‌کنیم (کش ۲۰ ثانیه‌ای خودش
+    // رو داره) - قبلاً اینجا یک کش/فچ جداگانه و تکراری داشت که isp_name رو
+    // مستقیم و بدون تصحیح از report.getOnlineUsers می‌خوند؛ چون اون فیلد قابل
+    // اعتماد نبود، همه‌چیز توی سطل "نامشخص" می‌ریخت و شمارش هر ISP صفر می‌شد.
+    $onlineResult = ibsng_getOnlineRaw();
+    if (!empty($onlineResult['error'])) {
+        echo json_encode(['error' => $onlineResult['error'], 'total_online' => 0, 'isp_count' => 0, 'rows' => []]);
+        exit;
     }
+    $allOnline = $onlineResult['data'];
 
     $totalOnline = count($allOnline);
 
@@ -80,8 +74,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_users') {
 }
 
 if (isset($_GET['refresh_cache'])) {
-    foreach ([sys_get_temp_dir() . '/ibs_online_cache.json'] as $cf) {
-        if (file_exists($cf)) unlink($cf);
+    foreach ([
+        sys_get_temp_dir() . '/ibs_online_cache.json', // فایل کش قدیمیِ دیگه‌استفاده‌نشده (برای پاکسازی)
+        IBS_CACHE_DIR . 'online_all.json',
+        IBS_CACHE_DIR . 'online_isp_map.json',
+    ] as $cf) {
+        if (file_exists($cf)) @unlink($cf);
     }
     header('Content-Type: application/json'); echo json_encode(['ok' => true]); exit;
 }

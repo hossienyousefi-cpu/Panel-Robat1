@@ -87,6 +87,52 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             echo json_encode(['total'=>$total,'rows'=>$rows]);exit;
         }
 
+        // فیلتر «فقط آنلاین»: به‌جای اسکن کل کاربرهای ISP/کل دیتابیس (که برای
+        // ISPهای بزرگ فاجعه‌بار کند بود و timeout می‌داد)، مستقیم از لیست آنلاین‌ها
+        // (که همیشه خیلی کوچیک‌تره - چند صد نفر در برابر ۱۵۰۰۰+ کاربر) شروع می‌کنیم.
+        if($onlineF==='1'){
+            $onlineData=$ispF!==''?(ibsng_getOnlineForIsp($ispF)['data']??[]):ibsng_getOnlineRaw()['data'];
+            $wantedUsernames=[];
+            foreach($onlineData as $u){
+                $un=$u['normal_username']??$u['username']??'';
+                if($un==='')continue;
+                if($search!==''&&stripos($un,$search)===false)continue;
+                if($grpF!==''&&($u['group_name']??'')!==$grpF)continue;
+                $wantedUsernames[$un]=true;
+            }
+            $filtered=[];
+            if(!empty($wantedUsernames)){
+                $uidsFound=[];
+                foreach(array_keys($wantedUsernames) as $un){
+                    $rs=ibsng_call('user.searchUser',['conds'=>['normal_username'=>$un],'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
+                    $u2=$rs['result'][2]??[];
+                    if(!empty($u2))$uidsFound[]=$u2[0];
+                }
+                foreach(array_chunk($uidsFound,100) as $chunk){
+                    $inf=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
+                    foreach($inf['result']??[] as $uid=>$u){
+                        $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
+                        $un=$attrs['normal_username']??$attrs['username']??'';
+                        $exp=$basic['nearest_exp_date']??'';
+                        $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
+                        $ras=$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—');
+                        $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>true,'credit'=>$basic['credit']??0];
+                    }
+                }
+            }
+            $total=count($filtered);
+            if(!empty($filtered)&&in_array($sortBy,['username','group','isp','ras','exp','status'])){
+                usort($filtered,function($a,$b)use($sortBy,$sortDir){
+                    $va=$sortBy==='exp'?($a['exp_ts']??0):strtolower($a[$sortBy]??'');
+                    $vb=$sortBy==='exp'?($b['exp_ts']??0):strtolower($b[$sortBy]??'');
+                    $cmp=is_numeric($va)?($va<=>$vb):strcmp($va,$vb);
+                    return $sortDir==='asc'?$cmp:-$cmp;
+                });
+            }
+            $rows=array_slice($filtered,$page*$perPage,$perPage);
+            echo json_encode(['total'=>$total,'rows'=>$rows]);exit;
+        }
+
         // جستجو: اول یک تلاش سریع با تطبیق مستقیم username روی سرور  (یک request).
         // فقط اگر جواب نداد (یعنی جستجوی جزئی/partial است یا فقط RAS فیلتر شده) کل
         // کاربرهای ISP/گروه fetch و در PHP فیلتر می‌شوند - این حالت کند است و فقط
@@ -802,7 +848,43 @@ function setSort(col){
   });
   curP=0; load();
 }
+// چون عملیات‌هایی مثل تمدید/قفل/حذف/Kick با یک POST معمولی و redirect کامل صفحه
+// انجام می‌شن، هر بار صفحه از نو لود می‌شه و صفحه/فیلترها به حالت پیش‌فرض
+// برمی‌گردن. برای جلوگیری از این، وضعیت فعلی رو قبل از هر load توی sessionStorage
+// ذخیره می‌کنیم و موقع لود شدن صفحه (بعد از redirect) دوباره برش می‌گردونیم.
+function saveUsersState(){
+  try{
+    sessionStorage.setItem('adminUsersState', JSON.stringify({
+      curP, curSort, curDir, curTab,
+      search: document.getElementById('fSrch').value,
+      group: document.getElementById('fGrp').value,
+      isp: document.getElementById('fIsp').value,
+      ras: document.getElementById('fRas').value,
+      online: document.getElementById('fOnline').value,
+    }));
+  }catch(e){}
+}
+function restoreUsersState(){
+  try{
+    const raw = sessionStorage.getItem('adminUsersState');
+    if(!raw) return false;
+    const st = JSON.parse(raw);
+    curP = st.curP||0; curSort = st.curSort||''; curDir = st.curDir||'desc'; curTab = st.curTab||'all';
+    document.getElementById('fSrch').value = st.search||'';
+    document.getElementById('fGrp').value = st.group||'';
+    document.getElementById('fIsp').value = st.isp||'';
+    document.getElementById('fRas').value = st.ras||'';
+    document.getElementById('fOnline').value = st.online||'';
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(t=>t.classList.remove('active'));
+    if(curTab==='exp3' && tabs[1]) tabs[1].classList.add('active');
+    else if(tabs[0]) tabs[0].classList.add('active');
+    return true;
+  }catch(e){return false;}
+}
+
 function load(){
+  saveUsersState();
   document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr>';
   if(curTab==='exp3'){loadExp();return;}
   const s=document.getElementById('fSrch').value.trim();
@@ -879,6 +961,7 @@ function openKick(uid,un){
   openM('kickM');
 }
 
+restoreUsersState();
 load();
 </script>
 </body>

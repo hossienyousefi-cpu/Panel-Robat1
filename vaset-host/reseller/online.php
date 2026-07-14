@@ -84,8 +84,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'online_stats') {
 }
 
 if (isset($_GET['refresh_cache'])) {
-    $cf = sys_get_temp_dir() . '/ibs_online_cache.json';
-    if (file_exists($cf)) @unlink($cf);
+    foreach ([
+        sys_get_temp_dir() . '/ibs_online_cache.json', // فایل کش قدیمیِ دیگه‌استفاده‌نشده (برای پاکسازی)
+        IBS_CACHE_DIR . 'online_all.json',
+        IBS_CACHE_DIR . 'online_isp_map.json',
+    ] as $cf) {
+        if (file_exists($cf)) @unlink($cf);
+    }
     header('Content-Type: application/json');
     echo json_encode(['ok' => true]);
     exit;
