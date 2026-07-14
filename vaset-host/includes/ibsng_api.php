@@ -622,55 +622,101 @@ function ibsng_clearUserCache($uid) {
     @unlink(IBS_CACHE_DIR . 'u_' . $uid . '.json');
 }
 
+// ─── نشست (سشن) HTML پنل اصلی IBSng - مجزا از ibs-api (JSON-RPC). Kick از طریق
+// API اصلاً وجود نداره (همه‌ی حدس‌ها شکست خوردن)؛ از خروجی خامِ خودِ پنل ادمین
+// IBSng معلوم شد Kick واقعاً یک درخواست GET ساده به
+// /IBSng/admin/user/kill_user_by_id.php?user_id=X&kill=1&ajax=1 هست که فقط با
+// کوکی سشنِ لاگین‌شده (نه auth_name/auth_pass) قابل انجامه.
+function ibsng_nativeCookieFile() {
+    return IBS_CACHE_DIR . 'ibsng_native_cookies.txt';
+}
+
+function ibsng_nativeHttp($url, $cookieFile, $postFields = null) {
+    $ch = curl_init($url);
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_COOKIEFILE     => $cookieFile,
+        CURLOPT_COOKIEJAR      => $cookieFile,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_FOLLOWLOCATION => true,
+    ];
+    if ($postFields !== null) {
+        $opts[CURLOPT_POST]       = true;
+        $opts[CURLOPT_POSTFIELDS] = http_build_query($postFields);
+    }
+    curl_setopt_array($ch, $opts);
+    $r = curl_exec($ch);
+    curl_close($ch);
+    return $r;
+}
+
+function ibsng_nativeIsLoggedIn($html) {
+    // صفحه‌ی داخلی (بعد از لاگین موفق) لینک Logout داره؛ صفحه‌ی لاگین نداره.
+    return $html !== false && stripos($html, 'logout') !== false;
+}
+
+function ibsng_nativeLogin() {
+    $cookieFile = ibsng_nativeCookieFile();
+    $base = rtrim(IBS_URL, '/');
+    $check = ibsng_nativeHttp($base . '/admin_index.php', $cookieFile);
+    if (ibsng_nativeIsLoggedIn($check)) return true;
+
+    // اسم دقیق فیلدهای فرم لاگین پنل اصلی مستند نیست، چند حدس محتمل رو امتحان می‌کنیم.
+    $candidates = [
+        ['username' => IBS_ADMIN_USER, 'password' => IBS_ADMIN_PASS],
+        ['admin_username' => IBS_ADMIN_USER, 'admin_password' => IBS_ADMIN_PASS],
+        ['user' => IBS_ADMIN_USER, 'pass' => IBS_ADMIN_PASS],
+        ['login_username' => IBS_ADMIN_USER, 'login_password' => IBS_ADMIN_PASS],
+    ];
+    foreach ($candidates as $fields) {
+        @unlink($cookieFile);
+        ibsng_nativeHttp($base . '/index.php', $cookieFile, $fields);
+        $check = ibsng_nativeHttp($base . '/admin_index.php', $cookieFile);
+        if (ibsng_nativeIsLoggedIn($check)) return true;
+    }
+    return false;
+}
+
+function ibsng_kickUserNative($uid) {
+    if (!ibsng_nativeLogin()) {
+        return ['error' => 'ورود به پنل اصلی IBSng (برای Kick) ناموفق بود - فیلدهای فرم لاگین حدس‌زده‌شده درست نبودن', 'method' => null];
+    }
+    $cookieFile = ibsng_nativeCookieFile();
+    $base = rtrim(IBS_URL, '/');
+    $url  = $base . '/user/kill_user_by_id.php?user_id=' . urlencode($uid) . '&kill=1&ajax=1';
+    $resp = ibsng_nativeHttp($url, $cookieFile);
+    if ($resp === false) return ['error' => 'درخواست Kick ناموفق بود (خطای اتصال)', 'method' => 'native:kill_user_by_id'];
+    ibsng_clearUserCache($uid);
+    return ['error' => null, 'method' => 'native:kill_user_by_id.php', 'raw' => $resp];
+}
+
 // ─── Kick کردن (قطع اتصال آنلاین) یک کاربر ───
-// هیچ مستندی از اسم دقیق متد IBSng برای Kick نداریم، پس چند اسم محتمل رو به
-// ترتیب امتحان می‌کنیم. خطای "Handler --x-- has not method --y--" یعنی حدس
-// غلط بوده (میریم سراغ بعدی)؛ هر خطای دیگه یا موفقیت یعنی متد واقعی همینه (چه
-// جواب بده چه ایراد پارامتر داشته باشه) - در اون صورت دیگه لازم نیست حدس بعدی
-// رو امتحان کنیم، همون نتیجه رو برمی‌گردونیم.
+// راه اصلی: نشست HTML پنل اصلی (بالا). اگه لاگین نشست ناموفق بود (مثلاً فیلدهای
+// فرم لاگین درست حدس زده نشده)، به‌عنوان fallback چند حدس handler.method روی
+// ibs-api رو هم امتحان می‌کنیم (که در تست‌های قبلی هیچ‌کدوم جواب نداده بودن، ولی
+// محض احتیاط نگه داشته شده).
 function ibsng_kickUser($uid) {
     $uid = (string)$uid;
-    $info = ibsng_getUserInfo($uid);
-    $username = $info['attrs']['normal_username'] ?? ($info['user_repr'] ?? '');
+
+    $native = ibsng_kickUserNative($uid);
+    if (($native['error'] ?? null) === null) return $native;
 
     $candidates = [
         'ras.kickUser'          => ['user_id' => $uid],
-        'ras.kickUser (user)'   => ['normal_username' => $username],
         'report.kickUser'       => ['user_id' => $uid],
         'user.kickUser'         => ['user_id' => $uid],
         'onlineuser.kickUser'   => ['user_id' => $uid],
         'radius.kickUser'       => ['user_id' => $uid],
         'ras.disconnectUser'    => ['user_id' => $uid],
-        'user.kickOnlineUser'   => ['user_id' => $uid],
-        'ras.kickOnlineUser'    => ['user_id' => $uid],
-        'report.kickOnlineUser' => ['user_id' => $uid],
-        'user.disconnectUser'   => ['user_id' => $uid],
-        'report.disconnectUser' => ['user_id' => $uid],
-        'ras.kick'              => ['user_id' => $uid],
-        'radius.disconnectUser' => ['user_id' => $uid],
     ];
-    $lastError = 'هیچ متد شناخته‌شده‌ای برای Kick کار نکرد';
     foreach ($candidates as $label => $params) {
-        $method = explode(' ', $label)[0];
-        $r = ibsng_call($method, $params);
+        $r = ibsng_call($label, $params);
         $err = $r['error'] ?? null;
-        if ($err === null) {
-            ibsng_clearUserCache($uid);
-            return ['error' => null, 'method' => $label];
-        }
-        // هم "Handler --x-- has not method --y--" (هندلر هست، متد غلطه) هم
-        // "Handler --x-- not found" (کلاً همچین هندلری وجود نداره) یعنی حدس
-        // غلط بوده - میریم سراغ بعدی. فقط وقتی خطا این دو فرمت نباشه یعنی به
-        // متد واقعی رسیدیم (چه جواب بده چه ایراد پارامتر داشته باشه).
-        if (preg_match('/Handler\s*--[^-]*--\s*(has not method|not found)/i', (string)$err)) {
-            $lastError = $err;
-            continue;
-        }
-        // متد واقعاً وجود داره ولی خطای دیگه‌ای داده (مثلاً پارامتر اشتباه یا
-        // کاربر آنلاین نیست) - همینو برمی‌گردونیم چون این متد درسته.
+        if ($err === null) { ibsng_clearUserCache($uid); return ['error' => null, 'method' => $label]; }
+        if (preg_match('/Handler\s*--[^-]*--\s*(has not method|not found)/i', (string)$err)) continue;
         return ['error' => "$label: $err", 'method' => $label];
     }
-    return ['error' => $lastError, 'method' => null];
+    return $native;
 }
 
 // ─── فرمت مدت اتصال ───

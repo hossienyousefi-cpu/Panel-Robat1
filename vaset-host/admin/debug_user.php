@@ -68,6 +68,20 @@ if ($runDiag) {
     }
 }
 
+// تست جدا و سبک برای مکانیزم واقعی Kick (نشست HTML پنل اصلی، نه ibs-api) -
+// چون از HTML خودِ پنل ادمین معلوم شد Kick با یک GET ساده به
+// kill_user_by_id.php با کوکی سشن انجام می‌شه، نه با ibs-api. این بخش همیشه
+// (نه فقط با diag=1) اجرا می‌شه چون سبکه.
+$nativeKickTest = null;
+if (isset($_GET['testkick'])) {
+    $loginOk = ibsng_nativeLogin();
+    $nativeKickTest = ['login_ok' => $loginOk];
+    if (!$loginOk) {
+        // خروجی خام صفحه‌ی لاگین پنل اصلی رو نشون بده تا اسم واقعی فیلدهای فرم معلوم بشه
+        $nativeKickTest['login_page_html'] = ibsng_nativeHttp(rtrim(IBS_URL, '/') . '/index.php', ibsng_nativeCookieFile());
+    }
+}
+
 $username = trim($_GET['username'] ?? '');
 $ispName  = trim($_GET['isp'] ?? '');
 $raw = null; $err = ''; $ispRaw = null;
@@ -236,6 +250,19 @@ a{color:#60a5fa}
 </head>
 <body>
 <a href="users.php">← بازگشت به کاربران</a>
+
+<h2>تست ورود به نشست HTML پنل اصلی (برای Kick)</h2>
+<p>مکانیزم واقعی Kick از خودِ HTML پنل ادمین IBSng کشف شد: یک GET ساده به kill_user_by_id.php با کوکی سشنِ لاگین‌شده، نه ibs-api. اینجا تست می‌کنیم آیا لاگین خودکار به این نشست (با چند حدس اسم فیلد فرم) موفق میشه یا نه.</p>
+<?php if($nativeKickTest===null):?>
+<p><a href="?testkick=1">برای تست کلیک کن</a></p>
+<?php else:?>
+<p>نتیجه‌ی لاگین: <b><?=$nativeKickTest['login_ok']?'✅ موفق':'❌ ناموفق'?></b></p>
+<?php if(!$nativeKickTest['login_ok']):?>
+<p>چون لاگین خودکار ناموفق بود، خروجی خام صفحه‌ی لاگین پنل اصلی رو اینجا می‌بینی - دنبال تگ &lt;form&gt; و اسم واقعی input هایی مثل username/password بگرد:</p>
+<pre><?=htmlspecialchars((string)($nativeKickTest['login_page_html'] ?? ''))?></pre>
+<?php endif;?>
+<?php endif;?>
+
 <?php if($runDiag):?>
 <h2>تلاش برای پیدا کردن متد Kick (introspection)</h2>
 <p>خطای "user.getUserAttrs" باید شبیه فرمت آشنای پارامتر-گم‌شده باشه (چون این متد واقعی احتمالاً وجود داره) - برای مقایسه با بقیه که باید "not found"/"has not method" بدن.</p>
