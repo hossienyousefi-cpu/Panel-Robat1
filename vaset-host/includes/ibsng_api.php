@@ -655,7 +655,14 @@ function ibsng_nativeCookieFile() {
     return IBS_CACHE_DIR . 'ibsng_native_cookies.txt';
 }
 
-function ibsng_nativeHttp($url, $cookieFile, $postFields = null) {
+function ibsng_nativeHttp($url, $cookieFile, $postFields = null, $headers = []) {
+    return ibsng_nativeHttpEx($url, $cookieFile, $postFields, $headers)['body'];
+}
+
+// ─── مثل ibsng_nativeHttp ولی اطلاعات تشخیصی بیشتر (URL نهایی بعد از هر
+// ریدایرکت، کد HTTP) رو هم برمی‌گردونه - برای تشخیص مشکلاتی مثل ریدایرکت شدن
+// به مسیر/دامنه‌ی اشتباه لازمه. ───
+function ibsng_nativeHttpEx($url, $cookieFile, $postFields = null, $headers = []) {
     $ch = curl_init($url);
     $opts = [
         CURLOPT_RETURNTRANSFER => true,
@@ -668,10 +675,15 @@ function ibsng_nativeHttp($url, $cookieFile, $postFields = null) {
         $opts[CURLOPT_POST]       = true;
         $opts[CURLOPT_POSTFIELDS] = http_build_query($postFields);
     }
+    if (!empty($headers)) {
+        $opts[CURLOPT_HTTPHEADER] = $headers;
+    }
     curl_setopt_array($ch, $opts);
     $r = curl_exec($ch);
+    $effectiveUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+    $httpCode     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    return $r;
+    return ['body' => $r, 'effective_url' => $effectiveUrl, 'http_code' => $httpCode];
 }
 
 function ibsng_nativeIsLoggedIn($html) {
@@ -717,7 +729,14 @@ function ibsng_kickUserNative($uid) {
     $cookieFile = ibsng_nativeCookieFile();
     $base = rtrim(IBS_URL, '/');
     $url  = $base . '/user/kill_user_by_id.php?user_id=' . urlencode($uid) . '&kill=1&ajax=1';
-    $resp = ibsng_nativeHttp($url, $cookieFile);
+    // بدون هدر X-Requested-With، خیلی از اسکریپت‌های PHP که برای هم navigation
+    // معمولی هم ajax نوشته شدن، پارامتر ajax=1 توی URL رو کافی نمی‌دونن و
+    // درخواست رو navigation عادی فرض می‌کنن - یعنی به‌جای پاسخ متنیِ خام، header
+    // Location می‌فرستن (که با دنبال‌شدنش توسط curl، به مسیر/دامنه‌ی اشتباه
+    // ریدایرکت می‌شدیم). این هدر رو می‌فرستیم تا واقعاً حالت ajax رخ بده.
+    $headers = ['X-Requested-With: XMLHttpRequest'];
+    $res  = ibsng_nativeHttpEx($url, $cookieFile, null, $headers);
+    $resp = $res['body'];
     if ($resp === false) return ['error' => 'درخواست Kick ناموفق بود (خطای اتصال)', 'method' => 'native:kill_user_by_id'];
 
     // اگه پاسخ تأیید موفقیت نداشت، بدون از بین بردن کوکی فعلی (که ممکنه هنوز
@@ -726,17 +745,19 @@ function ibsng_kickUserNative($uid) {
     // ibsng_nativeLogin (که خودش اول اعتبار کوکی موجود رو با یک درخواست زنده چک
     // می‌کنه و فقط اگه واقعاً نامعتبر بود سراغ فیلدهای حدسی می‌ره) استفاده می‌کنیم.
     if (!ibsng_nativeKillLooksSuccessful($resp) && ibsng_nativeLogin()) {
-        $resp2 = ibsng_nativeHttp($url, $cookieFile);
-        if ($resp2 !== false) $resp = $resp2;
+        $res2 = ibsng_nativeHttpEx($url, $cookieFile, null, $headers);
+        if ($res2['body'] !== false) $res = $res2;
+        $resp = $res['body'];
     }
 
     if ($resp === false) return ['error' => 'درخواست Kick ناموفق بود (خطای اتصال)', 'method' => 'native:kill_user_by_id'];
     if (!ibsng_nativeKillLooksSuccessful($resp)) {
         $snippet = trim(substr(strip_tags((string)$resp), 0, 200));
+        $effUrl  = $res['effective_url'] ?? '';
         $hint = (stripos($resp, 'apache') !== false || stripos($resp, 'it works') !== false)
-            ? ' - درخواست به‌جای صفحه‌ی IBSng به صفحه‌ی پیش‌فرض  ریدایرکت شده (احتمالاً مشکل مسیر/ریدایرکت روی خودِ سرور  است، نه نشست ما)'
+            ? ' - درخواست به آدرس دیگه‌ای ریدایرکت شده (' . $effUrl . ')، نه صفحه‌ی واقعی IBSng'
             : ' (احتمالاً نشست منقضی یا user_id نامعتبر)';
-        return ['error' => 'پاسخ نامعتبر از IBSng' . $hint . ': ' . ($snippet !== '' ? $snippet : '(پاسخ خالی)'), 'method' => 'native:kill_user_by_id', 'raw' => $resp];
+        return ['error' => 'پاسخ نامعتبر از IBSng' . $hint . ': ' . ($snippet !== '' ? $snippet : '(پاسخ خالی)'), 'method' => 'native:kill_user_by_id', 'raw' => $resp, 'effective_url' => $effUrl];
     }
     ibsng_clearUserCache($uid);
     return ['error' => null, 'method' => 'native:kill_user_by_id.php', 'raw' => $resp];
