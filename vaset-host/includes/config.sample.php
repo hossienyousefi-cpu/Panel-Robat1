@@ -28,6 +28,12 @@ if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.use_strict_mode', 1);
     ini_set('session.cookie_samesite', 'Lax');
     ini_set('session.gc_maxlifetime', SESSION_LIFETIME);
+    // اگر سایت روی HTTPS باز شده (که برای پنلی با این حجم داده‌ی حساس باید همیشه
+    // همین‌طور باشه)، کوکی سشن رو محدود به HTTPS می‌کنیم تا هیچ‌وقت روی یک اتصال
+    // HTTP ساده (مثلاً پراکسی/شبکه ناامن) قابل شنود نباشه.
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    if ($isHttps) ini_set('session.cookie_secure', 1);
     session_start();
 }
 

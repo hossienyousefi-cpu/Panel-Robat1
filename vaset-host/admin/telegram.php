@@ -47,6 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'set_webhook') {
         $secret = getSetting('telegram_webhook_secret', '');
+        // اگر ادمین دستی secret تنظیم نکرده، بدون اون وبهوک بدون هیچ احراز هویتی
+        // در معرض دید عمومی می‌مونه (هرکسی می‌تونه با POST جعلی به webhook.php
+        // خودش رو جای تلگرام جا بزنه) - برای همین همیشه یک مقدار تصادفی قوی
+        // خودکار می‌سازیم و ذخیره می‌کنیم تا این حالت هیچ‌وقت باز نمونه.
+        if ($secret === '') {
+            $secret = bin2hex(random_bytes(32));
+            $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_webhook_secret', ?)
+                           ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$secret]);
+        }
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? '';
         $base = dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/admin/telegram.php'));

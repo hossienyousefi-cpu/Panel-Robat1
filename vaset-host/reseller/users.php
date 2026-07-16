@@ -258,6 +258,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $infCur = ibsng_call('user.getUserInfo', ['user_id' => $uid2]);
             $curUN  = $infCur['result'][$uid2]['attrs']['normal_username']
                    ?? $infCur['result'][$uid2]['attrs']['username'] ?? '';
+            // چک مالکیت: این کاربر باید واقعاً متعلق به ISP همین ریسلر باشه، وگرنه
+            // هر ریسلری می‌تونست با فرستادن یک user_id دلخواه، رمز هر کاربری توی
+            // کل IBSng (حتی متعلق به ریسلرهای دیگه) رو عوض کنه.
+            $curIsp = $infCur['result'][$uid2]['basic_info']['isp_name'] ?? '';
+            if ($ispName === '' || $curIsp !== $ispName) {
+                $error = 'شما اجازه‌ی تغییر رمز این کاربر را ندارید';
+            } else {
             // هر دو username و password را با هم بفرست
             $updateAttrs = ['normal_password' => $np];
             if ($curUN !== '') $updateAttrs['normal_username'] = $curUN;
@@ -265,6 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'attrs' => ['normal_user_spec' => $updateAttrs], 'to_del_attrs' => []]);
             if ($r2['error'] ?? null) $error = 'خطا: ' . $r2['error'];
             else { header('Location: users.php?success=رمز+تغییر+کرد'); exit; }
+            }
         }
     }
 
@@ -272,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uid2  = sanitize($_POST['user_id'] ?? '');
         $inf   = ibsng_call('user.getUserInfo', ['user_id' => $uid2]);
         $basic = $inf['result'][$uid2]['basic_info'] ?? [];
-        if ($ispName === '' || ($basic['isp_name'] ?? '') === $ispName) {
+        if ($ispName !== '' && ($basic['isp_name'] ?? '') === $ispName) {
             $gn    = $basic['group_name'] ?? '';
             $gi    = ibsng_call('group.getGroupInfo', ['group_name' => $gn]);
             $gc    = $gi['result']['attrs']['group_credit'] ?? ($basic['credit'] ?? 100);
@@ -310,7 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uid2 = sanitize($_POST['user_id'] ?? '');
         $inf  = ibsng_call('user.getUserInfo', ['user_id' => $uid2]);
         $uIsp = $inf['result'][$uid2]['basic_info']['isp_name'] ?? '';
-        if ($ispName === '' || $uIsp === $ispName) {
+        if ($ispName !== '' && $uIsp === $ispName) {
             $un = $inf['result'][$uid2]['attrs']['normal_username'] ?? '';
             ibsng_call('user.delUser', ['user_id' => $uid2, 'delete_comment' => 'حذف توسط ریسلر',
                 'del_connection_logs' => false, 'del_audit_logs' => false]);
@@ -325,7 +333,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // خود ) - با updateUserAttrs تنظیم می‌شه، نه changeStatus.
         $uid2  = sanitize($_POST['user_id']    ?? '');
         $newSt = sanitize($_POST['new_status'] ?? 'Disable');
-        if ($uid2 && in_array($newSt, ['Disable', 'Recharged'])) {
+        // چک مالکیت: بدون این، هر ریسلری می‌تونست کاربر متعلق به هر ISP دیگه‌ای
+        // (حتی ریسلرهای دیگه) رو فقط با فرستادن user_id دلخواه قفل/آنلاک کنه.
+        $infL = $uid2 ? ibsng_call('user.getUserInfo', ['user_id' => $uid2]) : null;
+        $uIspL = $infL['result'][$uid2]['basic_info']['isp_name'] ?? '';
+        if ($uid2 && $ispName !== '' && $uIspL === $ispName && in_array($newSt, ['Disable', 'Recharged'])) {
             $lock = ($newSt === 'Disable');
             // چک‌باکس‌های HTML وقتی تیک نمی‌خورن submit نمی‌شن، پس رفع قفل یعنی حذف
             // کامل attr (to_del_attrs) نه ست کردن مقدار false. آرایه‌ی خالی PHP همیشه
@@ -341,7 +353,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uid2 = sanitize($_POST['user_id'] ?? '');
         $inf  = ibsng_call('user.getUserInfo', ['user_id' => $uid2]);
         $uIsp = $inf['result'][$uid2]['basic_info']['isp_name'] ?? '';
-        if ($uid2 && ($ispName === '' || $uIsp === $ispName)) {
+        if ($uid2 && $ispName !== '' && $uIsp === $ispName) {
             $rKick = ibsng_kickUser($uid2);
             if ($rKick['error'] ?? null) $error = 'خطا در Kick کردن: ' . $rKick['error'];
             else { header('Location: users.php?success=' . urlencode('کاربر Kick شد (روش ' . ($rKick['method'] ?? '?') . ')')); exit; }
