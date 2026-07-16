@@ -412,26 +412,56 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
     $rCount = ibsng_call('user.searchUser', ['conds'=>$conds,'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
     $totalIsp = (int)($rCount['result'][0] ?? 0);
 
-    // اگه search داریم باید همه رو بگیریم (کند، چون pagination سمت  قبل از این
-    // فیلتر بی‌معنیه) وگرنه فقط صفحه اول
+    // اگه search داریم: اول یک جستجوی سریع مستقیم (LIKE روی همین ISP) امتحان کن -
+    // فقط یک/چند  request کوچیکه. اگه جواب نداد (جستجوی جزئی/partial)، به اسکن
+    // کامل کاربرهای ISP برمی‌گردیم که برای ISPهای بزرگ (۹۰۰۰+ کاربر) خیلی کندتره
+    // ولی همیشه جواب درست می‌ده.
     if ($search !== '') {
-        $allUids = ibsng_getAllUidsForIsp($conds);
-        $inf = [];
-        foreach (array_chunk($allUids, 100) as $chunk) {
-            $r2 = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
-            $inf += $r2['result'] ?? [];
-        }
         $onlineSet = ibsng_getOnlineUsernameSet($ispName);
+        $fastConds = $conds;
+        $fastConds['normal_username']    = $search;
+        $fastConds['normal_username_op'] = 'like';
+        $fr = ibsng_call('user.searchUser', ['conds' => $fastConds, 'from' => 0, 'to' => 500, 'order_by' => 'user_id', 'desc' => true]);
+        $fastUids = $fr['result'][2] ?? [];
         $allRows = [];
-        foreach ($allUids as $uid) {
-            $u = $inf[(string)$uid] ?? $inf[$uid] ?? null;
-            if (!$u) continue;
-            $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
-            if (!$row) continue;
-            if (stripos($row['username'], $search) === false) continue;
-            $allRows[] = $row;
+        if (!empty($fastUids)) {
+            $inf = [];
+            foreach (array_chunk($fastUids, 100) as $chunk) {
+                $r2 = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
+                $inf += $r2['result'] ?? [];
+            }
+            foreach ($fastUids as $uid) {
+                $u = $inf[(string)$uid] ?? $inf[$uid] ?? null;
+                if (!$u) continue;
+                $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
+                if ($row) $allRows[] = $row;
+            }
+        }
+        if (empty($allRows)) {
+            $allUids = ibsng_getAllUidsForIsp($conds);
+            $inf = [];
+            foreach (array_chunk($allUids, 100) as $chunk) {
+                $r2 = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
+                $inf += $r2['result'] ?? [];
+            }
+            foreach ($allUids as $uid) {
+                $u = $inf[(string)$uid] ?? $inf[$uid] ?? null;
+                if (!$u) continue;
+                $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
+                if (!$row) continue;
+                if (stripos($row['username'], $search) === false) continue;
+                $allRows[] = $row;
+            }
         }
         $total = count($allRows);
+        if (!empty($allRows) && in_array($sortBy, ['username','group','isp','ras','exp','status'])) {
+            usort($allRows, function($a, $b) use ($sortBy, $sortDir) {
+                $va = $sortBy==='exp' ? ($a['exp_ts']??0) : strtolower($a[$sortBy]??'');
+                $vb = $sortBy==='exp' ? ($b['exp_ts']??0) : strtolower($b[$sortBy]??'');
+                $cmp = is_numeric($va) ? ($va<=>$vb) : strcmp($va,$vb);
+                return $sortDir==='asc' ? $cmp : -$cmp;
+            });
+        }
         return ['total'=>$total,'total_isp'=>$totalIsp,'rows'=>array_slice($allRows,$page*$perPage,$perPage),'cached'=>false];
     }
 
@@ -671,6 +701,15 @@ function ibsng_nativeLogin() {
     return false;
 }
 
+// ─── پاسخ ajax=1 برای kill_user_by_id.php وقتی موفقه یک متن تأییدی مثل
+// «User 19605 Kicked Out Successfully» برمی‌گردونه (تأیید شده روی سرور واقعی).
+// صرفاً موفق بودن خودِ curl request کافی نیست: اگه نشست منقضی شده باشه، جواب
+// می‌تونه صفحه‌ی لاگین یا پیام خطای دیگه‌ای باشه که به اشتباه به‌عنوان موفقیت
+// در نظر گرفته می‌شد.
+function ibsng_nativeKillLooksSuccessful($resp) {
+    return $resp !== false && preg_match('/kick(ed)?\s*out|successfully/i', (string)$resp) === 1;
+}
+
 function ibsng_kickUserNative($uid) {
     if (!ibsng_nativeLogin()) {
         return ['error' => 'ورود به پنل اصلی IBSng (برای Kick) ناموفق بود - فیلدهای فرم لاگین حدس‌زده‌شده درست نبودن', 'method' => null];
@@ -680,6 +719,21 @@ function ibsng_kickUserNative($uid) {
     $url  = $base . '/user/kill_user_by_id.php?user_id=' . urlencode($uid) . '&kill=1&ajax=1';
     $resp = ibsng_nativeHttp($url, $cookieFile);
     if ($resp === false) return ['error' => 'درخواست Kick ناموفق بود (خطای اتصال)', 'method' => 'native:kill_user_by_id'];
+
+    // اگه پاسخ تأیید موفقیت نداشت (مثلاً نشست بین چک لاگین و این درخواست منقضی
+    // شده)، یک بار با لاگین کاملاً تازه (کوکی جدید) دوباره امتحان کن.
+    if (!ibsng_nativeKillLooksSuccessful($resp)) {
+        @unlink($cookieFile);
+        if (ibsng_nativeLogin()) {
+            $resp = ibsng_nativeHttp($url, $cookieFile);
+        }
+    }
+
+    if ($resp === false) return ['error' => 'درخواست Kick ناموفق بود (خطای اتصال)', 'method' => 'native:kill_user_by_id'];
+    if (!ibsng_nativeKillLooksSuccessful($resp)) {
+        $snippet = trim(substr(strip_tags((string)$resp), 0, 200));
+        return ['error' => 'پاسخ نامعتبر از IBSng (احتمالاً نشست منقضی یا user_id نامعتبر): ' . ($snippet !== '' ? $snippet : '(پاسخ خالی)'), 'method' => 'native:kill_user_by_id', 'raw' => $resp];
+    }
     ibsng_clearUserCache($uid);
     return ['error' => null, 'method' => 'native:kill_user_by_id.php', 'raw' => $resp];
 }
