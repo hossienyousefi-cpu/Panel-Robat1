@@ -368,7 +368,7 @@ unset($_SESSION['bulk_result']);
 html,body{overflow-x:hidden}
 body{font-family:'Vazirmatn',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
 aside{width:var(--sw);background:var(--sb);border-left:1px solid var(--bor);position:fixed;right:0;top:0;bottom:0;display:flex;flex-direction:column;z-index:100}
-@media(max-width:768px){aside{transform:translateX(100%);transition:.3s} aside.open{transform:none} .overlay{display:block!important}}
+@media(max-width:768px){aside{transform:translateX(100%);transition:.3s} aside.open{transform:none}}
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
 .hamburger{display:none;position:fixed;top:14px;right:14px;z-index:101;background:var(--sb);border:1px solid var(--bor);border-radius:9px;padding:8px 10px;cursor:pointer;color:var(--txt);font-size:18px}
 @media(max-width:768px){.hamburger{display:block} main{margin-right:0!important}}
