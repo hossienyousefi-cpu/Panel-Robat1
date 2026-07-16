@@ -18,7 +18,8 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root { --bg: #08100a; --sidebar: #0c1810; --card: #131f17; --border: #1e3025; --accent: #10b981; --accent2: #06b6d4; --text: #e2e8f0; --text2: #94a3b8; --muted: #475569; --danger: #ef4444; --success: #10b981; --warning: #f59e0b; --sidebar-w: 260px; }
-  body { font-family: 'Vazirmatn', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+  html, body { overflow-x: hidden; }
+  body { font-family: 'Vazirmatn', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
   .sidebar { width: var(--sidebar-w); background: var(--sidebar); border-left: 1px solid var(--border); position: fixed; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; z-index: 100; }
   .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 99; }
   .hamburger { display: none; position: fixed; top: 14px; right: 14px; z-index: 101; background: var(--sidebar); border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; cursor: pointer; color: var(--text); font-size: 18px; }
