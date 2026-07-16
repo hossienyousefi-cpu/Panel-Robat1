@@ -103,7 +103,8 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
     --text:#e2e8f0;--text2:#94a3b8;--muted:#475569;
     --danger:#ef4444;--success:#10b981;--warning:#f59e0b;--sidebar-w:260px;
   }
-  body{font-family:'Vazirmatn',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+  html,body{overflow-x:hidden}
+  body{font-family:'Vazirmatn',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
   .sidebar{width:var(--sidebar-w);background:var(--sidebar);border-left:1px solid var(--border);position:fixed;right:0;top:0;bottom:0;display:flex;flex-direction:column;z-index:100}
   .sidebar-logo{padding:28px 24px;border-bottom:1px solid var(--border)}
   .logo-text{font-size:20px;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
