@@ -7,11 +7,11 @@ requireAdmin();
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_stats') {
     header('Content-Type: application/json');
 
-    // از همون تابع مشترک ibsng_getOnlineRaw استفاده می‌کنیم (کش ۲۰ ثانیه‌ای خودش
-    // رو داره) - قبلاً اینجا یک کش/فچ جداگانه و تکراری داشت که isp_name رو
-    // مستقیم و بدون تصحیح از report.getOnlineUsers می‌خوند؛ چون اون فیلد قابل
+    // از ibsng_getOnlineRawResolved استفاده می‌کنیم (isp_name هر رکورد
+    // resolve/تصحیح‌شده) - قبلاً اینجا یک کش/فچ جداگانه و تکراری داشت که isp_name
+    // رو مستقیم و بدون تصحیح از report.getOnlineUsers می‌خوند؛ چون اون فیلد قابل
     // اعتماد نبود، همه‌چیز توی سطل "نامشخص" می‌ریخت و شمارش هر ISP صفر می‌شد.
-    $onlineResult = ibsng_getOnlineRaw();
+    $onlineResult = ibsng_getOnlineRawResolved();
     if (!empty($onlineResult['error'])) {
         echo json_encode(['error' => $onlineResult['error'], 'total_online' => 0, 'isp_count' => 0, 'rows' => []]);
         exit;
@@ -52,7 +52,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_stats') {
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_users') {
     header('Content-Type: application/json');
     $ispFilter = trim($_GET['isp'] ?? '');
-    $onlineResult = ibsng_getOnlineRaw();
+    $onlineResult = ibsng_getOnlineRawResolved();
     if (!empty($onlineResult['error'])) {
         echo json_encode(['error' => $onlineResult['error'], 'rows' => []]);
         exit;
@@ -62,6 +62,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_users') {
         if ($ispFilter !== '' && ($u['isp_name'] ?? '') !== $ispFilter) continue;
         $dur = (int)($u['duration_secs'] ?? 0);
         $rows[] = [
+            'id'       => $u['user_id'] ?? '',
             'username' => $u['normal_username'] ?? $u['username'] ?? '—',
             'ip'       => $u['remote_ip'] ?? $u['framed_ip_address'] ?? '—',
             'ras'      => $u['unique_id'] ?? $u['nas_ip_address'] ?? $u['nas_identifier'] ?? '—',
@@ -73,11 +74,27 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_users') {
     exit;
 }
 
+// AJAX: Kick کردن کاربر مستقیم از همین صفحه
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'kick') {
+    header('Content-Type: application/json');
+    if (!verifyCsrf($_GET['csrf_token'] ?? $_POST['csrf_token'] ?? '')) {
+        echo json_encode(['ok' => false, 'error' => 'درخواست نامعتبر است']); exit;
+    }
+    $uid = trim($_GET['uid'] ?? $_POST['uid'] ?? '');
+    if ($uid === '') { echo json_encode(['ok' => false, 'error' => 'کاربر مشخص نشده']); exit; }
+    $r = ibsng_kickUser($uid);
+    if ($r['error'] ?? null) { echo json_encode(['ok' => false, 'error' => $r['error']]); exit; }
+    echo json_encode(['ok' => true, 'method' => $r['method'] ?? null]);
+    exit;
+}
+
 if (isset($_GET['refresh_cache'])) {
     foreach ([
         sys_get_temp_dir() . '/ibs_online_cache.json', // فایل کش قدیمیِ دیگه‌استفاده‌نشده (برای پاکسازی)
         IBS_CACHE_DIR . 'online_all.json',
+        IBS_CACHE_DIR . 'online_all_resolved.json',
         IBS_CACHE_DIR . 'online_isp_map.json',
+        IBS_CACHE_DIR . 'online_uid_map.json',
     ] as $cf) {
         if (file_exists($cf)) @unlink($cf);
     }
@@ -122,6 +139,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 .bp{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
 .bg{background:rgba(16,185,129,.15);color:var(--grn);border:1px solid rgba(16,185,129,.3)}
 .bc{background:rgba(6,182,212,.15);color:#22d3ee;border:1px solid rgba(6,182,212,.3)}
+.bd{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3)}
 .bsm{padding:5px 8px;font-size:11px;border-radius:7px}
 /* stats top */
 .stats-top{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap}
@@ -204,6 +222,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 
 <script>
 let autoInt=null;
+const CSRF_TOKEN=<?=json_encode(generateCsrf())?>;
 function load(){
   fetch('online.php?ajax=isp_stats').then(r=>r.json()).then(d=>{
     document.getElementById('hCnt').textContent='('+d.total_online+')';
@@ -249,15 +268,31 @@ function toggleIspUsers(isp, card) {
         el.innerHTML='<div style="text-align:center;padding:8px;color:var(--muted);font-size:11px">📡 هیچ کاربری آنلاین نیست</div>';
         return;
       }
-      var html='<table><thead><tr><th>👤 کاربر</th><th>🌐 IP</th><th>⏱ مدت</th><th>📦 گروه</th></tr></thead><tbody>';
+      var html='<table><thead><tr><th>👤 کاربر</th><th>🌐 IP</th><th>⏱ مدت</th><th>📦 گروه</th><th></th></tr></thead><tbody>';
       d.rows.forEach(u=>{
-        html+='<tr><td><strong>'+u.username+'</strong></td><td style="font-family:monospace">'+u.ip+'</td><td>'+u.duration+'</td><td>'+u.group+'</td></tr>';
+        var kickBtn=u.id?('<button class="btn bd bsm" onclick=\'event.stopPropagation();kickOnlineUser("'+u.id+'","'+u.username.replace(/"/g,'&quot;')+'",this)\' title="Kick">⚡ Kick</button>'):'';
+        html+='<tr><td><strong>'+u.username+'</strong></td><td style="font-family:monospace">'+u.ip+'</td><td>'+u.duration+'</td><td>'+u.group+'</td><td onclick="event.stopPropagation()">'+kickBtn+'</td></tr>';
       });
       html+='</tbody></table><div style="text-align:left;font-size:10px;color:var(--muted);padding:3px 6px">'+d.total+' کاربر آنلاین</div>';
       el.innerHTML=html;
     }).catch(()=>{
       el.innerHTML='<div style="text-align:center;color:var(--red);font-size:11px">❌ خطا</div>';
     });
+}
+
+function kickOnlineUser(uid,un,btn){
+  if(!confirm('اتصال آنلاین کاربر «'+un+'» قطع بشه؟'))return;
+  btn.disabled=true; btn.textContent='...';
+  fetch('online.php?ajax=kick',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'uid='+encodeURIComponent(uid)+'&csrf_token='+encodeURIComponent(CSRF_TOKEN)})
+    .then(r=>r.json()).then(d=>{
+      if(d.ok){
+        var row=btn.closest('tr'); if(row) row.style.opacity='0.4';
+        btn.textContent='✅ شد';
+      } else {
+        alert('خطا در Kick: '+(d.error||'نامشخص'));
+        btn.disabled=false; btn.textContent='⚡ Kick';
+      }
+    }).catch(()=>{alert('خطا در اتصال');btn.disabled=false;btn.textContent='⚡ Kick';});
 }
 
 load();

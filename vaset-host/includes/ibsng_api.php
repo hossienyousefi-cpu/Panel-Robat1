@@ -573,10 +573,15 @@ function ibsng_searchUsersForReseller($ispName, $search, $group, $page, $perPage
 // لیست کاربرهای هر ISP (که برای ISPهای بزرگ فاجعه‌بار کند بود و کل هاست رو کند
 // می‌کرد)، فقط ISP همین چند نفر آنلاین رو مستقیم از روی خودشون resolve می‌کنیم.
 function ibsng_resolveOnlineIsps(array $records) {
-    $cKey = IBS_CACHE_DIR . 'online_isp_map.json';
+    $cKey   = IBS_CACHE_DIR . 'online_isp_map.json';
+    $uidKey = IBS_CACHE_DIR . 'online_uid_map.json';
     $map = [];
+    $uidMap = [];
     if (file_exists($cKey) && (time() - filemtime($cKey)) < 60) {
         $map = @json_decode(@file_get_contents($cKey), true) ?: [];
+    }
+    if (file_exists($uidKey) && (time() - filemtime($uidKey)) < 60) {
+        $uidMap = @json_decode(@file_get_contents($uidKey), true) ?: [];
     }
     foreach ($records as $u) {
         $un = $u['normal_username'] ?? $u['username'] ?? '';
@@ -584,18 +589,24 @@ function ibsng_resolveOnlineIsps(array $records) {
     }
     foreach ($records as $u) {
         $un = $u['normal_username'] ?? $u['username'] ?? '';
-        if ($un === '' || isset($map[$un])) continue;
+        if ($un === '' || (isset($map[$un]) && isset($uidMap[$un]))) continue;
         $rs = ibsng_call('user.searchUser', ['conds' => ['normal_username' => $un], 'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => true]);
         $uids = $rs['result'][2] ?? [];
-        if (empty($uids)) { $map[$un] = ''; continue; }
-        $inf = ibsng_call('user.getUserInfo', ['user_id' => (string)$uids[0]]);
-        $row = $inf['result'][$uids[0]] ?? $inf['result'][(string)$uids[0]] ?? null;
-        $map[$un] = $row['basic_info']['isp_name'] ?? '';
+        if (empty($uids)) { $map[$un] = $map[$un] ?? ''; continue; }
+        $uidMap[$un] = $uids[0];
+        if (!isset($map[$un])) {
+            $inf = ibsng_call('user.getUserInfo', ['user_id' => (string)$uids[0]]);
+            $row = $inf['result'][$uids[0]] ?? $inf['result'][(string)$uids[0]] ?? null;
+            $map[$un] = $row['basic_info']['isp_name'] ?? '';
+        }
     }
     @file_put_contents($cKey, json_encode($map));
+    @file_put_contents($uidKey, json_encode($uidMap));
     foreach ($records as &$u) {
         $un = $u['normal_username'] ?? $u['username'] ?? '';
-        if ($un !== '' && empty($u['isp_name']) && !empty($map[$un])) $u['isp_name'] = $map[$un];
+        if ($un === '') continue;
+        if (empty($u['isp_name']) && !empty($map[$un])) $u['isp_name'] = $map[$un];
+        if (empty($u['user_id']) && !empty($uidMap[$un])) $u['user_id'] = $uidMap[$un];
     }
     unset($u);
     return $records;
@@ -633,23 +644,41 @@ function ibsng_getOnlineRaw() {
             $out[] = $u;
         }
     }
-    $out = ibsng_resolveOnlineIsps($out);
     @file_put_contents($cKey, json_encode($out));
     return ['error' => '', 'data' => $out];
+}
+
+// ─── مثل ibsng_getOnlineRaw ولی isp_name هر رکورد resolve/تصحیح‌شده‌ست ───
+// این resolve کردن (چون ممکنه برای هر کاربر آنلاین یک تماس اضافه بزنه) عمداً از
+// ibsng_getOnlineRaw جدا نگه داشته شده - ibsng_getOnlineRaw خیلی زیاد و برای کار
+// ساده‌ای مثل «این یوزرنیم آنلاینه یا نه» (نشان سبز/قرمز جدول کاربران) صدا زده
+// می‌شه که اصلاً نیازی به دونستن ISP نداره؛ اگه resolve همیشه روش اجرا بشه، هر
+// بازدید ساده‌ی صفحه‌ی کاربران هم چند تماس اضافه به  می‌زد و کل پنل رو کند می‌کرد.
+// فقط جاهایی که واقعاً باید بدونیم هر آنلاین مال کدوم ISP هست (breakdown هر ISP،
+// فیلتر آنلاین یک ISP خاص) از این نسخه استفاده می‌کنن.
+function ibsng_getOnlineRawResolved() {
+    $cKey = IBS_CACHE_DIR . 'online_all_resolved.json';
+    if (file_exists($cKey) && (time() - filemtime($cKey)) < 20) {
+        $c = json_decode(file_get_contents($cKey), true);
+        if (is_array($c)) return ['error' => '', 'data' => $c];
+    }
+    $raw = ibsng_getOnlineRaw();
+    if (!empty($raw['error'])) return $raw;
+    $resolved = ibsng_resolveOnlineIsps($raw['data']);
+    @file_put_contents($cKey, json_encode($resolved));
+    return ['error' => '', 'data' => $resolved];
 }
 
 // ─── کاربران آنلاین یک ISP خاص ───
 function ibsng_getOnlineForIsp($ispName) {
     try {
-        $result = ibsng_getOnlineRaw();
+        if ($ispName === '') return ibsng_getOnlineRaw();
+
+        $result = ibsng_getOnlineRawResolved();
         if (!empty($result['error'])) return ['error' => $result['error'], 'data' => []];
 
-        $data = $result['data'];
-        if ($ispName === '') return ['error' => '', 'data' => $data];
-
-        // isp_name توی $data الان از ibsng_resolveOnlineIsps تضمین‌شده/تصحیح‌شده‌ست
         $filtered = [];
-        foreach ($data as $u) {
+        foreach ($result['data'] as $u) {
             if (($u['isp_name'] ?? '') === $ispName) $filtered[] = $u;
         }
 
