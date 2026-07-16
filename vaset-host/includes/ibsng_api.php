@@ -729,12 +729,15 @@ function ibsng_kickUserNative($uid) {
     $cookieFile = ibsng_nativeCookieFile();
     $base = rtrim(IBS_URL, '/');
     $url  = $base . '/user/kill_user_by_id.php?user_id=' . urlencode($uid) . '&kill=1&ajax=1';
-    // بدون هدر X-Requested-With، خیلی از اسکریپت‌های PHP که برای هم navigation
-    // معمولی هم ajax نوشته شدن، پارامتر ajax=1 توی URL رو کافی نمی‌دونن و
-    // درخواست رو navigation عادی فرض می‌کنن - یعنی به‌جای پاسخ متنیِ خام، header
-    // Location می‌فرستن (که با دنبال‌شدنش توسط curl، به مسیر/دامنه‌ی اشتباه
-    // ریدایرکت می‌شدیم). این هدر رو می‌فرستیم تا واقعاً حالت ajax رخ بده.
-    $headers = ['X-Requested-With: XMLHttpRequest'];
+    // خودِ  با پیام صریح مشخص کرد که مشکل واقعی چیه: چون هدر Referer نداشتیم،
+    // یک چک ساده‌ی ضدـCSRF/hotlink توی  ("invalid Referrer") درخواست رو رد
+    // می‌کرد و به صفحه‌ی اصلی (که صفحه‌ی پیش‌فرض  رو نشون می‌داد) ریدایرکت
+    // می‌شدیم. Referer رو دقیقاً به همون صفحه‌ای که این لینک Kill توش قرار داره
+    // (صفحه‌ی اطلاعات کاربر) ست می‌کنیم تا مثل یک کلیک واقعی از مرورگر به‌نظر بیاد.
+    $headers = [
+        'X-Requested-With: XMLHttpRequest',
+        'Referer: ' . $base . '/user/user_info.php?user_id=' . urlencode($uid),
+    ];
     $res  = ibsng_nativeHttpEx($url, $cookieFile, null, $headers);
     $resp = $res['body'];
     if ($resp === false) return ['error' => 'درخواست Kick ناموفق بود (خطای اتصال)', 'method' => 'native:kill_user_by_id'];
