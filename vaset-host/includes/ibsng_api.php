@@ -52,6 +52,78 @@ function ibsng_call($method, $params = [], $cacheSec = 0) {
     return $result;
 }
 
+// ─── چند فراخوانی JSON-RPC مستقل از هم رو هم‌زمان (موازی، با curl_multi) بفرست
+// - مثلاً وقتی چند تا صفحه‌ی user.getUserInfo یا جست‌وجوی چند ISP جدا از هم
+// لازمه. چون این‌ها هیچ‌کدوم به نتیجه‌ی هم نیاز ندارن، به‌جای پشت‌سرهم رفتن (که
+// زمانش جمع N تماس می‌شه)، هم‌زمان می‌رن روی شبکه و کل کار تقریباً فقط طول
+// کندترینِ تک تماس رو می‌کشه. ورودی: آرایه‌ای از [method, params]؛ خروجی: آرایه‌ای
+// هم‌اندازه با همون کلیدها، هرکدوم دقیقاً همون فرمتی که ibsng_call برمی‌گردونه.
+function ibsng_callParallel(array $calls) {
+    if (count($calls) <= 1) {
+        $out = [];
+        foreach ($calls as $k => $c) $out[$k] = ibsng_call($c[0], $c[1] ?? []);
+        return $out;
+    }
+    $mh = curl_multi_init();
+    $handles = [];
+    foreach ($calls as $k => $c) {
+        $method = $c[0];
+        $params = $c[1] ?? [];
+        $params['auth_name'] = IBS_ADMIN_USER;
+        $params['auth_pass'] = IBS_ADMIN_PASS;
+        $params['auth_type'] = 'ADMIN';
+        $data = json_encode(['jsonrpc' => '2.0', 'method' => $method, 'params' => $params, 'id' => 1]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => IBS_API_URL,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $data,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        ]);
+        curl_multi_add_handle($mh, $ch);
+        $handles[$k] = $ch;
+    }
+    do {
+        $status = curl_multi_exec($mh, $running);
+        if ($running) curl_multi_select($mh, 1.0);
+    } while ($running > 0 && $status === CURLM_OK);
+
+    $out = [];
+    foreach ($handles as $k => $ch) {
+        $response = curl_multi_getcontent($ch);
+        $result   = json_decode($response, true);
+        $out[$k]  = $result === null ? ['error' => 'Invalid JSON from IBS API', 'result' => null] : $result;
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($mh);
+    return $out;
+}
+
+// ─── گرفتن user.getUserInfo برای یک لیست بزرگ از uid، تکه‌تکه (۱۰۰ تایی) ولی
+// هم‌زمان به‌جای پشت‌سرهم - جایگزین الگوی تکراری «array_chunk + foreach با
+// ibsng_call پشت‌سرهم» که برای ISPهای بزرگ (چند هزار کاربر = چند ده chunk) کند
+// بود. خروجی: آرایه‌ی user_id => اطلاعات کاربر (دقیقاً مثل result یک
+// getUserInfo تکی روی همه‌ی uidها).
+function ibsng_getUserInfoBulk(array $uids) {
+    $uids = array_values(array_unique($uids));
+    if (empty($uids)) return [];
+    $chunks = array_chunk($uids, 100);
+    $calls = [];
+    foreach ($chunks as $i => $chunk) {
+        $calls[$i] = ['user.getUserInfo', ['user_id' => implode(',', $chunk)]];
+    }
+    $results = ibsng_callParallel($calls);
+    $inf = [];
+    foreach ($results as $r) {
+        if (!empty($r['result'])) $inf += $r['result'];
+    }
+    return $inf;
+}
+
 // ─── پاک کردن کش ───
 function ibsng_clearCache($pattern = null) {
     if ($pattern === null) {
@@ -263,23 +335,30 @@ function ibsng_getUsersInfo(array $uids) {
 // ─── گرفتن همه UIDs یک ISP با pagination کامل ───
 function ibsng_getAllUidsForIsp($conds) {
     $batchSize = 500;
-    $from      = 0;
-    $allUids   = [];
-    // سقف زمانی: اگر شرط isp_name/group_name به هر دلیلی سمت  فیلتر نکند (یا total
-    // درست برنگردد)، این حلقه می‌تواند صدها request پشت‌سرهم بزند و کل هاست را برای
-    // بقیه‌ی کاربران هم کند/بلاک کند. بعد از ۸ ثانیه با هرچی تا الان جمع شده برمی‌گردیم.
-    $deadline = microtime(true) + 8;
-    do {
-        $r     = ibsng_call('user.searchUser', [
-            'conds' => $conds, 'from' => $from, 'to' => $from + $batchSize,
-            'order_by' => 'user_id', 'desc' => true,
-        ]);
-        $total  = (int)($r['result'][0] ?? 0);
-        $batch  = $r['result'][2] ?? [];
-        if (empty($batch)) break;
-        $allUids = array_merge($allUids, $batch);
-        $from  += $batchSize;
-    } while (count($allUids) < $total && microtime(true) < $deadline);
+    // اول فقط total رو با یک تماس سبک بگیر
+    $rCount = ibsng_call('user.searchUser', ['conds' => $conds, 'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => true]);
+    $total  = (int)($rCount['result'][0] ?? 0);
+    if ($total <= 0) return [];
+
+    // سقف صفحه: اگر شرط isp_name/group_name به هر دلیلی سمت  فیلتر نکند (یا total
+    // درست برنگردد)، این نباید صدها صفحه هم‌زمان درخواست بزند و کل هاست را برای
+    // بقیه‌ی کاربران هم کند/بلاک کند. حداکثر ۴۰ صفحه (۲۰٬۰۰۰ کاربر) کافیه.
+    $maxPages = 40;
+    $pages    = min($maxPages, (int)ceil($total / $batchSize));
+
+    // چون همه‌ی صفحات از هم مستقلن (فقط offset فرق می‌کنه)، به‌جای پشت‌سرهم
+    // رفتن (که برای ISPهای بزرگ ده‌ها request طول می‌کشید)، همه رو هم‌زمان
+    // می‌فرستیم - زمان کل تقریباً فقط طول کندترینِ تک صفحه می‌شه.
+    $calls = [];
+    for ($p = 0; $p < $pages; $p++) {
+        $from = $p * $batchSize;
+        $calls[$p] = ['user.searchUser', ['conds' => $conds, 'from' => $from, 'to' => $from + $batchSize, 'order_by' => 'user_id', 'desc' => true]];
+    }
+    $results = ibsng_callParallel($calls);
+    $allUids = [];
+    foreach ($results as $r) {
+        $allUids = array_merge($allUids, $r['result'][2] ?? []);
+    }
     return $allUids;
 }
 
@@ -365,12 +444,10 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
 
     $onlineSet = ibsng_getOnlineUsernameSet($ispName);
     $rows = [];
-    foreach (array_chunk($uids, 100) as $chunk) {
-        $inf = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
-        foreach ($inf['result'] ?? [] as $uid => $u) {
-            $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
-            if ($row) $rows[] = $row;
-        }
+    $inf = ibsng_getUserInfoBulk($uids);
+    foreach ($inf as $uid => $u) {
+        $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
+        if ($row) $rows[] = $row;
     }
     @unlink($lockFile);
     @file_put_contents($cKey, json_encode($rows));
@@ -425,11 +502,7 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
         $fastUids = $fr['result'][2] ?? [];
         $allRows = [];
         if (!empty($fastUids)) {
-            $inf = [];
-            foreach (array_chunk($fastUids, 100) as $chunk) {
-                $r2 = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
-                $inf += $r2['result'] ?? [];
-            }
+            $inf = ibsng_getUserInfoBulk($fastUids);
             foreach ($fastUids as $uid) {
                 $u = $inf[(string)$uid] ?? $inf[$uid] ?? null;
                 if (!$u) continue;
@@ -439,11 +512,7 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
         }
         if (empty($allRows)) {
             $allUids = ibsng_getAllUidsForIsp($conds);
-            $inf = [];
-            foreach (array_chunk($allUids, 100) as $chunk) {
-                $r2 = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
-                $inf += $r2['result'] ?? [];
-            }
+            $inf = ibsng_getUserInfoBulk($allUids);
             foreach ($allUids as $uid) {
                 $u = $inf[(string)$uid] ?? $inf[$uid] ?? null;
                 if (!$u) continue;
@@ -627,12 +696,9 @@ function ibsng_getIspUsernameMap($ispName) {
         $uids = ibsng_getAllUidsForIsp(ibsng_ispCond($ispName));
         if (empty($uids)) { @file_put_contents($cKey, '{}'); return []; }
         $map = [];
-        foreach (array_chunk($uids, 100) as $chunk) {
-            $inf = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
-            foreach ($inf['result'] ?? [] as $u) {
-                $un = $u['attrs']['normal_username'] ?? $u['attrs']['username'] ?? '';
-                if ($un !== '') $map[$un] = true;
-            }
+        foreach (ibsng_getUserInfoBulk($uids) as $u) {
+            $un = $u['attrs']['normal_username'] ?? $u['attrs']['username'] ?? '';
+            if ($un !== '') $map[$un] = true;
         }
         @file_put_contents($cKey, json_encode($map));
         return $map;

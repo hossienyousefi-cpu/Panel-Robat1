@@ -99,11 +99,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             $fr=ibsng_call('user.searchUser',['conds'=>$fastConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]);
             $fastUids=$fr['result'][2]??[];
             if(!empty($fastUids)){
-                $infosF=[];
-                foreach(array_chunk($fastUids,100) as $chunk){
-                    $infR=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
-                    if(!empty($infR['result'])) $infosF+=$infR['result'];
-                }
+                $infosF=ibsng_getUserInfoBulk($fastUids);
                 foreach($fastUids as $uid){
                     $u=$infosF[(string)$uid]??($infosF[$uid]??null);if(!$u)continue;
                     $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
@@ -118,28 +114,35 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
         }
 
         // اگر جستجوی سریع (exact/prefix) چیزی پیدا نکرد و هیچ ISP انتخاب نشده، قبل از
-        // اسکن کامل همه‌ی ~15000 کاربر (کند)، یک جستجوی هدفمند و سریع تک‌تک روی هر ISP
-        // امتحان کن (چند request کوچیک به‌جای دانلود کل دیتابیس).
+        // اسکن کامل همه‌ی ~15000 کاربر (کند)، یک جستجوی هدفمند و سریع روی هر ISP
+        // امتحان کن - همه‌ی ISPها رو هم‌زمان (نه پشت‌سرهم) صدا می‌زنیم تا زمانش
+        // تقریباً فقط طول یک تماس بشه، نه جمع ۸ تماس پشت‌سرهم.
         if(empty($filtered)&&$search!==''&&$ispF===''&&$rasF===''){
-            foreach(ibsng_getIsps() as $ispTry){
+            $isps=ibsng_getIsps();
+            $searchCalls=[];
+            foreach($isps as $i=>$ispTry){
                 $tryConds=$conds;
                 $tryConds=array_merge($tryConds,ibsng_ispCond($ispTry));
                 $tryConds['normal_username']=$search;
                 $tryConds['normal_username_op']='like';
-                $tr=ibsng_call('user.searchUser',['conds'=>$tryConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]);
-                $tUids=$tr['result'][2]??[];
-                if(empty($tUids))continue;
-                $infT=[];
-                foreach(array_chunk($tUids,100) as $chunk){
-                    $r3=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
-                    if(!empty($r3['result']))$infT+=$r3['result'];
+                $searchCalls[$i]=['user.searchUser',['conds'=>$tryConds,'from'=>0,'to'=>200,'order_by'=>'user_id','desc'=>true]];
+            }
+            $searchResults=ibsng_callParallel($searchCalls);
+            $uidIsp=[];$allTUids=[];
+            foreach($isps as $i=>$ispTry){
+                foreach($searchResults[$i]['result'][2]??[] as $uid){
+                    $uidIsp[$uid]=$ispTry;$allTUids[]=$uid;
                 }
-                foreach($tUids as $uid){
+            }
+            if(!empty($allTUids)){
+                $infT=ibsng_getUserInfoBulk($allTUids);
+                foreach($allTUids as $uid){
                     $u=$infT[(string)$uid]??($infT[$uid]??null);if(!$u)continue;
                     $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
                     $un=$attrs['normal_username']??$attrs['username']??'';
                     $exp=$basic['nearest_exp_date']??'';
                     $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
+                    $ispTry=$uidIsp[$uid]??'';
                     $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??$ispTry,'ras'=>$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—'),'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>isset($onlineSetGlobal[$un]),'credit'=>$basic['credit']??0];
                 }
             }
@@ -150,11 +153,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
 
             if(empty($allUIDs)){echo json_encode(['total'=>0,'rows'=>[]]);exit;}
 
-            $infos2=[];
-            foreach(array_chunk($allUIDs,100) as $chunk){
-                $inf2=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
-                if(!empty($inf2['result'])) $infos2+=$inf2['result'];
-            }
+            $infos2=ibsng_getUserInfoBulk($allUIDs);
 
             foreach($allUIDs as $uid){
                 $u=$infos2[(string)$uid]??($infos2[$uid]??null);if(!$u)continue;
