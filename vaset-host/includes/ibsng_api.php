@@ -720,19 +720,23 @@ function ibsng_kickUserNative($uid) {
     $resp = ibsng_nativeHttp($url, $cookieFile);
     if ($resp === false) return ['error' => 'درخواست Kick ناموفق بود (خطای اتصال)', 'method' => 'native:kill_user_by_id'];
 
-    // اگه پاسخ تأیید موفقیت نداشت (مثلاً نشست بین چک لاگین و این درخواست منقضی
-    // شده)، یک بار با لاگین کاملاً تازه (کوکی جدید) دوباره امتحان کن.
-    if (!ibsng_nativeKillLooksSuccessful($resp)) {
-        @unlink($cookieFile);
-        if (ibsng_nativeLogin()) {
-            $resp = ibsng_nativeHttp($url, $cookieFile);
-        }
+    // اگه پاسخ تأیید موفقیت نداشت، بدون از بین بردن کوکی فعلی (که ممکنه هنوز
+    // کاملاً معتبر باشه - حذفش قبلاً باعث می‌شد یک نشست سالم با یک لاگین حدسیِ
+    // ناموفق جایگزین بشه و همه‌چیز خراب‌تر بشه) فقط یک بار دیگه از
+    // ibsng_nativeLogin (که خودش اول اعتبار کوکی موجود رو با یک درخواست زنده چک
+    // می‌کنه و فقط اگه واقعاً نامعتبر بود سراغ فیلدهای حدسی می‌ره) استفاده می‌کنیم.
+    if (!ibsng_nativeKillLooksSuccessful($resp) && ibsng_nativeLogin()) {
+        $resp2 = ibsng_nativeHttp($url, $cookieFile);
+        if ($resp2 !== false) $resp = $resp2;
     }
 
     if ($resp === false) return ['error' => 'درخواست Kick ناموفق بود (خطای اتصال)', 'method' => 'native:kill_user_by_id'];
     if (!ibsng_nativeKillLooksSuccessful($resp)) {
         $snippet = trim(substr(strip_tags((string)$resp), 0, 200));
-        return ['error' => 'پاسخ نامعتبر از IBSng (احتمالاً نشست منقضی یا user_id نامعتبر): ' . ($snippet !== '' ? $snippet : '(پاسخ خالی)'), 'method' => 'native:kill_user_by_id', 'raw' => $resp];
+        $hint = (stripos($resp, 'apache') !== false || stripos($resp, 'it works') !== false)
+            ? ' - درخواست به‌جای صفحه‌ی IBSng به صفحه‌ی پیش‌فرض  ریدایرکت شده (احتمالاً مشکل مسیر/ریدایرکت روی خودِ سرور  است، نه نشست ما)'
+            : ' (احتمالاً نشست منقضی یا user_id نامعتبر)';
+        return ['error' => 'پاسخ نامعتبر از IBSng' . $hint . ': ' . ($snippet !== '' ? $snippet : '(پاسخ خالی)'), 'method' => 'native:kill_user_by_id', 'raw' => $resp];
     }
     ibsng_clearUserCache($uid);
     return ['error' => null, 'method' => 'native:kill_user_by_id.php', 'raw' => $resp];

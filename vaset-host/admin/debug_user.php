@@ -79,6 +79,22 @@ if (isset($_GET['testkick'])) {
     if (!$loginOk) {
         // خروجی خام صفحه‌ی لاگین پنل اصلی رو نشون بده تا اسم واقعی فیلدهای فرم معلوم بشه
         $nativeKickTest['login_page_html'] = ibsng_nativeHttp(rtrim(IBS_URL, '/') . '/index.php', ibsng_nativeCookieFile());
+    } else {
+        // یک درخواست بی‌خطر (که چیزی رو واقعاً Kick نمی‌کنه) به همون مسیر که
+        // Kick واقعی هم ازش استفاده می‌کنه می‌زنیم تا ببینیم دقیقاً چه پاسخی از
+        // سرور  برمی‌گرده - همون چیزی که موقع Kick واقعی هم دریافت می‌شه.
+        $base = rtrim(IBS_URL, '/');
+        $probeUrl = $base . '/admin_index.php';
+        $nativeKickTest['probe_url']  = $probeUrl;
+        $nativeKickTest['probe_html'] = ibsng_nativeHttp($probeUrl, ibsng_nativeCookieFile());
+    }
+    // اگه kill_uid داده شده باشه، همون تابع واقعی Kick رو مستقیم صدا می‌زنیم و
+    // پاسخ خامش رو نشون می‌دیم - دقیقاً همون چیزی که موقع کلیک روی دکمه Kick توی
+    // صفحه‌ی کاربران اتفاق می‌افته.
+    $killUid = trim($_GET['kill_uid'] ?? '');
+    if ($killUid !== '') {
+        $nativeKickTest['kill_uid']    = $killUid;
+        $nativeKickTest['kill_result'] = ibsng_kickUserNative($killUid);
     }
 }
 
@@ -260,7 +276,15 @@ a{color:#60a5fa}
 <?php if(!$nativeKickTest['login_ok']):?>
 <p>چون لاگین خودکار ناموفق بود، خروجی خام صفحه‌ی لاگین پنل اصلی رو اینجا می‌بینی - دنبال تگ &lt;form&gt; و اسم واقعی input هایی مثل username/password بگرد:</p>
 <pre><?=htmlspecialchars((string)($nativeKickTest['login_page_html'] ?? ''))?></pre>
+<?php else:?>
+<p>لاگین موفق بود؛ این خروجی خامِ صفحه‌ی داخلی پنل (<?=htmlspecialchars($nativeKickTest['probe_url']??'')?>) با همین کوکی سشنه - باید صفحه‌ی واقعی IBSng باشه، نه صفحه‌ی پیش‌فرض  یا صفحه‌ی لاگین:</p>
+<pre><?=htmlspecialchars(substr((string)($nativeKickTest['probe_html'] ?? ''),0,3000))?></pre>
 <?php endif;?>
+<?php if(isset($nativeKickTest['kill_result'])):?>
+<h3>نتیجه‌ی تست Kick واقعی روی user_id=<?=htmlspecialchars($nativeKickTest['kill_uid'])?></h3>
+<pre><?=htmlspecialchars(json_encode($nativeKickTest['kill_result'], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE))?></pre>
+<?php endif;?>
+<p style="font-size:12px;color:#666">برای تست Kick واقعی روی یک user_id مشخص: <code>?testkick=1&kill_uid=USER_ID</code></p>
 <?php endif;?>
 
 <?php if($runDiag):?>
