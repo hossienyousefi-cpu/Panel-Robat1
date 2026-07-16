@@ -868,7 +868,7 @@ function renderTable(d,pp){
         <button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید">🔄</button>
         <button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>
         <button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>
-        <button class="btn bpu2 bsm" ${u.online?'':'disabled'} onclick="openKick('${u.id}','${u.username}')" title="${u.online?'Kick (قطع اتصال)':'کاربر آنلاین نیست'}">⚡</button>
+        <button class="btn bpu2 bsm" onclick="openKick('${u.id}','${u.username}')" title="Kick (قطع اتصال)">⚡</button>
         <button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')" title="حذف کاربر">🗑</button>
       </div></td>
     </tr>`;

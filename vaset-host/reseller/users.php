@@ -888,7 +888,7 @@ function renderTable(d,pp){
     if(CR) acts+=`<button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید">🔄</button>`;
     acts+=`<button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>`;
     acts+=`<button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>`;
-    acts+=`<button class="btn bpu2 bsm" ${u.online?'':'disabled'} onclick="openKick('${u.id}','${u.username}')" title="${u.online?'Kick (قطع اتصال)':'کاربر آنلاین نیست'}">⚡</button>`;
+    acts+=`<button class="btn bpu2 bsm" onclick="openKick('${u.id}','${u.username}')" title="Kick (قطع اتصال)">⚡</button>`;
     if(CD) acts+=`<button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')" title="حذف کاربر">🗑</button>`;
     return `<tr>
       <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
