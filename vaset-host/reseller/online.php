@@ -103,6 +103,10 @@ if (isset($_GET['refresh_cache'])) {
 :root{--bg:#08100a;--sb:#0c1810;--card:#111f14;--surf:#0c1810;--bor:#1e3025;--acc:#10b981;--acc2:#06b6d4;--pur:#8b5cf6;--txt:#e2e8f0;--txt2:#94a3b8;--muted:#475569;--red:#ef4444;--grn:#10b981;--yel:#f59e0b;--sw:260px}
 body{font-family:'Vazirmatn',sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh}
 aside{width:var(--sw);background:var(--sb);border-left:1px solid var(--bor);position:fixed;right:0;top:0;bottom:0;display:flex;flex-direction:column;z-index:100}
+@media(max-width:768px){aside{transform:translateX(100%);transition:.3s} aside.open{transform:none} .overlay{display:block!important}}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
+.hamburger{display:none;position:fixed;top:14px;right:14px;z-index:101;background:var(--sb);border:1px solid var(--bor);border-radius:9px;padding:8px 10px;cursor:pointer;color:var(--txt);font-size:18px}
+@media(max-width:768px){.hamburger{display:block} main{margin-right:0!important} .content{padding:14px!important} .topbar{padding-right:60px!important} .stats-top{gap:8px} .sc{padding:12px 16px;min-width:100px} .sv{font-size:24px}}
 .logo{padding:20px;border-bottom:1px solid var(--bor)}
 .logo-t{font-size:17px;font-weight:900;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .logo-b{font-size:10px;color:var(--muted);-webkit-text-fill-color:var(--muted)}
@@ -153,7 +157,9 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
 </style>
 </head>
 <body>
-<aside>
+<div class="overlay" id="overlay" onclick="closeSB()"></div>
+<button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
+<aside id="sidebar">
   <div class="logo">
     <?php $sL=getSetting('site_logo',''); if($sL&&file_exists(dirname(__DIR__).'/'.$sL)):?>
     <img src="../<?=sanitize($sL)?>" alt="" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
@@ -229,6 +235,8 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
 </main>
 
 <script>
+function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').style.display='block'}
+function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').style.display='none'}
 var autoInt=null, curGrp='';
 
 function loadData(){

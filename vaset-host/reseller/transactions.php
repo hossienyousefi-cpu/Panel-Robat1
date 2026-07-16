@@ -12,6 +12,7 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تراکنش‌ها - پنل ریسلر</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -19,6 +20,21 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
   :root { --bg: #08100a; --sidebar: #0c1810; --card: #131f17; --border: #1e3025; --accent: #10b981; --accent2: #06b6d4; --text: #e2e8f0; --text2: #94a3b8; --muted: #475569; --danger: #ef4444; --success: #10b981; --warning: #f59e0b; --sidebar-w: 260px; }
   body { font-family: 'Vazirmatn', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
   .sidebar { width: var(--sidebar-w); background: var(--sidebar); border-left: 1px solid var(--border); position: fixed; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; z-index: 100; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 99; }
+  .hamburger { display: none; position: fixed; top: 14px; right: 14px; z-index: 101; background: var(--sidebar); border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; cursor: pointer; color: var(--text); font-size: 18px; }
+  @media (max-width: 768px) {
+    .sidebar { transform: translateX(100%); transition: .3s; }
+    .sidebar.open { transform: none; }
+    .overlay.open { display: block; }
+    .hamburger { display: block; }
+    .main { margin-right: 0 !important; }
+    .content { padding: 20px 16px !important; }
+    .topbar { padding: 14px 16px !important; padding-right: 60px !important; flex-wrap: wrap; gap: 8px; }
+    .page-title { font-size: 16px !important; }
+    .summary { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+    .sum-card { padding: 14px !important; }
+    .sum-value { font-size: 18px !important; }
+  }
   .sidebar-logo { padding: 28px 24px; border-bottom: 1px solid var(--border); }
   .logo-text { font-size: 20px; font-weight: 900; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
   .logo-badge { font-size: 10px; color: var(--muted); -webkit-text-fill-color: var(--muted); }
@@ -60,7 +76,9 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
 </style>
 </head>
 <body>
-<aside class="sidebar">
+<div class="overlay" id="overlay" onclick="closeSB()"></div>
+<button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
+<aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
@@ -162,5 +180,9 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
     </div>
   </div>
 </main>
+<script>
+function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').classList.toggle('open')}
+function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('open')}
+</script>
 </body>
 </html>

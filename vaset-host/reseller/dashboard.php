@@ -94,6 +94,23 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
   body { font-family: 'Vazirmatn', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
   
   .sidebar { width: var(--sidebar-w); background: var(--sidebar); border-left: 1px solid var(--border); position: fixed; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; z-index: 100; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 99; }
+  .hamburger { display: none; position: fixed; top: 14px; right: 14px; z-index: 101; background: var(--sidebar); border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; cursor: pointer; color: var(--text); font-size: 18px; }
+  @media (max-width: 768px) {
+    .sidebar { transform: translateX(100%); transition: .3s; }
+    .sidebar.open { transform: none; }
+    .overlay.open { display: block; }
+    .hamburger { display: block; }
+    .main { margin-right: 0 !important; }
+    .content { padding: 20px 16px !important; }
+    .topbar { padding: 14px 16px !important; padding-right: 60px !important; flex-wrap: wrap; gap: 8px; }
+    .page-title { font-size: 16px !important; }
+    .quick-actions { grid-template-columns: repeat(2, 1fr) !important; }
+    .grid-2 { grid-template-columns: 1fr !important; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+    .stat-card { padding: 16px !important; }
+    .stat-value { font-size: 24px !important; }
+  }
   .sidebar-logo { padding: 28px 24px; border-bottom: 1px solid var(--border); }
   .logo-text { font-size: 20px; font-weight: 900; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
   .logo-badge { font-size: 10px; color: var(--muted); -webkit-text-fill-color: var(--muted); }
@@ -180,8 +197,10 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
 </style>
 </head>
 <body>
+<div class="overlay" id="overlay" onclick="closeSB()"></div>
+<button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
 
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
@@ -332,6 +351,9 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
 
   </div>
 </main>
-
+<script>
+function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').classList.toggle('open')}
+function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('open')}
+</script>
 </body>
 </html>

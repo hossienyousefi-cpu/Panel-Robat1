@@ -68,6 +68,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ارسال فیش پرداخت - پنل ریسلر</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -75,6 +76,19 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
   :root{--bg:#08100a;--sidebar:#0c1810;--card:#131f17;--border:#1e3025;--accent:#10b981;--accent2:#06b6d4;--text:#e2e8f0;--text2:#94a3b8;--muted:#475569;--danger:#ef4444;--success:#10b981;--warning:#f59e0b;--sidebar-w:260px}
   body{font-family:'Vazirmatn',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
   .sidebar{width:var(--sidebar-w);background:var(--sidebar);border-left:1px solid var(--border);position:fixed;right:0;top:0;bottom:0;display:flex;flex-direction:column;z-index:100}
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
+  .hamburger{display:none;position:fixed;top:14px;right:14px;z-index:101;background:var(--sidebar);border:1px solid var(--border);border-radius:9px;padding:8px 10px;cursor:pointer;color:var(--text);font-size:18px}
+  @media(max-width:768px){
+    .sidebar{transform:translateX(100%);transition:.3s}
+    .sidebar.open{transform:none}
+    .overlay.open{display:block}
+    .hamburger{display:block}
+    .main{margin-right:0!important}
+    .content{padding:20px 16px!important;max-width:100%!important}
+    .topbar{padding:14px 16px!important;padding-right:60px!important;flex-wrap:wrap;gap:8px}
+    .page-title{font-size:16px!important}
+    .upload-zone{padding:24px!important}
+  }
   .sidebar-logo{padding:28px 24px;border-bottom:1px solid var(--border)}
   .logo-text{font-size:20px;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
   .logo-badge{font-size:10px;color:var(--muted);-webkit-text-fill-color:var(--muted)}
@@ -117,7 +131,8 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
   .btn{padding:12px 28px;border-radius:10px;font-family:'Vazirmatn';font-size:15px;font-weight:700;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
   .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
   .btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 25px rgba(16,185,129,.3)}
-  .table{width:100%;border-collapse:collapse}
+  .table-wrapper{overflow-x:auto}
+  .table{width:100%;border-collapse:collapse;min-width:560px}
   .table th{text-align:right;font-size:12px;font-weight:600;color:var(--muted);padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.2)}
   .table td{padding:14px 16px;font-size:13px;border-bottom:1px solid rgba(30,48,37,.5);color:var(--text2);vertical-align:middle}
   .table tr:last-child td{border-bottom:none}
@@ -128,7 +143,9 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
 </style>
 </head>
 <body>
-<aside class="sidebar">
+<div class="overlay" id="overlay" onclick="closeSB()"></div>
+<button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
+<aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
@@ -211,6 +228,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
         <span style="font-size:22px">📋</span>
         <div class="card-title">تاریخچه فیش‌های ارسالی</div>
       </div>
+      <div class="table-wrapper">
       <table class="table">
         <thead>
           <tr><th>مبلغ</th><th>توضیح</th><th>وضعیت</th><th>یادداشت ادمین</th><th>تاریخ</th></tr>
@@ -238,6 +256,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
           <?php endif; ?>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 </main>
@@ -249,6 +268,8 @@ function showPreview(input) {
     p.style.display = 'block';
   }
 }
+function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').classList.toggle('open')}
+function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('open')}
 </script>
 </body>
 </html>
