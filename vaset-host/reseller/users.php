@@ -83,7 +83,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'list') {
     header('Content-Type: application/json');
     $search  = trim($_GET['search'] ?? '');
     $grpF    = trim($_GET['group']  ?? '');
-    $onlineF = trim($_GET['online'] ?? ''); // '' = همه, '1' = فقط آنلاین, '0' = فقط آفلاین
     $sortBy  = trim($_GET['sort']   ?? '');
     $sortDir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
     $page    = max(0, (int)($_GET['page'] ?? 0));
@@ -95,7 +94,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'list') {
         exit;
     }
 
-    $result = ibsng_getIspUsersPage($ispName, $grpF, $search, $sortBy, $sortDir, $page, $perPage, $onlineF);
+    $result = ibsng_getIspUsersPage($ispName, $grpF, $search, $sortBy, $sortDir, $page, $perPage);
     echo json_encode([
         'total'     => $result['total'],
         'total_isp' => $result['total_isp'],
@@ -406,6 +405,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 .si-wide{flex:1;min-width:150px}
 .si-med{min-width:130px}
 .btn{padding:8px 14px;border-radius:9px;font-family:'Vazirmatn';font-size:13px;font-weight:700;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
+.btn:disabled{opacity:.35;cursor:not-allowed;filter:grayscale(.6)}
 .bp{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
 .bpu{background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.3)}
 .bc{background:rgba(6,182,212,.15);color:#22d3ee;border:1px solid rgba(6,182,212,.3)}
@@ -544,11 +544,6 @@ input:focus,select:focus{border-color:var(--acc)}
         <select class="si si-med" id="fGrp">
           <option value="">📦 همه گروه‌ها</option>
           <?php foreach($grpList as $g):?><option value="<?=sanitize($g)?>"><?=sanitize($g)?></option><?php endforeach;?>
-        </select>
-        <select class="si si-med" id="fOnline">
-          <option value="">📶 وضعیت اتصال (همه)</option>
-          <option value="1">🟢 فقط آنلاین</option>
-          <option value="0">🔴 فقط آفلاین</option>
         </select>
         <button class="btn bp" onclick="curP=0;load()">🔍 جستجو</button>
         <button class="btn bc" onclick="clrSrch()">✕ پاک</button>
@@ -762,7 +757,7 @@ function closeM(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.mbg').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open')}));
 
 function setTab(t,el){curTab=t;curP=0;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');load();}
-function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';document.getElementById('fOnline').value='';curP=0;load();}
+function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';curP=0;load();}
 
 function sPT(t){ptM=t;['m','c','n'].forEach(x=>document.getElementById('pt_'+x).classList.toggle('on',x===t));}
 function sPT2(t){ptP=t;['m','c','n'].forEach(x=>document.getElementById('pp_'+x).classList.toggle('on',x===t));}
@@ -798,7 +793,6 @@ function copyBulk(){
 let srchT=null;
 document.getElementById('fSrch').addEventListener('input',()=>{clearTimeout(srchT);srchT=setTimeout(()=>{curP=0;load();},500)});
 document.getElementById('fGrp').addEventListener('change',()=>{curP=0;load();});
-document.getElementById('fOnline').addEventListener('change',()=>{curP=0;load();});
 
 function setSort(col){
   if(curSort===col) curDir=curDir==='asc'?'desc':'asc';
@@ -832,7 +826,6 @@ function saveUsersState(){
       curP, curSort, curDir, curTab,
       search: document.getElementById('fSrch').value,
       group: document.getElementById('fGrp').value,
-      online: document.getElementById('fOnline').value,
     }));
   }catch(e){}
 }
@@ -844,7 +837,6 @@ function restoreUsersState(){
     curP = st.curP||0; curSort = st.curSort||''; curDir = st.curDir||'desc'; curTab = st.curTab||'all';
     document.getElementById('fSrch').value = st.search||'';
     document.getElementById('fGrp').value = st.group||'';
-    document.getElementById('fOnline').value = st.online||'';
     if(curTab==='exp3'){
       document.getElementById('tabAll').classList.remove('active');
       document.getElementById('tabExp').classList.add('active');
@@ -859,8 +851,7 @@ function load(){
   if(curTab==='exp3'){loadExp();return;}
   const s=document.getElementById('fSrch').value.trim();
   const g=document.getElementById('fGrp').value;
-  const onl=document.getElementById('fOnline').value;
-  fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&online=${encodeURIComponent(onl)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
+  fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
     .then(r=>r.json()).then(d=>renderTable(d,50))
     .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }
@@ -897,7 +888,7 @@ function renderTable(d,pp){
     if(CR) acts+=`<button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید">🔄</button>`;
     acts+=`<button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>`;
     acts+=`<button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>`;
-    if(u.online) acts+=`<button class="btn bpu2 bsm" onclick="openKick('${u.id}','${u.username}')" title="Kick (قطع اتصال)">⚡</button>`;
+    acts+=`<button class="btn bpu2 bsm" ${u.online?'':'disabled'} onclick="openKick('${u.id}','${u.username}')" title="${u.online?'Kick (قطع اتصال)':'کاربر آنلاین نیست'}">⚡</button>`;
     if(CD) acts+=`<button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')" title="حذف کاربر">🗑</button>`;
     return `<tr>
       <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>

@@ -64,7 +64,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'online_stats') {
         $dur    = (int)($u['duration_secs'] ?? 0);
         $durStr = ibsng_formatDuration($dur);
         $rows[] = [
-            'id'       => $u['user_id'] ?? '',
             'username' => $u['normal_username'] ?? $u['username'] ?? '—',
             'ip'       => $u['remote_ip'] ?? $u['framed_ip_address'] ?? '—',
             'ras'      => $u['unique_id'] ?? $u['nas_ip_address'] ?? $u['nas_identifier'] ?? '—',
@@ -84,35 +83,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'online_stats') {
     exit;
 }
 
-// AJAX: Kick کردن کاربر مستقیم از همین صفحه - فقط اگه کاربر واقعاً مال همین ISP باشه
-if (isset($_GET['ajax']) && $_GET['ajax'] === 'kick') {
-    header('Content-Type: application/json');
-    if (!verifyCsrf($_GET['csrf_token'] ?? $_POST['csrf_token'] ?? '')) {
-        echo json_encode(['ok' => false, 'error' => 'درخواست نامعتبر است']); exit;
-    }
-    $uid = trim($_GET['uid'] ?? $_POST['uid'] ?? '');
-    if ($uid === '') { echo json_encode(['ok' => false, 'error' => 'کاربر مشخص نشده']); exit; }
-    $inf = ibsng_call('user.getUserInfo', ['user_id' => $uid]);
-    $uIsp = $inf['result'][$uid]['basic_info']['isp_name'] ?? '';
-    if ($ispName === '' || $uIsp !== $ispName) {
-        echo json_encode(['ok' => false, 'error' => 'این کاربر مال ISP شما نیست']); exit;
-    }
-    $r = ibsng_kickUser($uid);
-    if ($r['error'] ?? null) { echo json_encode(['ok' => false, 'error' => $r['error']]); exit; }
-    echo json_encode(['ok' => true, 'method' => $r['method'] ?? null]);
-    exit;
-}
-
 if (isset($_GET['refresh_cache'])) {
-    foreach ([
-        sys_get_temp_dir() . '/ibs_online_cache.json', // فایل کش قدیمیِ دیگه‌استفاده‌نشده (برای پاکسازی)
-        IBS_CACHE_DIR . 'online_all.json',
-        IBS_CACHE_DIR . 'online_all_resolved.json',
-        IBS_CACHE_DIR . 'online_isp_map.json',
-        IBS_CACHE_DIR . 'online_uid_map.json',
-    ] as $cf) {
-        if (file_exists($cf)) @unlink($cf);
-    }
+    $cf = sys_get_temp_dir() . '/ibs_online_cache.json';
+    if (file_exists($cf)) @unlink($cf);
     header('Content-Type: application/json');
     echo json_encode(['ok' => true]);
     exit;
@@ -150,7 +123,6 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 .bp{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
 .bg{background:rgba(16,185,129,.15);color:var(--grn);border:1px solid rgba(16,185,129,.3)}
 .bc{background:rgba(6,182,212,.15);color:#22d3ee;border:1px solid rgba(6,182,212,.3)}
-.bd{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3)}
 .bsm{padding:5px 8px;font-size:11px;border-radius:7px}
 .stats-top{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap}
 .sc{background:var(--card);border:1px solid var(--bor);border-radius:12px;padding:18px 28px;text-align:center;flex:1;min-width:120px}
@@ -258,7 +230,6 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
 
 <script>
 var autoInt=null, curGrp='';
-const CSRF_TOKEN=<?=json_encode(generateCsrf())?>;
 
 function loadData(){
   var s=document.getElementById('srch').value.trim();
@@ -289,10 +260,9 @@ function loadData(){
       return;
     }
     var html='<div class="card"><div class="tw"><table class="t"><thead><tr>'
-      +'<th>👤 کاربر</th><th>🌐 IP</th><th>📡 RAS</th><th>⏱ مدت</th><th>📦 گروه</th><th>🌐 ISP</th><th></th>'
+      +'<th>👤 کاربر</th><th>🌐 IP</th><th>📡 RAS</th><th>⏱ مدت</th><th>📦 گروه</th><th>🌐 ISP</th>'
       +'</tr></thead><tbody>';
     d.rows.forEach(function(u){
-      var kickBtn=u.id?('<button class="btn bd bsm" onclick=\'kickOnlineUser("'+u.id+'","'+u.username.replace(/"/g,'&quot;')+'",this)\' title="Kick">⚡ Kick</button>'):'';
       html+='<tr>'
         +'<td><span class="od"></span><strong style="color:var(--txt)">'+u.username+'</strong></td>'
         +'<td style="font-family:monospace;font-size:11px">'+u.ip+'</td>'
@@ -300,7 +270,6 @@ function loadData(){
         +'<td style="color:var(--acc2);font-weight:600">'+u.duration+'</td>'
         +'<td><span class="badge bpu2">'+u.group+'</span></td>'
         +'<td style="font-size:11px;color:var(--acc2)">'+u.isp+'</td>'
-        +'<td>'+kickBtn+'</td>'
         +'</tr>';
     });
     html+='</tbody></table></div></div>';
@@ -311,21 +280,6 @@ function loadData(){
     document.getElementById('errBox').textContent='⚠️ خطا در اتصال به سرور';
     document.getElementById('container').innerHTML='';
   });
-}
-
-function kickOnlineUser(uid,un,btn){
-  if(!confirm('اتصال آنلاین کاربر «'+un+'» قطع بشه؟'))return;
-  btn.disabled=true; btn.textContent='...';
-  fetch('online.php?ajax=kick',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'uid='+encodeURIComponent(uid)+'&csrf_token='+encodeURIComponent(CSRF_TOKEN)})
-    .then(function(r){return r.json();}).then(function(d){
-      if(d.ok){
-        var row=btn.closest('tr'); if(row) row.style.opacity='0.4';
-        btn.textContent='✅ شد';
-      } else {
-        alert('خطا در Kick: '+(d.error||'نامشخص'));
-        btn.disabled=false; btn.textContent='⚡ Kick';
-      }
-    }).catch(function(){alert('خطا در اتصال');btn.disabled=false;btn.textContent='⚡ Kick';});
 }
 
 function setGrp(g,el){

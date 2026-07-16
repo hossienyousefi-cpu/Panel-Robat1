@@ -284,11 +284,15 @@ function ibsng_getAllUidsForIsp($conds) {
 }
 
 // ─── تبدیل یک UID به row ───
-// ─── مجموعه‌ی یوزرنیم‌های آنلاینِ یک ISP (از report.getOnlineUsers) - چون
-// online_status توی getUserInfo وقتی برای صدها کاربر یک‌جا (bulk) خونده می‌شه
-// همیشه false برمی‌گرده، وضعیت آنلاین واقعی رو باید جدا از همین لیست گرفت ───
-function ibsng_getOnlineUsernameSet($ispName) {
-    $r = ibsng_getOnlineForIsp($ispName);
+// ─── مجموعه‌ی یوزرنیم‌های آنلاین (از report.getOnlineUsers) - چون online_status
+// توی getUserInfo وقتی برای صدها کاربر یک‌جا (bulk) خونده می‌شه همیشه false
+// برمی‌گرده، وضعیت آنلاین واقعی رو باید جدا از همین لیست گرفت. عمداً همیشه از
+// نسخه‌ی خام/سریع (بدون فیلتر isp_name) استفاده می‌کنیم - یوزرنیم توی کل IBSng
+// یکتاست، پس برای «این یوزرنیم آنلاینه یا نه» نیازی به resolve کردن ISP نیست؛
+// این باعث می‌شه این تابع (که هر بازدید صفحه‌ی کاربران صداش می‌زنیم) همیشه سریع
+// و سبک بمونه، حتی اگه پارامتر $ispName پاس داده بشه.
+function ibsng_getOnlineUsernameSet($ispName = '') {
+    $r = ibsng_getOnlineRaw();
     $set = [];
     foreach ($r['data'] ?? [] as $u) {
         $un = $u['normal_username'] ?? $u['username'] ?? '';
@@ -375,8 +379,7 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
 
 // ─── گرفتن سریع صفحه اول بدون کش کامل ───
 // فقط UIDs صفحه اول رو میگیره + getUserInfo - خیلی سریعتر
-// $onlineF: '' = همه, '1' = فقط آنلاین, '0' = فقط آفلاین (فیلتر بعد از fetch انجام می‌شه)
-function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDir, $page, $perPage, $onlineF = '') {
+function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDir, $page, $perPage) {
     if ($ispName === '') return ['total' => 0, 'total_isp' => 0, 'rows' => [], 'cached' => false];
 
     // اگه کش کامل داریم، از اون استفاده کن
@@ -387,13 +390,6 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
             $totalIsp = count($allRows);
             if ($search !== '') {
                 $allRows = array_values(array_filter($allRows, fn($r) => stripos($r['username'], $search) !== false));
-            }
-            if ($onlineF !== '') {
-                // کش هر ۵ دقیقه ساخته می‌شه، پس وضعیت آنلاین توش ممکنه قدیمی باشه -
-                // برای فیلتر آنلاین از لیست زنده‌ی همین لحظه استفاده می‌کنیم.
-                $liveOnline = ibsng_getOnlineUsernameSet($ispName);
-                $wantOnline = ($onlineF === '1');
-                $allRows = array_values(array_filter($allRows, fn($r) => isset($liveOnline[$r['username']]) === $wantOnline));
             }
             $total = count($allRows);
             if (!empty($allRows) && in_array($sortBy, ['username','group','isp','ras','exp','status'])) {
@@ -416,52 +412,9 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
     $rCount = ibsng_call('user.searchUser', ['conds'=>$conds,'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
     $totalIsp = (int)($rCount['result'][0] ?? 0);
 
-    // فیلتر «فقط آنلاین»: به‌جای اسکن کل کاربرهای ISP (که برای ISPهای بزرگ مثل
-    // RaminTorkaman با ۹۰۰۰+ کاربر فاجعه‌بار کند بود و می‌تونست timeout بده)،
-    // مستقیم از لیست آنلاین‌های همین ISP شروع می‌کنیم که همیشه خیلی کوچیک‌تره
-    // (چند ده نفر در برابر هزاران کاربر ثبت‌شده).
-    if ($onlineF === '1') {
-        $onlineData = ibsng_getOnlineForIsp($ispName)['data'] ?? [];
-        $wantedUsernames = [];
-        foreach ($onlineData as $u) {
-            $un = $u['normal_username'] ?? $u['username'] ?? '';
-            if ($un === '') continue;
-            if ($search !== '' && stripos($un, $search) === false) continue;
-            if ($groupFilter !== '' && ($u['group_name'] ?? '') !== $groupFilter) continue;
-            $wantedUsernames[$un] = true;
-        }
-        $allRows = [];
-        if (!empty($wantedUsernames)) {
-            $uidsFound = [];
-            foreach (array_keys($wantedUsernames) as $un) {
-                $rs = ibsng_call('user.searchUser', ['conds' => ['normal_username' => $un], 'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => true]);
-                $u2 = $rs['result'][2] ?? [];
-                if (!empty($u2)) $uidsFound[] = $u2[0];
-            }
-            $onlineSetForRows = $wantedUsernames;
-            foreach (array_chunk($uidsFound, 100) as $chunk) {
-                $inf = ibsng_call('user.getUserInfo', ['user_id' => implode(',', $chunk)]);
-                foreach ($inf['result'] ?? [] as $uid => $u) {
-                    $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSetForRows);
-                    if ($row) $allRows[] = $row;
-                }
-            }
-        }
-        $total = count($allRows);
-        if (!empty($allRows) && in_array($sortBy, ['username','group','isp','ras','exp','status'])) {
-            usort($allRows, function($a, $b) use ($sortBy, $sortDir) {
-                $va = $sortBy==='exp' ? ($a['exp_ts']??0) : strtolower($a[$sortBy]??'');
-                $vb = $sortBy==='exp' ? ($b['exp_ts']??0) : strtolower($b[$sortBy]??'');
-                $cmp = is_numeric($va) ? ($va<=>$vb) : strcmp($va,$vb);
-                return $sortDir==='asc' ? $cmp : -$cmp;
-            });
-        }
-        return ['total'=>$total,'total_isp'=>$totalIsp,'rows'=>array_slice($allRows,$page*$perPage,$perPage),'cached'=>false];
-    }
-
-    // اگه search یا فیلتر «فقط آفلاین» داریم باید همه رو بگیریم (کند، چون
-    // pagination سمت  قبل از این فیلترها بی‌معنیه) وگرنه فقط صفحه اول
-    if ($search !== '' || $onlineF !== '') {
+    // اگه search داریم باید همه رو بگیریم (کند، چون pagination سمت  قبل از این
+    // فیلتر بی‌معنیه) وگرنه فقط صفحه اول
+    if ($search !== '') {
         $allUids = ibsng_getAllUidsForIsp($conds);
         $inf = [];
         foreach (array_chunk($allUids, 100) as $chunk) {
@@ -469,15 +422,13 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
             $inf += $r2['result'] ?? [];
         }
         $onlineSet = ibsng_getOnlineUsernameSet($ispName);
-        $wantOnline = ($onlineF === '1');
         $allRows = [];
         foreach ($allUids as $uid) {
             $u = $inf[(string)$uid] ?? $inf[$uid] ?? null;
             if (!$u) continue;
             $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
             if (!$row) continue;
-            if ($search !== '' && stripos($row['username'], $search) === false) continue;
-            if ($onlineF !== '' && (bool)$row['online'] !== $wantOnline) continue;
+            if (stripos($row['username'], $search) === false) continue;
             $allRows[] = $row;
         }
         $total = count($allRows);
@@ -566,52 +517,6 @@ function ibsng_searchUsersForReseller($ispName, $search, $group, $page, $perPage
 }
 
 // ─── کاربران آنلاین با کش 20 ثانیه ───
-// ─── تشخیص درست ISP هر کاربر آنلاین - فیلد isp_name توی report.getOnlineUsers
-// همیشه قابل اعتماد نیست (خالی/نادرست می‌اومد، باعث می‌شد شمارش آنلاین هر ISP
-// همیشه صفر نشون داده بشه). چون تعداد کاربرهای آنلاین همیشه خیلی کمتر از کل
-// کاربرهای ثبت‌شده‌ست (مثلاً ۳۰۰ آنلاین در برابر ۱۵۰۰۰+ کاربر)، به‌جای اسکن کل
-// لیست کاربرهای هر ISP (که برای ISPهای بزرگ فاجعه‌بار کند بود و کل هاست رو کند
-// می‌کرد)، فقط ISP همین چند نفر آنلاین رو مستقیم از روی خودشون resolve می‌کنیم.
-function ibsng_resolveOnlineIsps(array $records) {
-    $cKey   = IBS_CACHE_DIR . 'online_isp_map.json';
-    $uidKey = IBS_CACHE_DIR . 'online_uid_map.json';
-    $map = [];
-    $uidMap = [];
-    if (file_exists($cKey) && (time() - filemtime($cKey)) < 60) {
-        $map = @json_decode(@file_get_contents($cKey), true) ?: [];
-    }
-    if (file_exists($uidKey) && (time() - filemtime($uidKey)) < 60) {
-        $uidMap = @json_decode(@file_get_contents($uidKey), true) ?: [];
-    }
-    foreach ($records as $u) {
-        $un = $u['normal_username'] ?? $u['username'] ?? '';
-        if ($un !== '' && !empty($u['isp_name'])) $map[$un] = $u['isp_name'];
-    }
-    foreach ($records as $u) {
-        $un = $u['normal_username'] ?? $u['username'] ?? '';
-        if ($un === '' || (isset($map[$un]) && isset($uidMap[$un]))) continue;
-        $rs = ibsng_call('user.searchUser', ['conds' => ['normal_username' => $un], 'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => true]);
-        $uids = $rs['result'][2] ?? [];
-        if (empty($uids)) { $map[$un] = $map[$un] ?? ''; continue; }
-        $uidMap[$un] = $uids[0];
-        if (!isset($map[$un])) {
-            $inf = ibsng_call('user.getUserInfo', ['user_id' => (string)$uids[0]]);
-            $row = $inf['result'][$uids[0]] ?? $inf['result'][(string)$uids[0]] ?? null;
-            $map[$un] = $row['basic_info']['isp_name'] ?? '';
-        }
-    }
-    @file_put_contents($cKey, json_encode($map));
-    @file_put_contents($uidKey, json_encode($uidMap));
-    foreach ($records as &$u) {
-        $un = $u['normal_username'] ?? $u['username'] ?? '';
-        if ($un === '') continue;
-        if (empty($u['isp_name']) && !empty($map[$un])) $u['isp_name'] = $map[$un];
-        if (empty($u['user_id']) && !empty($uidMap[$un])) $u['user_id'] = $uidMap[$un];
-    }
-    unset($u);
-    return $records;
-}
-
 function ibsng_getOnlineRaw() {
     $cKey = IBS_CACHE_DIR . 'online_all.json';
     if (file_exists($cKey) && (time() - filemtime($cKey)) < 20) {
@@ -648,38 +553,30 @@ function ibsng_getOnlineRaw() {
     return ['error' => '', 'data' => $out];
 }
 
-// ─── مثل ibsng_getOnlineRaw ولی isp_name هر رکورد resolve/تصحیح‌شده‌ست ───
-// این resolve کردن (چون ممکنه برای هر کاربر آنلاین یک تماس اضافه بزنه) عمداً از
-// ibsng_getOnlineRaw جدا نگه داشته شده - ibsng_getOnlineRaw خیلی زیاد و برای کار
-// ساده‌ای مثل «این یوزرنیم آنلاینه یا نه» (نشان سبز/قرمز جدول کاربران) صدا زده
-// می‌شه که اصلاً نیازی به دونستن ISP نداره؛ اگه resolve همیشه روش اجرا بشه، هر
-// بازدید ساده‌ی صفحه‌ی کاربران هم چند تماس اضافه به  می‌زد و کل پنل رو کند می‌کرد.
-// فقط جاهایی که واقعاً باید بدونیم هر آنلاین مال کدوم ISP هست (breakdown هر ISP،
-// فیلتر آنلاین یک ISP خاص) از این نسخه استفاده می‌کنن.
-function ibsng_getOnlineRawResolved() {
-    $cKey = IBS_CACHE_DIR . 'online_all_resolved.json';
-    if (file_exists($cKey) && (time() - filemtime($cKey)) < 20) {
-        $c = json_decode(file_get_contents($cKey), true);
-        if (is_array($c)) return ['error' => '', 'data' => $c];
-    }
-    $raw = ibsng_getOnlineRaw();
-    if (!empty($raw['error'])) return $raw;
-    $resolved = ibsng_resolveOnlineIsps($raw['data']);
-    @file_put_contents($cKey, json_encode($resolved));
-    return ['error' => '', 'data' => $resolved];
-}
-
 // ─── کاربران آنلاین یک ISP خاص ───
 function ibsng_getOnlineForIsp($ispName) {
     try {
-        if ($ispName === '') return ibsng_getOnlineRaw();
-
-        $result = ibsng_getOnlineRawResolved();
+        $result = ibsng_getOnlineRaw();
         if (!empty($result['error'])) return ['error' => $result['error'], 'data' => []];
 
+        $data = $result['data'];
+        if ($ispName === '') return ['error' => '', 'data' => $data];
+
+        // ابتدا با isp_name مستقیم فیلتر کن
         $filtered = [];
-        foreach ($result['data'] as $u) {
+        foreach ($data as $u) {
             if (($u['isp_name'] ?? '') === $ispName) $filtered[] = $u;
+        }
+
+        // اگر isp_name در داده آنلاین نبود، از کش username‌های ISP استفاده کن
+        if (empty($filtered) && !empty($data)) {
+            $ispUsers = ibsng_getIspUsernameMap($ispName);
+            if (!empty($ispUsers)) {
+                foreach ($data as $u) {
+                    $un = $u['normal_username'] ?? $u['username'] ?? '';
+                    if ($un !== '' && isset($ispUsers[$un])) $filtered[] = $u;
+                }
+            }
         }
 
         return ['error' => '', 'data' => $filtered];

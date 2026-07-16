@@ -38,7 +38,6 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
     $grpF   =trim($_GET['group'] ??'');
     $ispF   =trim($_GET['isp']   ??'');
     $rasF   =trim($_GET['ras']   ??'');
-    $onlineF=trim($_GET['online']??''); // '' = همه, '1' = فقط آنلاین, '0' = فقط آفلاین
     $sortBy =trim($_GET['sort']  ??'');
     $sortDir=($_GET['dir']??'desc')==='asc'?'asc':'desc';
     $page   =max(0,(int)($_GET['page']??0));
@@ -47,8 +46,8 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
     // (bulk) خونده می‌شه همیشه false برمی‌گرده، پس از لیست واقعیِ آنلاین‌ها می‌گیریم.
     $onlineSetGlobal = ibsng_getOnlineUsernameSet('');
 
-    // اگر ISP یا search یا فیلتر وضعیت آنلاین داریم → از کش استفاده کن یا pagination بزن
-    if($ispF!==''||$search!==''||$onlineF!==''){
+    // اگر ISP یا search داریم → از کش استفاده کن یا pagination بزن
+    if($ispF!==''||$search!==''){
         $conds=[];
         if($grpF!=='') $conds['group_name']=$grpF;
         if($ispF!=='') $conds=array_merge($conds,ibsng_ispCond($ispF));
@@ -57,9 +56,8 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
         // صفحه‌ی درخواستی رو از  می‌گیریم (دقیقاً مثل حالت بدون فیلتر پایین این فایل) -
         // قبلاً اینجا کل کاربرهای آن ISP (تا 15000+) طی ده‌ها request fetch می‌شد که
         // هم خیلی کند بود و هم می‌توانست منابع هاست را برای بقیه‌ی کاربران هم‌زمان
-        // اشغال کند. فیلتر آنلاین باید بعد از fetch کامل انجام بشه (چون pagination
-        // سمت  از قبل انجام می‌شه)، پس این مسیر سریع رو رد می‌کنیم.
-        if($ispF!==''&&$search===''&&$rasF===''&&$onlineF===''){
+        // اشغال کند.
+        if($ispF!==''&&$search===''&&$rasF===''){
             $r=ibsng_call('user.searchUser',['conds'=>$conds,'from'=>$page*$perPage,'to'=>($page+1)*$perPage,'order_by'=>'user_id','desc'=>true]);
             $total=(int)($r['result'][0]??0);
             $uids=$r['result'][2]??[];
@@ -84,52 +82,6 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
                     return $sortDir==='asc'?$cmp:-$cmp;
                 });
             }
-            echo json_encode(['total'=>$total,'rows'=>$rows]);exit;
-        }
-
-        // فیلتر «فقط آنلاین»: به‌جای اسکن کل کاربرهای ISP/کل دیتابیس (که برای
-        // ISPهای بزرگ فاجعه‌بار کند بود و timeout می‌داد)، مستقیم از لیست آنلاین‌ها
-        // (که همیشه خیلی کوچیک‌تره - چند صد نفر در برابر ۱۵۰۰۰+ کاربر) شروع می‌کنیم.
-        if($onlineF==='1'){
-            $onlineData=$ispF!==''?(ibsng_getOnlineForIsp($ispF)['data']??[]):ibsng_getOnlineRaw()['data'];
-            $wantedUsernames=[];
-            foreach($onlineData as $u){
-                $un=$u['normal_username']??$u['username']??'';
-                if($un==='')continue;
-                if($search!==''&&stripos($un,$search)===false)continue;
-                if($grpF!==''&&($u['group_name']??'')!==$grpF)continue;
-                $wantedUsernames[$un]=true;
-            }
-            $filtered=[];
-            if(!empty($wantedUsernames)){
-                $uidsFound=[];
-                foreach(array_keys($wantedUsernames) as $un){
-                    $rs=ibsng_call('user.searchUser',['conds'=>['normal_username'=>$un],'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
-                    $u2=$rs['result'][2]??[];
-                    if(!empty($u2))$uidsFound[]=$u2[0];
-                }
-                foreach(array_chunk($uidsFound,100) as $chunk){
-                    $inf=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$chunk)]);
-                    foreach($inf['result']??[] as $uid=>$u){
-                        $basic=$u['basic_info']??[];$attrs=$u['attrs']??[];
-                        $un=$attrs['normal_username']??$attrs['username']??'';
-                        $exp=$basic['nearest_exp_date']??'';
-                        $dL=null;if($exp&&$exp!==''){$et=strtotime($exp);if($et)$dL=(int)(($et-time())/86400);}
-                        $ras=$basic['ras_ip_addr']??($attrs['ras_ip_addr']??'—');
-                        $filtered[]=['id'=>$uid,'username'=>$un,'password'=>$attrs['normal_password']??'—','status'=>$basic['status']??'—','group'=>$basic['group_name']??'—','isp'=>$basic['isp_name']??'—','ras'=>$ras,'exp'=>$exp?substr($exp,0,10):'∞','exp_ts'=>$exp?(strtotime($exp)?:0):0,'days_left'=>$dL,'online'=>true,'credit'=>$basic['credit']??0];
-                    }
-                }
-            }
-            $total=count($filtered);
-            if(!empty($filtered)&&in_array($sortBy,['username','group','isp','ras','exp','status'])){
-                usort($filtered,function($a,$b)use($sortBy,$sortDir){
-                    $va=$sortBy==='exp'?($a['exp_ts']??0):strtolower($a[$sortBy]??'');
-                    $vb=$sortBy==='exp'?($b['exp_ts']??0):strtolower($b[$sortBy]??'');
-                    $cmp=is_numeric($va)?($va<=>$vb):strcmp($va,$vb);
-                    return $sortDir==='asc'?$cmp:-$cmp;
-                });
-            }
-            $rows=array_slice($filtered,$page*$perPage,$perPage);
             echo json_encode(['total'=>$total,'rows'=>$rows]);exit;
         }
 
@@ -220,10 +172,6 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             }
         }
 
-        if($onlineF!==''){
-            $wantOnline=($onlineF==='1');
-            $filtered=array_values(array_filter($filtered,fn($r)=>(bool)($r['online']??false)===$wantOnline));
-        }
         $total=count($filtered);
         if(!empty($filtered)&&in_array($sortBy,['username','group','isp','ras','exp','status'])){
             usort($filtered,function($a,$b)use($sortBy,$sortDir){
@@ -465,6 +413,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 .si-med{min-width:130px}
 /* buttons */
 .btn{padding:8px 14px;border-radius:9px;font-family:'Vazirmatn';font-size:13px;font-weight:700;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
+.btn:disabled{opacity:.35;cursor:not-allowed;filter:grayscale(.6)}
 .bp{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
 .bpu{background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.3)}
 .bc{background:rgba(6,182,212,.15);color:#22d3ee;border:1px solid rgba(6,182,212,.3)}
@@ -596,11 +545,6 @@ input:focus,select:focus{border-color:var(--acc)}
           <?php foreach($isps as $isp):?><option value="<?=sanitize($isp)?>"><?=sanitize($isp)?></option><?php endforeach;?>
         </select>
         <input type="text" class="si si-med" id="fRas" placeholder="🔌 RAS...">
-        <select class="si si-med" id="fOnline">
-          <option value="">📶 وضعیت اتصال (همه)</option>
-          <option value="1">🟢 فقط آنلاین</option>
-          <option value="0">🔴 فقط آفلاین</option>
-        </select>
         <button class="btn bp" onclick="curP=0;load()">🔍 جستجو</button>
         <button class="btn bc" onclick="clrSrch()">✕ پاک</button>
         <button class="btn bg" onclick="load()" style="padding:8px 10px" title="بروزرسانی">🔄</button>
@@ -820,7 +764,7 @@ function closeM(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.mbg').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open')}));
 
 function setTab(t,el){curTab=t;curP=0;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');load();}
-function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';document.getElementById('fIsp').value='';document.getElementById('fRas').value='';document.getElementById('fOnline').value='';curP=0;load();}
+function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';document.getElementById('fIsp').value='';document.getElementById('fRas').value='';curP=0;load();}
 
 function sPT(t){ptM=t;['m','c','n'].forEach(x=>document.getElementById('pt_'+x).classList.toggle('on',x===t));}
 function sPT2(t){ptP=t;['m','c','n'].forEach(x=>document.getElementById('pp_'+x).classList.toggle('on',x===t));}
@@ -835,7 +779,7 @@ function genPW(fid,lid,pfx){
 
 let srchT=null;
 document.getElementById('fSrch').addEventListener('input',()=>{clearTimeout(srchT);srchT=setTimeout(()=>{curP=0;load();},500)});
-['fGrp','fIsp','fOnline'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{curP=0;load();}));
+['fGrp','fIsp'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{curP=0;load();}));
 
 function setSort(col){
   if(curSort===col) curDir=curDir==='asc'?'desc':'asc';
@@ -860,7 +804,6 @@ function saveUsersState(){
       group: document.getElementById('fGrp').value,
       isp: document.getElementById('fIsp').value,
       ras: document.getElementById('fRas').value,
-      online: document.getElementById('fOnline').value,
     }));
   }catch(e){}
 }
@@ -874,7 +817,6 @@ function restoreUsersState(){
     document.getElementById('fGrp').value = st.group||'';
     document.getElementById('fIsp').value = st.isp||'';
     document.getElementById('fRas').value = st.ras||'';
-    document.getElementById('fOnline').value = st.online||'';
     const tabs = document.querySelectorAll('.tab');
     tabs.forEach(t=>t.classList.remove('active'));
     if(curTab==='exp3' && tabs[1]) tabs[1].classList.add('active');
@@ -891,8 +833,7 @@ function load(){
   const g=document.getElementById('fGrp').value;
   const isp=document.getElementById('fIsp').value;
   const ras=document.getElementById('fRas').value.trim();
-  const onl=document.getElementById('fOnline').value;
-  fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&isp=${encodeURIComponent(isp)}&ras=${encodeURIComponent(ras)}&online=${encodeURIComponent(onl)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
+  fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&isp=${encodeURIComponent(isp)}&ras=${encodeURIComponent(ras)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
     .then(r=>r.json()).then(d=>renderTable(d,50))
     .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
 }
@@ -927,7 +868,7 @@ function renderTable(d,pp){
         <button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید">🔄</button>
         <button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>
         <button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>
-        ${u.online?`<button class="btn bpu2 bsm" onclick="openKick('${u.id}','${u.username}')" title="Kick (قطع اتصال)">⚡</button>`:''}
+        <button class="btn bpu2 bsm" ${u.online?'':'disabled'} onclick="openKick('${u.id}','${u.username}')" title="${u.online?'Kick (قطع اتصال)':'کاربر آنلاین نیست'}">⚡</button>
         <button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')" title="حذف کاربر">🗑</button>
       </div></td>
     </tr>`;
