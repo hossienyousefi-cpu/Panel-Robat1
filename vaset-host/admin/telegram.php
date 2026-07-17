@@ -10,6 +10,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ??
 
 $message = ''; $error = '';
 
+// ─── آدرس واقعی webhook.php روی همین پنل (بدون توجه به بریج) ───
+function tg_computePanelWebhookUrl() {
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    $base = dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/admin/telegram.php'));
+    $base = $base === '/' || $base === '\\' ? '' : $base;
+    return $scheme . '://' . $host . $base . '/telegram/webhook.php';
+}
+
+// ─── محتوای آماده‌ی tg_bridge.php که باید روی هاست خارج از ایران آپلود بشه.
+// دو‌کاره‌ست: هم پیام‌های خروجی پنل به تلگرام رو رله می‌کنه (با X-Relay-Secret)،
+// هم آپدیت‌های ورودی خودِ تلگرام رو به webhook.php واقعی روی همین پنل فوروارد
+// می‌کنه. کاربر فقط باید این فایل رو بدون هیچ ویرایشی روی هاست خارجش آپلود کنه -
+// همه‌ی مقادیر لازم از قبل داخلش جاسازی شده.
+function tg_buildBridgeFileContent($bridgeSecret, $panelWebhookUrl) {
+    $secretPhp = var_export($bridgeSecret, true);
+    $urlPhp = var_export($panelWebhookUrl, true);
+    return <<<PHP
+<?php
+// این فایل رو روی هاست خارج از ایران (همونی که به تلگرام دسترسی داره) آپلود
+// کنید - نیازی به ویرایش نداره، همه‌چیز از قبل توش تنظیم شده. کارش: پل زدن
+// بین پنل ایران و تلگرام، چون پنل مستقیم به api.telegram.org دسترسی نداره.
+// این فایل رو ساخته‌ی صفحه‌ی «ربات تلگرام» توی پنل مدیریت است.
+
+\$RELAY_SECRET = {$secretPhp};
+\$PANEL_WEBHOOK_URL = {$urlPhp};
+
+\$relaySecretGiven = \$_SERVER['HTTP_X_RELAY_SECRET'] ?? '';
+
+if (hash_equals(\$RELAY_SECRET, \$relaySecretGiven) && isset(\$_POST['_path'])) {
+    // حالت ۱: درخواست خروجی از پنل ایران به سمت تلگرام
+    \$path = \$_POST['_path'];
+    if (\$path === '' || \$path[0] !== '/' || strpos(\$path, '..') !== false) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'description' => 'bad path']);
+        exit;
+    }
+    \$fields = [];
+    foreach (\$_POST as \$k => \$v) {
+        if (strpos(\$k, '_p_') === 0) \$fields[substr(\$k, 3)] = \$v;
+    }
+    foreach (\$_FILES as \$k => \$f) {
+        if (strpos(\$k, '_p_') === 0 && is_uploaded_file(\$f['tmp_name'])) {
+            \$fields[substr(\$k, 3)] = new CURLFile(\$f['tmp_name'], \$f['type'] ?: 'application/octet-stream', \$f['name']);
+        }
+    }
+    \$url = 'https://api.telegram.org' . \$path;
+    \$isFileFetch = (strpos(\$path, '/file/') === 0) && empty(\$fields);
+    \$ch = curl_init(\$url);
+    \$opts = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 40];
+    if (!\$isFileFetch) {
+        \$opts[CURLOPT_POST] = true;
+        \$opts[CURLOPT_POSTFIELDS] = \$fields;
+    }
+    curl_setopt_array(\$ch, \$opts);
+    \$res = curl_exec(\$ch);
+    \$err = curl_error(\$ch);
+    curl_close(\$ch);
+    if (\$err) {
+        http_response_code(502);
+        echo json_encode(['ok' => false, 'description' => \$err]);
+        exit;
+    }
+    echo \$res;
+    exit;
+}
+
+// حالت ۲: آپدیت ورودی از خودِ تلگرام - فوروارد خام به webhook.php واقعی روی پنل ایران
+\$raw = file_get_contents('php://input');
+\$secretFromTelegram = \$_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? '';
+
+\$headers = ['Content-Type: application/json'];
+if (\$secretFromTelegram !== '') \$headers[] = 'X-Telegram-Bot-Api-Secret-Token: ' . \$secretFromTelegram;
+
+\$ch = curl_init(\$PANEL_WEBHOOK_URL);
+curl_setopt_array(\$ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST           => true,
+    CURLOPT_POSTFIELDS     => \$raw,
+    CURLOPT_HTTPHEADER     => \$headers,
+    CURLOPT_TIMEOUT        => 15,
+]);
+curl_exec(\$ch);
+curl_close(\$ch);
+
+http_response_code(200);
+echo 'OK';
+PHP;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -17,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = trim($_POST['bot_token'] ?? '');
         $secret = trim($_POST['webhook_secret'] ?? '');
         $proxy = trim($_POST['telegram_proxy'] ?? '');
+        $bridgeUrl = trim($_POST['telegram_bridge_url'] ?? '');
         if ($token !== '') {
             $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_bot_token', ?)
                            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$token]);
@@ -25,10 +116,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_webhook_secret', ?)
                            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$secret]);
         }
-        // برخلاف توکن/secret، پراکسی باید بشه با خالی گذاشتن هم پاک/غیرفعال بشه
-        // (مثلاً موقع تعویض یا رفع اشکال پراکسی)
+        // برخلاف توکن/secret، پراکسی و آدرس بریج باید بشه با خالی گذاشتن هم
+        // پاک/غیرفعال بشن (مثلاً موقع تعویض یا رفع اشکال)
         $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_proxy', ?)
                        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$proxy]);
+        $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_bridge_url', ?)
+                       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$bridgeUrl]);
         logActivity('admin', $_SESSION['admin_id'], 'update_telegram_settings', 'تنظیمات ربات تلگرام بروز شد');
         $message = 'تنظیمات ذخیره شد.';
     }
@@ -61,11 +154,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_webhook_secret', ?)
                            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$secret]);
         }
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? '';
-        $base = dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/admin/telegram.php'));
-        $base = $base === '/' || $base === '\\' ? '' : $base;
-        $webhookUrl = $scheme . '://' . $host . $base . '/telegram/webhook.php';
+        $panelWebhookUrl = tg_computePanelWebhookUrl();
+        // اگه بریج (هاست خارج) تنظیم شده، همون رو به‌عنوان Webhook به تلگرام
+        // معرفی می‌کنیم (چون سرور پنل مستقیم قابل‌دسترسی برای تلگرام نیست)؛
+        // خودِ بریج بعداً آپدیت‌ها رو به همین آدرس واقعی پنل فوروارد می‌کنه.
+        $bridgeUrl = getSetting('telegram_bridge_url', '');
+        $webhookUrl = $bridgeUrl !== '' ? $bridgeUrl : $panelWebhookUrl;
 
         $res = tg_setWebhook($webhookUrl, $secret);
         if ($res['ok'] ?? false) {
@@ -74,6 +168,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'خطا در تنظیم Webhook: ' . ($res['description'] ?? 'نامشخص');
         }
         logActivity('admin', $_SESSION['admin_id'], 'set_telegram_webhook', $webhookUrl);
+    }
+
+    if ($action === 'download_bridge_file') {
+        $bridgeSecret = getSetting('telegram_bridge_secret', '');
+        if ($bridgeSecret === '') {
+            $bridgeSecret = bin2hex(random_bytes(32));
+            $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_bridge_secret', ?)
+                           ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$bridgeSecret]);
+        }
+        $panelWebhookUrl = tg_computePanelWebhookUrl();
+        $bridgePhp = tg_buildBridgeFileContent($bridgeSecret, $panelWebhookUrl);
+        header('Content-Type: application/x-php');
+        header('Content-Disposition: attachment; filename="tg_bridge.php"');
+        header('Content-Length: ' . strlen($bridgePhp));
+        echo $bridgePhp;
+        exit;
     }
 
     if ($action === 'delete_webhook') {
@@ -127,6 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $botToken = getSetting('telegram_bot_token', '');
 $webhookSecret = getSetting('telegram_webhook_secret', '');
 $telegramProxy = getSetting('telegram_proxy', '');
+$telegramBridgeUrl = getSetting('telegram_bridge_url', '');
 $directIsp = getSetting('direct_isp_name', '');
 $supportMsg = getSetting('support_contact_message', '');
 $cardInfo = getSetting('payment_card_info', '');
@@ -294,6 +405,34 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
           </form>
         </div>
         <?php endif; ?>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="section-header">
+        <div class="section-icon">🌉</div>
+        <div>
+          <div class="section-title">پل اتصال (Bridge) روی هاست خارج از ایران</div>
+          <div class="section-desc">api.telegram.org معمولاً از سرورهای ایران قابل‌دسترسی نیست. اگه هاست cPanel خارج از ایران دارید (بدون نیاز به VPS/root)، یک فایل PHP آماده اینجا دانلود کنید و فقط آپلودش کنید - دیگه نیازی به پراکسی واقعی نیست.</div>
+        </div>
+      </div>
+      <div class="section-body">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="save_bot_settings">
+          <input type="hidden" name="bot_token" value="<?= sanitize($botToken) ?>">
+          <input type="hidden" name="webhook_secret" value="<?= sanitize($webhookSecret) ?>">
+          <input type="hidden" name="telegram_proxy" value="<?= sanitize($telegramProxy) ?>">
+          <div class="form-group">
+            <label>آدرس فایل بریج روی هاست خارج <span style="font-size:11px;color:var(--muted);font-weight:400">(بعد از آپلود فایل زیر روی هاست خارج، آدرس کامل اون فایل رو اینجا بدید - مثلاً https://yourdomain.com/tg_bridge.php - و ذخیره کنید. برای غیرفعال کردن بریج، خالی بذارید و ذخیره کنید)</span></label>
+            <input type="text" name="telegram_bridge_url" placeholder="https://yourdomain.com/tg_bridge.php" value="<?= sanitize($telegramBridgeUrl) ?>">
+          </div>
+          <button type="submit" class="btn btn-primary">💾 ذخیره آدرس بریج</button>
+        </form>
+        <form method="POST" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="download_bridge_file">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:10px">این فایل رو بدون هیچ ویرایشی (همه‌چیز از قبل توش تنظیم شده) توی هاست خارج آپلود کنید - مثلاً توی public_html به اسم tg_bridge.php - بعد آدرس کاملش رو توی فیلد بالا بدید و ذخیره کنید، و بعد دکمه‌ی «تنظیم Webhook» رو بزنید.</p>
+          <button type="submit" class="btn btn-purple">📥 دانلود فایل tg_bridge.php</button>
+        </form>
       </div>
     </div>
 

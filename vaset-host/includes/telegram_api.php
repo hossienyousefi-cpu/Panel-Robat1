@@ -8,41 +8,78 @@ function tg_token() {
 }
 
 // ─── api.telegram.org معمولاً از سرورهای ایران مستقیم قابل‌دسترسی نیست (فیلتر
-// شبکه، نه مشکل کد) - اگه یک پراکسی توی تنظیمات ثبت شده باشه، همه‌ی تماس‌های
-// این فایل باهاش می‌رن. فرمت مقدار: socks5://user:pass@host:port یا
-// http://user:pass@host:port (همون فرمتی که CURLOPT_PROXY قبول می‌کنه).
+// شبکه، نه مشکل کد). دو راه برای دور زدنش پشتیبانی می‌شه:
+// ۱) telegram_proxy: یک پراکسی واقعی SOCKS5/HTTP (برای کسایی که VPS با دسترسی
+//    root/SSH دارن و می‌تونن خودشون یک پراکسی نصب کنن).
+// ۲) telegram_bridge_url + telegram_bridge_secret: یک اسکریپت PHP ساده
+//    (tg_bridge.php) که روی هر هاست اشتراکی/cPanel خارج از ایران قابل آپلوده
+//    و به‌جای پراکسی واقعی، خودش نقش واسطه رو بازی می‌کنه - برای کسایی که فقط
+//    هاست اشتراکی دارن، نه VPS. اگه بریج تنظیم شده باشه، اولویت با اونه.
 function tg_proxy() {
     return trim(getSetting('telegram_proxy', ''));
 }
 
-function tg_applyProxy($ch) {
-    $proxy = tg_proxy();
-    if ($proxy !== '') {
-        curl_setopt($ch, CURLOPT_PROXY, $proxy);
+function tg_bridgeUrl() {
+    return trim(getSetting('telegram_bridge_url', ''));
+}
+
+function tg_bridgeSecret() {
+    return trim(getSetting('telegram_bridge_secret', ''));
+}
+
+// ─── هسته‌ی مشترک همه‌ی تماس‌ها با تلگرام: مستقیم (با پراکسی اختیاری) یا از طریق
+// بریج. $path همون بخش بعد از https://api.telegram.org هست (مثلاً
+// "/bot<token>/sendMessage" یا "/file/bot<token>/<file_path>"). $fields
+// می‌تونه شامل CURLFile هم باشه (برای آپلود فایل). خروجی: ['body'=>..,'err'=>..].
+function tg_rawCall($path, $fields = null, $timeout = 15, $connectTimeout = 8) {
+    $bridge = tg_bridgeUrl();
+    if ($bridge !== '') {
+        $ch = curl_init($bridge);
+        $post = ['_path' => $path];
+        if ($fields !== null) {
+            foreach ($fields as $k => $v) $post['_p_' . $k] = $v;
+        }
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $post,
+            CURLOPT_HTTPHEADER     => ['X-Relay-Secret: ' . tg_bridgeSecret()],
+            CURLOPT_TIMEOUT        => $timeout + 20,
+            CURLOPT_CONNECTTIMEOUT => $connectTimeout + 5,
+        ]);
+        $body = curl_exec($ch);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        return ['body' => $body, 'err' => $err];
     }
+
+    $ch = curl_init('https://api.telegram.org' . $path);
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => $timeout,
+        CURLOPT_CONNECTTIMEOUT => $connectTimeout,
+    ];
+    if ($fields !== null) {
+        $opts[CURLOPT_POST]       = true;
+        $opts[CURLOPT_POSTFIELDS] = $fields;
+    }
+    curl_setopt_array($ch, $opts);
+    $proxy = tg_proxy();
+    if ($proxy !== '') curl_setopt($ch, CURLOPT_PROXY, $proxy);
+    $body = curl_exec($ch);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    return ['body' => $body, 'err' => $err];
 }
 
 // ─── تماس عمومی با API (application/x-www-form-urlencoded) ───
 function tg_api($method, $params = [], $timeout = 15) {
     $token = tg_token();
     if ($token === '') return ['ok' => false, 'description' => 'توکن ربات تنظیم نشده'];
-    $url = "https://api.telegram.org/bot{$token}/{$method}";
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $params,
-        CURLOPT_TIMEOUT        => $timeout,
-        CURLOPT_CONNECTTIMEOUT => 8,
-    ]);
-    tg_applyProxy($ch);
-    $res = curl_exec($ch);
-    $err = curl_error($ch);
-    curl_close($ch);
-
-    if ($err) return ['ok' => false, 'description' => $err];
-    $decoded = json_decode((string)$res, true);
+    $r = tg_rawCall("/bot{$token}/{$method}", $params, $timeout);
+    if ($r['err']) return ['ok' => false, 'description' => $r['err']];
+    $decoded = json_decode((string)$r['body'], true);
     return is_array($decoded) ? $decoded : ['ok' => false, 'description' => 'invalid json از تلگرام'];
 }
 
@@ -85,23 +122,14 @@ function tg_sendPhotoByFileId($chatId, $fileId, $caption = '', $replyMarkup = nu
 function tg_sendDocumentFile($chatId, $filePath, $caption = '') {
     $token = tg_token();
     if ($token === '' || !is_file($filePath)) return ['ok' => false];
-    $url = "https://api.telegram.org/bot{$token}/sendDocument";
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => [
-            'chat_id'  => $chatId,
-            'caption'  => $caption,
-            'document' => new CURLFile($filePath),
-        ],
-        CURLOPT_TIMEOUT => 180,
-    ]);
-    tg_applyProxy($ch);
-    $res = curl_exec($ch);
-    curl_close($ch);
-    $decoded = json_decode((string)$res, true);
+    $r = tg_rawCall("/bot{$token}/sendDocument", [
+        'chat_id'  => $chatId,
+        'caption'  => $caption,
+        'document' => new CURLFile($filePath),
+    ], 180, 8);
+    if ($r['err']) return ['ok' => false, 'description' => $r['err']];
+    $decoded = json_decode((string)$r['body'], true);
     return is_array($decoded) ? $decoded : ['ok' => false];
 }
 
@@ -113,23 +141,12 @@ function tg_getFile($fileId) {
 function tg_downloadFile($telegramFilePath, $destPath) {
     $token = tg_token();
     if ($token === '') return false;
-    $url = "https://api.telegram.org/file/bot{$token}/{$telegramFilePath}";
 
-    $fp = fopen($destPath, 'w');
-    if (!$fp) return false;
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_FILE           => $fp,
-        CURLOPT_TIMEOUT        => 120,
-        CURLOPT_CONNECTTIMEOUT => 10,
-    ]);
-    tg_applyProxy($ch);
-    $ok = curl_exec($ch);
-    $err = curl_error($ch);
-    curl_close($ch);
-    fclose($fp);
+    $r = tg_rawCall("/file/bot{$token}/{$telegramFilePath}", null, 120, 10);
+    if ($r['err'] || $r['body'] === false || $r['body'] === '') return false;
 
-    if (!$ok || $err || !is_file($destPath) || filesize($destPath) === 0) {
+    $written = @file_put_contents($destPath, $r['body']);
+    if ($written === false || $written === 0) {
         @unlink($destPath);
         return false;
     }
