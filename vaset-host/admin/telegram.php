@@ -16,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_bot_settings') {
         $token = trim($_POST['bot_token'] ?? '');
         $secret = trim($_POST['webhook_secret'] ?? '');
+        $proxy = trim($_POST['telegram_proxy'] ?? '');
         if ($token !== '') {
             $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_bot_token', ?)
                            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$token]);
@@ -24,6 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_webhook_secret', ?)
                            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$secret]);
         }
+        // برخلاف توکن/secret، پراکسی باید بشه با خالی گذاشتن هم پاک/غیرفعال بشه
+        // (مثلاً موقع تعویض یا رفع اشکال پراکسی)
+        $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('telegram_proxy', ?)
+                       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$proxy]);
         logActivity('admin', $_SESSION['admin_id'], 'update_telegram_settings', 'تنظیمات ربات تلگرام بروز شد');
         $message = 'تنظیمات ذخیره شد.';
     }
@@ -121,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $botToken = getSetting('telegram_bot_token', '');
 $webhookSecret = getSetting('telegram_webhook_secret', '');
+$telegramProxy = getSetting('telegram_proxy', '');
 $directIsp = getSetting('direct_isp_name', '');
 $supportMsg = getSetting('support_contact_message', '');
 $cardInfo = getSetting('payment_card_info', '');
@@ -256,6 +262,10 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
           <div class="form-group">
             <label>Secret Token وبهوک <span style="font-size:11px;color:var(--muted);font-weight:400">(یک رشته تصادفی دلخواه - برای اطمینان از این‌که فقط تلگرام می‌تواند به webhook.php پیام بفرستد)</span></label>
             <input type="text" name="webhook_secret" placeholder="یک رشته تصادفی طولانی" value="<?= sanitize($webhookSecret) ?>">
+          </div>
+          <div class="form-group">
+            <label>پراکسی برای اتصال به تلگرام <span style="font-size:11px;color:var(--muted);font-weight:400">(اگه سرور مستقیم به api.telegram.org وصل نمی‌شه - خطای Connection timed out - یک پراکسی خارج از ایران اینجا بدید. فرمت: socks5://user:pass@host:port یا http://user:pass@host:port. برای غیرفعال کردن، خالی بذارید و ذخیره کنید)</span></label>
+            <input type="text" name="telegram_proxy" placeholder="socks5://user:pass@1.2.3.4:1080" value="<?= sanitize($telegramProxy) ?>">
           </div>
           <button type="submit" class="btn btn-primary">💾 ذخیره</button>
         </form>

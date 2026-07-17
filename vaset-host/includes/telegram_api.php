@@ -7,6 +7,21 @@ function tg_token() {
     return getSetting('telegram_bot_token', '');
 }
 
+// ─── api.telegram.org معمولاً از سرورهای ایران مستقیم قابل‌دسترسی نیست (فیلتر
+// شبکه، نه مشکل کد) - اگه یک پراکسی توی تنظیمات ثبت شده باشه، همه‌ی تماس‌های
+// این فایل باهاش می‌رن. فرمت مقدار: socks5://user:pass@host:port یا
+// http://user:pass@host:port (همون فرمتی که CURLOPT_PROXY قبول می‌کنه).
+function tg_proxy() {
+    return trim(getSetting('telegram_proxy', ''));
+}
+
+function tg_applyProxy($ch) {
+    $proxy = tg_proxy();
+    if ($proxy !== '') {
+        curl_setopt($ch, CURLOPT_PROXY, $proxy);
+    }
+}
+
 // ─── تماس عمومی با API (application/x-www-form-urlencoded) ───
 function tg_api($method, $params = [], $timeout = 15) {
     $token = tg_token();
@@ -21,6 +36,7 @@ function tg_api($method, $params = [], $timeout = 15) {
         CURLOPT_TIMEOUT        => $timeout,
         CURLOPT_CONNECTTIMEOUT => 8,
     ]);
+    tg_applyProxy($ch);
     $res = curl_exec($ch);
     $err = curl_error($ch);
     curl_close($ch);
@@ -82,6 +98,7 @@ function tg_sendDocumentFile($chatId, $filePath, $caption = '') {
         ],
         CURLOPT_TIMEOUT => 180,
     ]);
+    tg_applyProxy($ch);
     $res = curl_exec($ch);
     curl_close($ch);
     $decoded = json_decode((string)$res, true);
@@ -106,6 +123,7 @@ function tg_downloadFile($telegramFilePath, $destPath) {
         CURLOPT_TIMEOUT        => 120,
         CURLOPT_CONNECTTIMEOUT => 10,
     ]);
+    tg_applyProxy($ch);
     $ok = curl_exec($ch);
     $err = curl_error($ch);
     curl_close($ch);
