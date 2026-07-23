@@ -139,6 +139,7 @@ input:focus,select:focus{border-color:var(--acc)}
     <a href="online.php" class="ni">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
     <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="ni">💰 مدیریت موجودی</a>
     <a href="payments.php" class="ni">🧾 فیش پرداخت</a>
     <div class="ns">فروش مستقیم تلگرام</div>

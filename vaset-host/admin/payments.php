@@ -165,6 +165,7 @@ $requests = $pdo->query("
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
     <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="nav-item">💰 مدیریت بدهی</a>
     <a href="payments.php" class="nav-item active">
       🧾 فیش‌های پرداخت

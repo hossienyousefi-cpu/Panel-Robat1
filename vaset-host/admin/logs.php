@@ -69,6 +69,7 @@ $logs = $pdo->query("SELECT l.*, CASE WHEN l.actor_type='admin' THEN a.username 
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
     <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="nav-item">💰 مدیریت بدهی</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
     <a href="direct_packages.php" class="nav-item">📦 بسته‌های فروش مستقیم</a>

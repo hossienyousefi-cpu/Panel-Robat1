@@ -175,6 +175,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
     <a href="online.php" class="ni active">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
     <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
     <a href="payments.php" class="ni">🧾 ارسال فیش</a>
   </nav>
   <div class="sf">

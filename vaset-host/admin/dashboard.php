@@ -196,6 +196,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
     <a href="users.php?tab=expiring" class="nav-item">⚠️ رو به اتمام</a>
     <div class="nav-section-label">مالی</div>
     <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="nav-item">💰 مدیریت بدهی</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
     <a href="direct_packages.php" class="nav-item">📦 بسته‌های فروش مستقیم</a>

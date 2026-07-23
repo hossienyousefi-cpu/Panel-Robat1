@@ -304,9 +304,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($price > 0) {
                         $pdo->prepare("UPDATE resellers SET balance=GREATEST(0,balance-?) WHERE id=?")->execute([$price, $rid]);
                         $pdo->prepare("INSERT INTO transactions (reseller_id,type,amount,description) VALUES (?,?,?,?)")
-                            ->execute([$rid, 'renew', $price, 'تمدید کاربر']);
+                            ->execute([$rid, 'user_renew', $price, 'تمدید کاربر']);
                         $balance -= $price;
                     }
+                    $unL = $inf['result'][$uid2]['attrs']['normal_username'] ?? $inf['result'][$uid2]['attrs']['username'] ?? '';
+                    $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by,reseller_id) VALUES (?,?,?,?,?,?)")
+                        ->execute([$unL, $ispName, $gn, $price, 'reseller', $rid]);
                     ibsng_clearCache('isp_full_*.json');
                     header('Location: users.php?success=تمدید+شد'); exit;
                 }
@@ -499,6 +502,7 @@ input:focus,select:focus{border-color:var(--acc)}
     <a href="online.php" class="ni">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
     <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
     <a href="payments.php" class="ni">🧾 ارسال فیش</a>
   </nav>
   <div class="sf">

@@ -103,6 +103,7 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
     <a href="transactions.php" class="nav-item active">💳 تراکنش‌های من</a>
+    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
   </nav>
   <div class="sidebar-footer">
     <div class="reseller-info">

@@ -126,6 +126,7 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
     <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="nav-item active">💰 مدیریت موجودی</a>
     <a href="payments.php" class="nav-item">
       🧾 فیش‌های پرداخت

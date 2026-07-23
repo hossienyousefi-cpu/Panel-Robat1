@@ -328,6 +328,7 @@ $webhookInfo = $botToken !== '' ? tg_getWebhookInfo() : null;
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
     <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="nav-item">💰 مدیریت موجودی</a>
     <a href="payments.php" class="nav-item">🧾 فیش پرداخت</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>

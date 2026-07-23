@@ -295,6 +295,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
     <a href="online.php" class="ni">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
     <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="ni">💰 مدیریت موجودی</a>
     <a href="payments.php" class="ni">🧾 فیش پرداخت <?php if($pendingCount>0):?><span class="pb"><?=$pendingCount?></span><?php endif;?></a>
     <div class="ns">فروش مستقیم تلگرام</div>

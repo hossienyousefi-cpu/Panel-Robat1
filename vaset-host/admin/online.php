@@ -169,6 +169,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
     <a href="online.php" class="ni active">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
     <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="ni">💰 مدیریت موجودی</a>
     <a href="payments.php" class="ni">🧾 فیش پرداخت <?php if($pendingCount>0):?><span class="pb"><?=$pendingCount?></span><?php endif;?></a>
     <div class="ns">فروش مستقیم تلگرام</div>

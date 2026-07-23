@@ -461,6 +461,9 @@ function tg_provision_renew_order(array $order, ?array $customer): array {
     }
     ibsng_call('user.changeStatus', ['user_id' => $uid, 'status' => 'Recharged']);
 
+    $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by) VALUES (?,?,?,?,?)")
+        ->execute([$username, $basic['isp_name'] ?? '', $gn, (float)$order['amount'], 'telegram']);
+
     if ($customer) {
         tg_sendMessage($customer['chat_id'], "✅ سرویس «{$username}» با موفقیت تمدید شد.");
     }

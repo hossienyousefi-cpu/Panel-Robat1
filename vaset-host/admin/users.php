@@ -275,7 +275,12 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         if($rCredit['error']??null){$error='خطا در شارژ اعتبار: '.$rCredit['error'];}
         elseif($rExp&&($rExp['error']??null)){$error='خطا در تمدید تاریخ انقضا: '.$rExp['error'];}
         elseif($rStatus['error']??null){$error='خطا در تغییر وضعیت به «Recharged»: '.$rStatus['error'];}
-        else{header('Location: users.php?success=تمدید+شد');exit;}
+        else{
+            $unL=$inf['result'][$uid]['attrs']['normal_username']??$inf['result'][$uid]['attrs']['username']??'';
+            $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by,admin_id) VALUES (?,?,?,?,?,?)")
+                ->execute([$unL,$basic['isp_name']??'',$gn,0,'admin',$_SESSION['admin_id']]);
+            header('Location: users.php?success=تمدید+شد');exit;
+        }
     }
     if($act==='delete_user'){
         $uid=$_POST['user_id'];
@@ -492,6 +497,7 @@ input:focus,select:focus{border-color:var(--acc)}
     <a href="online.php" class="ni">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
     <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
+    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
     <a href="debts.php" class="ni">💰 مدیریت موجودی</a>
     <a href="payments.php" class="ni">🧾 فیش پرداخت <?php if($pendingCount>0):?><span class="pb"><?=$pendingCount?></span><?php endif;?></a>
     <div class="ns">فروش مستقیم تلگرام</div>

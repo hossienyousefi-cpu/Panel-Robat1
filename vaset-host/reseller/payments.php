@@ -169,6 +169,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
     <a href="transactions.php" class="nav-item">💳 تراکنش‌های من</a>
+    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
     <a href="payments.php" class="nav-item active">🧾 ارسال فیش پرداخت</a>
   </nav>
   <div class="sidebar-footer">
