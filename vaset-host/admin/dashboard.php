@@ -221,7 +221,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
     <div style="display:flex;align-items:center;gap:16px;font-size:13px;color:var(--text2)">
       <div class="online-badge">
         <div class="online-dot"></div>
-        <?= number_format($onlineCount) ?> آنلاین
+        <?= money($onlineCount) ?> آنلاین
       </div>
       <span><?= date('Y/m/d') ?></span>
     </div>
@@ -234,23 +234,23 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
       <a href="resellers.php" class="stat-card blue" style="text-decoration:none">
         <div class="stat-glow"></div>
         <div class="stat-icon">👥</div>
-        <div class="stat-value"><?= number_format($totalResellers) ?></div>
+        <div class="stat-value"><?= money($totalResellers) ?></div>
         <div class="stat-label">کل ریسلرها</div>
-        <div class="stat-sub"><?= number_format($activeResellers) ?> فعال</div>
+        <div class="stat-sub"><?= money($activeResellers) ?> فعال</div>
       </a>
 
       <a href="users.php" class="stat-card cyan" style="text-decoration:none">
         <div class="stat-glow"></div>
         <div class="stat-icon">🧑‍💻</div>
-        <div class="stat-value"><?= number_format($totalUsers) ?></div>
+        <div class="stat-value"><?= money($totalUsers) ?></div>
         <div class="stat-label">کل کاربران</div>
-        <div class="stat-sub"><?= number_format($activeUsers) ?> فعال</div>
+        <div class="stat-sub"><?= money($activeUsers) ?> فعال</div>
       </a>
 
       <a href="online.php" class="stat-card green" style="text-decoration:none">
         <div class="stat-glow"></div>
         <div class="stat-icon">🟢</div>
-        <div class="stat-value"><?= number_format($onlineCount) ?></div>
+        <div class="stat-value"><?= money($onlineCount) ?></div>
         <div class="stat-label">آنلاین</div>
         <div class="stat-sub">همین الان</div>
       </a>
@@ -258,7 +258,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
       <a href="users.php?tab=expiring" class="stat-card gold" style="text-decoration:none">
         <div class="stat-glow"></div>
         <div class="stat-icon">⚠️</div>
-        <div class="stat-value"><?= number_format($expiringCount) ?></div>
+        <div class="stat-value"><?= money($expiringCount) ?></div>
         <div class="stat-label">در حال انقضا</div>
         <div class="stat-sub">۷ روز آینده</div>
       </a>
@@ -266,7 +266,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
       <a href="debts.php" class="stat-card red" style="text-decoration:none">
         <div class="stat-glow"></div>
         <div class="stat-icon">💰</div>
-        <div class="stat-value"><?= number_format($totalDebt) ?></div>
+        <div class="stat-value"><?= money($totalDebt) ?></div>
         <div class="stat-label">کل بدهی</div>
         <div class="stat-sub">تومان</div>
       </a>
@@ -274,7 +274,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
       <a href="transactions.php" class="stat-card purple" style="text-decoration:none">
         <div class="stat-glow"></div>
         <div class="stat-icon">📈</div>
-        <div class="stat-value"><?= number_format($totalTrans) ?></div>
+        <div class="stat-value"><?= money($totalTrans) ?></div>
         <div class="stat-label">کل تراکنش‌ها</div>
         <div class="stat-sub">تومان</div>
       </a>
@@ -369,7 +369,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
               <td style="color:var(--text);font-weight:600"><?= sanitize($r['username']) ?></td>
               <td><?= sanitize($r['full_name'] ?? '—') ?></td>
               <td><?= $userCount ?> کاربر</td>
-              <td style="color:<?= $r['debt']>0?'var(--danger)':'var(--success)' ?>"><?= number_format($r['debt']) ?> تومان</td>
+              <td style="color:<?= $r['debt']>0?'var(--danger)':'var(--success)' ?>"><?= money($r['debt']) ?> تومان</td>
               <td><span class="badge badge-<?= $r['status']==='active'?'success':'danger' ?>"><?= $r['status']==='active'?'فعال':'غیرفعال' ?></span></td>
             </tr>
             <?php endforeach; ?>

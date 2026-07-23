@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $groups=$_POST['groups']??[]; $prices=$_POST['group_prices']??[]; $saved=0;
         foreach ($groups as $g) {
             $g=trim($g); if(!$g) continue;
-            $price=max(0,(float)str_replace(',','',$prices[$g]??'0'));
+            $price=max(0,parseMoney($prices[$g]??'0'));
             $pdo->prepare("INSERT INTO reseller_groups (reseller_id,group_name,price) VALUES (?,?,?)")->execute([$rid,$g,$price]);
             $saved++;
         }
@@ -354,7 +354,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
             <td><?=$r['isp_name']?'<span class="badge bbl">'.sanitize($r['isp_name']).'</span>':'<span class="badge bwa">⚠️ نداره</span>'?></td>
             <td><?=$r['gc']>0?'<span class="badge bpu2">'.$r['gc'].' گروه</span>':'<span class="badge bwa">⚠️ ندارد</span>'?></td>
             <td style="font-weight:700;color:var(--txt)"><?=$r['uc']?></td>
-            <td style="font-weight:700;color:#34d399"><?=number_format($r['balance']??0)?> ت</td>
+            <td style="font-weight:700;color:#34d399"><?=money($r['balance']??0)?> ت</td>
             <td><?=$r['can_delete_users']?'<span class="badge bok">✅</span>':'<span class="badge ber">❌</span>'?></td>
             <td><?=($r['can_renew_users']??1)?'<span class="badge bok">✅</span>':'<span class="badge ber">❌</span>'?></td>
             <td><span class="badge <?=$r['status']==='active'?'bok':'ber'?>"><?=$r['status']==='active'?'فعال':'غیرفعال'?></span></td>
@@ -450,7 +450,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
               <tr>
                 <td><input type="checkbox" class="gcb" name="groups[]" value="<?=$gs?>" id="g_<?=$gs?>"></td>
                 <td><label for="g_<?=$gs?>" style="cursor:pointer;font-weight:600;color:var(--txt)"><?=$gs?></label></td>
-                <td><input type="number" name="group_prices[<?=$gs?>]" id="p_<?=$gs?>" class="pi" placeholder="0" min="0" step="1000" value="0"></td>
+                <td><input type="text" inputmode="numeric" name="group_prices[<?=$gs?>]" id="p_<?=$gs?>" class="pi" placeholder="0" oninput="fmtMoneyInput(this)" value="0"></td>
               </tr>
               <?php endforeach;?>
             </tbody>
@@ -568,6 +568,7 @@ function allGrp(v){document.querySelectorAll('.gcb').forEach(c=>c.checked=v);upd
 function updCnt(){document.getElementById('gcnt').textContent=document.querySelectorAll('.gcb:checked').length+' گروه انتخاب شده'}
 document.querySelectorAll('.gcb').forEach(c=>c.addEventListener('change',updCnt));
 
+function fmtMoneyInput(el){var v=el.value.replace(/\D/g,'');el.value=v?v.replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'';}
 function openSet(rid){
   document.querySelectorAll('.gcb').forEach(c=>{c.checked=false;const p=document.getElementById('p_'+c.value);if(p)p.value=0;});
   document.getElementById('setDel').checked=false;
@@ -585,7 +586,7 @@ function openSet(rid){
       document.getElementById('setRenew').checked=(d.r.can_renew_users!=0);
       d.groups.forEach(g=>{
         const cb=document.getElementById('g_'+g.group_name);
-        if(cb){cb.checked=true;const pi=document.getElementById('p_'+g.group_name);if(pi)pi.value=parseFloat(g.price)||0;}
+        if(cb){cb.checked=true;const pi=document.getElementById('p_'+g.group_name);if(pi)pi.value=String(parseFloat(g.price)||0).replace(/\B(?=(\d{3})+(?!\d))/g,'.');}
       });
       updCnt();
     })
@@ -608,10 +609,10 @@ function loadReport(){
         <div class="stat-grid">
           <div class="stat-card"><div class="stat-val" style="color:var(--acc)">${d.created}</div><div class="stat-lbl">کاربر ساخته شده</div></div>
           <div class="stat-card"><div class="stat-val" style="color:var(--grn)">${d.renewed}</div><div class="stat-lbl">تمدید انجام شده</div></div>
-          <div class="stat-card"><div class="stat-val" style="color:var(--yel)">${parseInt(d.spent).toLocaleString()}</div><div class="stat-lbl">هزینه (تومان)</div></div>
-          <div class="stat-card"><div class="stat-val" style="color:#34d399">${parseInt(d.charged).toLocaleString()}</div><div class="stat-lbl">شارژ دریافتی</div></div>
-          <div class="stat-card"><div class="stat-val" style="color:var(--grn)">${parseInt(d.balance).toLocaleString()}</div><div class="stat-lbl">موجودی فعلی</div></div>
-          <div class="stat-card"><div class="stat-val" style="color:var(--red)">${parseInt(d.debt).toLocaleString()}</div><div class="stat-lbl">بدهی</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:var(--yel)">${parseInt(d.spent).toLocaleString('de-DE')}</div><div class="stat-lbl">هزینه (تومان)</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:#34d399">${parseInt(d.charged).toLocaleString('de-DE')}</div><div class="stat-lbl">شارژ دریافتی</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:var(--grn)">${parseInt(d.balance).toLocaleString('de-DE')}</div><div class="stat-lbl">موجودی فعلی</div></div>
+          <div class="stat-card"><div class="stat-val" style="color:var(--red)">${parseInt(d.debt).toLocaleString('de-DE')}</div><div class="stat-lbl">بدهی</div></div>
         </div>`;
     });
 }

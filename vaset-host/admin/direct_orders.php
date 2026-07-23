@@ -209,7 +209,7 @@ $orders = $pdo->query("
       </div>
       <div class="stat-card">
         <div class="stat-icon">✅</div>
-        <div><div class="stat-value" style="color:var(--success)"><?= number_format($approvedTotal) ?></div><div class="stat-label">کل مبالغ تأیید شده (تومان)</div></div>
+        <div><div class="stat-value" style="color:var(--success)"><?= money($approvedTotal) ?></div><div class="stat-label">کل مبالغ تأیید شده (تومان)</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">❌</div>
@@ -246,7 +246,7 @@ $orders = $pdo->query("
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:16px">
-            <div class="req-amount"><?= number_format($o['amount']) ?> ت</div>
+            <div class="req-amount"><?= money($o['amount']) ?> ت</div>
             <?php if ($o['status']==='pending'): ?>
               <span class="badge badge-pending">⏳ در انتظار</span>
             <?php elseif ($o['status']==='approved'): ?>

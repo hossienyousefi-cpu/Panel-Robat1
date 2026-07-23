@@ -11,7 +11,7 @@ $message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rid = (int)($_POST['reseller_id'] ?? 0);
-    $amount = (float)($_POST['amount'] ?? 0);
+    $amount = parseMoney($_POST['amount'] ?? 0);
     $type = $_POST['type'] ?? 'credit';
     $note = sanitize($_POST['note'] ?? '');
 
@@ -161,11 +161,11 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-icon">💚</div>
-        <div><div class="stat-value" style="color:#34d399"><?= number_format($totalBalance) ?></div><div class="stat-label">کل موجودی ریسلرها (تومان)</div></div>
+        <div><div class="stat-value" style="color:#34d399"><?= money($totalBalance) ?></div><div class="stat-label">کل موجودی ریسلرها (تومان)</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">💰</div>
-        <div><div class="stat-value" style="color:#f87171"><?= number_format($totalDebt) ?></div><div class="stat-label">کل بدهی (تومان)</div></div>
+        <div><div class="stat-value" style="color:#f87171"><?= money($totalDebt) ?></div><div class="stat-label">کل بدهی (تومان)</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">⚠️</div>
@@ -202,10 +202,10 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
               <td><?= $r['user_count'] ?> کاربر</td>
               <td>
                 <span class="<?= $balance > 0 ? 'balance-pos' : 'balance-zero' ?>">
-                  <?= number_format($balance) ?>
+                  <?= money($balance) ?>
                 </span>
               </td>
-              <td><span class="<?= $r['debt']>0?'debt-high':'debt-zero' ?>"><?= number_format($r['debt']) ?></span></td>
+              <td><span class="<?= $r['debt']>0?'debt-high':'debt-zero' ?>"><?= money($r['debt']) ?></span></td>
               <td><span style="color:<?= $r['status']==='active'?'var(--success)':'var(--danger)' ?>"><?= $r['status']==='active'?'✅ فعال':'❌ غیرفعال' ?></span></td>
               <td style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="btn btn-success" onclick="openModal(<?= $r['id'] ?>,'<?= sanitize($r['username']) ?>',<?= $balance ?>,<?= $r['debt'] ?>,'credit')">➕ شارژ</button>
@@ -235,7 +235,7 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
         <p style="color:var(--text2);margin-bottom:20px">بدهی: <strong id="modalDebt" style="color:var(--danger)"></strong> تومان</p>
         <div class="form-group">
           <label>مبلغ (تومان)</label>
-          <input type="number" name="amount" placeholder="مثلاً: 500000" min="1" required>
+          <input type="text" inputmode="numeric" name="amount" placeholder="مثلاً: 500.000" oninput="fmtMoneyInput(this)" required>
         </div>
         <div class="form-group">
           <label>توضیح (اختیاری)</label>
@@ -251,11 +251,12 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
 </div>
 
 <script>
+function fmtMoneyInput(el){var v=el.value.replace(/\D/g,'');el.value=v?v.replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'';}
 function openModal(id, name, balance, debt, type) {
   document.getElementById('modalResellerId').value = id;
   document.getElementById('modalResellerName').textContent = name;
-  document.getElementById('modalBalance').textContent = balance.toLocaleString();
-  document.getElementById('modalDebt').textContent = debt.toLocaleString();
+  document.getElementById('modalBalance').textContent = balance.toLocaleString('de-DE');
+  document.getElementById('modalDebt').textContent = debt.toLocaleString('de-DE');
   document.getElementById('modalType').value = type;
   document.getElementById('modalTitle').textContent = type === 'credit' ? '➕ شارژ حساب ریسلر' : '➖ کسر از موجودی';
   document.getElementById('debtModal').style.display = 'flex';

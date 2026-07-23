@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif (!array_key_exists($grp, $grpData)) { $error = 'دسترسی به این گروه ندارید'; }
         else {
             $price = $grpData[$grp] > 0 ? $grpData[$grp] : (float)getSetting('user_create_price', 5000);
-            if ($balance < $price) { $error = 'موجودی کافی نیست. قیمت: ' . number_format($price) . ' تومان'; }
+            if ($balance < $price) { $error = 'موجودی کافی نیست. قیمت: ' . money($price) . ' تومان'; }
             else {
                 $chk = ibsng_call('user.doesUserExists', ['normal_username' => $un]);
                 if ($chk['result'] ?? false) { $error = 'این نام کاربری قبلاً وجود دارد'; }
@@ -491,7 +491,7 @@ input:focus,select:focus{border-color:var(--acc)}
   </div>
   <div class="bcard">
     <div class="blbl">💰 موجودی</div>
-    <div class="bval <?=$balance<=0?'low':''?>"><?=number_format($balance)?> <small style="font-size:10px;font-weight:400">تومان</small></div>
+    <div class="bval <?=$balance<=0?'low':''?>"><?=money($balance)?> <small style="font-size:10px;font-weight:400">تومان</small></div>
     <?php if($ispName!==''):?><div style="font-size:10px;color:var(--muted);margin-top:3px">🌐 ISP: <?=sanitize($ispName)?></div><?php endif;?>
   </div>
   <nav>
@@ -595,7 +595,7 @@ input:focus,select:focus{border-color:var(--acc)}
       <input type="hidden" name="isp_name" value="<?=sanitize($ispName)?>">
       <div class="mb">
         <div style="background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:9px 12px;margin-bottom:11px;font-size:12px">
-          💰 موجودی: <strong><?=number_format($balance)?> تومان</strong><?php if($ispName):?> · 🌐 <?=sanitize($ispName)?><?php endif;?>
+          💰 موجودی: <strong><?=money($balance)?> تومان</strong><?php if($ispName):?> · 🌐 <?=sanitize($ispName)?><?php endif;?>
         </div>
         <div class="fr">
           <div class="fg"><label class="lbl">نام کاربری *</label><input type="text" name="username" required></div>
@@ -789,11 +789,11 @@ function genPW(fid,lid,pfx){
 
 document.getElementById('addGrp').addEventListener('change',function(){
   var pr=parseFloat(this.options[this.selectedIndex].dataset.price||0);
-  document.getElementById('addPH').textContent=pr>0?'💰 قیمت: '+pr.toLocaleString()+' تومان':'';
+  document.getElementById('addPH').textContent=pr>0?'💰 قیمت: '+pr.toLocaleString('de-DE')+' تومان':'';
 });
 document.getElementById('bGrp').addEventListener('change',function(){
   var pr=parseFloat(this.options[this.selectedIndex].dataset.price||0);
-  document.getElementById('bPH').textContent=pr>0?'💰 قیمت: '+pr.toLocaleString()+' تومان':'';
+  document.getElementById('bPH').textContent=pr>0?'💰 قیمت: '+pr.toLocaleString('de-DE')+' تومان':'';
 });
 
 function cp(el){
@@ -828,7 +828,7 @@ function hardRefresh(){
   fetch('users.php?ajax=rebuild_cache')
     .then(r=>r.json())
     .then(d=>{
-      if(d.total) document.getElementById('tinfo').textContent='کل کاربران ISP: '+d.total.toLocaleString();
+      if(d.total) document.getElementById('tinfo').textContent='کل کاربران ISP: '+d.total.toLocaleString('de-DE');
       curP=0; load();
     });
 }
@@ -889,9 +889,9 @@ function renderTable(d,pp){
   const searchActive=document.getElementById('fSrch').value.trim()!=='';
   const cacheNote=d.cached===false?' <span style="color:var(--yel);font-size:10px">⚡ بدون کش</span>':'';
   if(searchActive){
-    document.getElementById('tinfo').innerHTML=rows.length?`${total.toLocaleString()} نتیجه از ${totalIsp.toLocaleString()} کاربر`+cacheNote:'هیچ کاربری یافت نشد';
+    document.getElementById('tinfo').innerHTML=rows.length?`${total.toLocaleString('de-DE')} نتیجه از ${totalIsp.toLocaleString('de-DE')} کاربر`+cacheNote:'هیچ کاربری یافت نشد';
   } else {
-    document.getElementById('tinfo').innerHTML=rows.length?`نمایش ${curP*pp+1}–${Math.min((curP+1)*pp,totalIsp)} از ${totalIsp.toLocaleString()} کاربر`+cacheNote:'هیچ کاربری یافت نشد';
+    document.getElementById('tinfo').innerHTML=rows.length?`نمایش ${curP*pp+1}–${Math.min((curP+1)*pp,totalIsp)} از ${totalIsp.toLocaleString('de-DE')} کاربر`+cacheNote:'هیچ کاربری یافت نشد';
   }
   if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
   document.getElementById('tbody').innerHTML=rows.map(u=>{

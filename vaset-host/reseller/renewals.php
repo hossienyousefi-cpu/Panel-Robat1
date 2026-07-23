@@ -112,7 +112,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
   </div>
   <div class="bcard">
     <div class="blbl">💰 موجودی</div>
-    <div class="bval <?=$balance<=0?'low':''?>"><?=number_format($balance)?> <small style="font-size:10px;font-weight:400">تومان</small></div>
+    <div class="bval <?=$balance<=0?'low':''?>"><?=money($balance)?> <small style="font-size:10px;font-weight:400">تومان</small></div>
     <?php if($ispName!==''):?><div style="font-size:10px;color:var(--muted);margin-top:3px">🌐 ISP: <?=sanitize($ispName)?></div><?php endif;?>
   </div>
   <nav>
@@ -146,11 +146,11 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-icon">🔄</div>
-        <div><div class="stat-value" style="color:#34d399"><?=number_format($totalCount)?></div><div class="stat-label">تعداد تمدید در بازه</div></div>
+        <div><div class="stat-value" style="color:#34d399"><?=money($totalCount)?></div><div class="stat-label">تعداد تمدید در بازه</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">💰</div>
-        <div><div class="stat-value" style="color:#34d399"><?=number_format($totalPrice)?></div><div class="stat-label">مجموع مبلغ (تومان)</div></div>
+        <div><div class="stat-value" style="color:#34d399"><?=money($totalPrice)?></div><div class="stat-label">مجموع مبلغ (تومان)</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">📅</div>
@@ -185,7 +185,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
               <td style="color:var(--muted)"><?=$page*$perPage+$i+1?></td>
               <td style="font-weight:600;color:var(--txt)"><?=sanitize($row['ibs_username'])?></td>
               <td><?=sanitize($row['group_name'])?></td>
-              <td><?=$row['price']>0?number_format($row['price']):'—'?></td>
+              <td><?=$row['price']>0?money($row['price']):'—'?></td>
               <td style="font-size:11px;color:var(--muted)"><?=date('Y/m/d H:i',strtotime($row['created_at']))?></td>
             </tr>
             <?php endforeach; ?>

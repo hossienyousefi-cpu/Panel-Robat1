@@ -214,7 +214,7 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
   <?php if ($reseller['debt'] > 0): ?>
   <div class="debt-banner">
     <div class="debt-label">💳 بدهی شما</div>
-    <div class="debt-amount"><?= number_format($reseller['debt']) ?> تومان</div>
+    <div class="debt-amount"><?= money($reseller['debt']) ?> تومان</div>
   </div>
   <?php endif; ?>
 
@@ -340,7 +340,7 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
               <div class="tx-date"><?= date('Y/m/d H:i', strtotime($t['created_at'])) ?></div>
             </div>
             <div class="<?= in_array($t['type'], ['credit']) ? 'tx-amount-pos' : 'tx-amount-neg' ?>">
-              <?= in_array($t['type'], ['credit']) ? '+' : '-' ?><?= number_format($t['amount']) ?> تومان
+              <?= in_array($t['type'], ['credit']) ? '+' : '-' ?><?= money($t['amount']) ?> تومان
             </div>
           </div>
           <?php endforeach; ?>

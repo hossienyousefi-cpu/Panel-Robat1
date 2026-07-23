@@ -113,11 +113,11 @@ $totalTx = count($transactions);
       </div>
       <div class="stat-card">
         <div class="stat-icon">📉</div>
-        <div><div class="stat-value" style="color:#f87171"><?= number_format($totalDebit) ?></div><div class="stat-label">کل بدهکاری (تومان)</div></div>
+        <div><div class="stat-value" style="color:#f87171"><?= money($totalDebit) ?></div><div class="stat-label">کل بدهکاری (تومان)</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">📈</div>
-        <div><div class="stat-value" style="color:#34d399"><?= number_format($totalCredit) ?></div><div class="stat-label">کل پرداختی (تومان)</div></div>
+        <div><div class="stat-value" style="color:#34d399"><?= money($totalCredit) ?></div><div class="stat-label">کل پرداختی (تومان)</div></div>
       </div>
     </div>
 
@@ -154,7 +154,7 @@ $totalTx = count($transactions);
               <td><?= sanitize($t['user_name'] ?? '—') ?></td>
               <td><span class="badge badge-<?= $typeInfo[1] ?>"><?= $typeInfo[0] ?></span></td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= sanitize($t['description'] ?? '—') ?></td>
-              <td class="<?= $isPos?'amount-pos':'amount-neg' ?>"><?= $isPos?'+':'-' ?><?= number_format($t['amount']) ?></td>
+              <td class="<?= $isPos?'amount-pos':'amount-neg' ?>"><?= $isPos?'+':'-' ?><?= money($t['amount']) ?></td>
               <td style="font-size:12px;color:var(--muted)"><?= date('Y/m/d H:i',strtotime($t['created_at'])) ?></td>
             </tr>
             <?php endforeach; ?>

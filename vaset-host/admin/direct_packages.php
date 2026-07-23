@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         $group = sanitize($_POST['group_name'] ?? '');
         $title = sanitize($_POST['title'] ?? '');
-        $price = max(0, (float)str_replace(',', '', $_POST['price'] ?? '0'));
+        $price = max(0, parseMoney($_POST['price'] ?? '0'));
         $isp = sanitize($_POST['isp_name'] ?? '');
         $sort = (int)($_POST['sort_order'] ?? 0);
 
@@ -178,7 +178,7 @@ input:focus,select:focus{border-color:var(--acc)}
             <td style="font-weight:700;color:var(--txt)"><?=sanitize($p['title'])?></td>
             <td><span class="badge bok"><?=sanitize($p['group_name'])?></span></td>
             <td><?=sanitize($p['isp_name'])?></td>
-            <td style="font-weight:700;color:#34d399"><?=number_format((float)$p['price'])?></td>
+            <td style="font-weight:700;color:#34d399"><?=money((float)$p['price'])?></td>
             <td><?=(int)$p['sort_order']?></td>
             <td>
               <form method="POST" style="display:inline"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
@@ -234,7 +234,7 @@ input:focus,select:focus{border-color:var(--acc)}
           </div>
         </div>
         <div class="fr">
-          <div class="fg"><label class="lbl">قیمت (تومان)</label><input type="number" name="price" id="fPrice" min="0" step="1000" required></div>
+          <div class="fg"><label class="lbl">قیمت (تومان)</label><input type="text" inputmode="numeric" name="price" id="fPrice" oninput="fmtMoneyInput(this)" required></div>
           <div class="fg"><label class="lbl">ترتیب نمایش</label><input type="number" name="sort_order" id="fSort" value="0"></div>
         </div>
       </div>
@@ -263,11 +263,12 @@ function openEdit(p){
   document.getElementById('fTitle').value=p.title;
   document.getElementById('fGroup').value=p.group_name;
   document.getElementById('fIsp').value=p.isp_name;
-  document.getElementById('fPrice').value=p.price;
+  document.getElementById('fPrice').value=String(p.price).replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
   document.getElementById('fSort').value=p.sort_order;
   document.getElementById('pkgM').classList.add('open');
 }
 function closeM(){document.getElementById('pkgM').classList.remove('open');}
+function fmtMoneyInput(el){var v=el.value.replace(/\D/g,'');el.value=v?v.replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'';}
 document.getElementById('pkgM').addEventListener('click',e=>{if(e.target.id==='pkgM')closeM();});
 </script>
 </body>

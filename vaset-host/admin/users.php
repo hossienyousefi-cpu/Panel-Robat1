@@ -852,7 +852,7 @@ function loadExp(){
 
 function renderTable(d,pp){
   const total=d.total,rows=d.rows||[];
-  document.getElementById('tinfo').textContent=rows.length?`نمایش ${curP*pp+1}–${Math.min((curP+1)*pp,total)} از ${total.toLocaleString()} کاربر`:'هیچ کاربری یافت نشد';
+  document.getElementById('tinfo').textContent=rows.length?`نمایش ${curP*pp+1}–${Math.min((curP+1)*pp,total)} از ${total.toLocaleString('de-DE')} کاربر`:'هیچ کاربری یافت نشد';
   if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
   document.getElementById('tbody').innerHTML=rows.map(u=>{
     const st=u.status==='Active'||u.status==='Recharged'?`<span class="badge bok">${u.status}</span>`:`<span class="badge ber">${u.status}</span>`;

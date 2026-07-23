@@ -160,11 +160,11 @@ table.t tr:hover td{background:rgba(59,130,246,.02)}
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-icon">🔄</div>
-        <div><div class="stat-value" style="color:#60a5fa"><?=number_format($totalCount)?></div><div class="stat-label">تعداد تمدید در بازه</div></div>
+        <div><div class="stat-value" style="color:#60a5fa"><?=money($totalCount)?></div><div class="stat-label">تعداد تمدید در بازه</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">💰</div>
-        <div><div class="stat-value" style="color:#34d399"><?=number_format($totalPrice)?></div><div class="stat-label">مجموع مبلغ (تومان)</div></div>
+        <div><div class="stat-value" style="color:#34d399"><?=money($totalPrice)?></div><div class="stat-label">مجموع مبلغ (تومان)</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">📅</div>
@@ -226,7 +226,7 @@ table.t tr:hover td{background:rgba(59,130,246,.02)}
               <td style="font-weight:600;color:var(--txt)"><?=sanitize($row['ibs_username'])?></td>
               <td><?=sanitize($row['isp_name'])?></td>
               <td><?=sanitize($row['group_name'])?></td>
-              <td><?=$row['price']>0?number_format($row['price']):'—'?></td>
+              <td><?=$row['price']>0?money($row['price']):'—'?></td>
               <td><span class="badge <?=$who[1]?>"><?=$who[0]?></span></td>
               <td style="font-size:11px;color:var(--muted)"><?=date('Y/m/d H:i',strtotime($row['created_at']))?></td>
             </tr>

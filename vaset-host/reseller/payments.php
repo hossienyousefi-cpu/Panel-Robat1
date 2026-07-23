@@ -13,7 +13,7 @@ $reseller->execute([$rid]); $reseller = $reseller->fetch();
 $success = ''; $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $amount = (float)($_POST['amount'] ?? 0);
+    $amount = parseMoney($_POST['amount'] ?? 0);
     $desc   = sanitize($_POST['description'] ?? '');
 
     if ($amount <= 0) {
@@ -158,7 +158,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
   <?php if ($reseller['debt'] > 0): ?>
   <div class="debt-banner">
     <div class="debt-label">💳 بدهی شما</div>
-    <div class="debt-amount"><?= number_format($reseller['debt']) ?> تومان</div>
+    <div class="debt-amount"><?= money($reseller['debt']) ?> تومان</div>
   </div>
   <?php endif; ?>
   <nav class="sidebar-nav">
@@ -188,7 +188,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
   <div class="topbar">
     <div class="page-title">🧾 ارسال فیش پرداخت</div>
     <?php if ($reseller['debt'] > 0): ?>
-    <span style="color:var(--danger);font-size:14px;font-weight:600">بدهی: <?= number_format($reseller['debt']) ?> تومان</span>
+    <span style="color:var(--danger);font-size:14px;font-weight:600">بدهی: <?= money($reseller['debt']) ?> تومان</span>
     <?php endif; ?>
   </div>
   <div class="content">
@@ -204,7 +204,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
         <form method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <div class="form-group">
             <label>مبلغ پرداختی (تومان) *</label>
-            <input type="number" name="amount" placeholder="مثلاً: 500000" min="1000" required>
+            <input type="text" inputmode="numeric" name="amount" placeholder="مثلاً: 500.000" oninput="fmtMoneyInput(this)" required>
           </div>
           <div class="form-group">
             <label>توضیح (اختیاری)</label>
@@ -238,7 +238,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
         <tbody>
           <?php foreach ($requests as $req): ?>
           <tr>
-            <td style="font-weight:700;color:var(--success)"><?= number_format($req['amount']) ?> ت</td>
+            <td style="font-weight:700;color:var(--success)"><?= money($req['amount']) ?> ت</td>
             <td><?= sanitize($req['description'] ?: '—') ?></td>
             <td>
               <?php if ($req['status']==='pending'): ?>
@@ -270,6 +270,7 @@ function showPreview(input) {
     p.style.display = 'block';
   }
 }
+function fmtMoneyInput(el){var v=el.value.replace(/\D/g,'');el.value=v?v.replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'';}
 function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').classList.toggle('open')}
 function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('open')}
 </script>

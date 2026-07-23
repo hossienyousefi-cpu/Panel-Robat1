@@ -74,6 +74,16 @@ function sanitize($input) {
     return htmlspecialchars(strip_tags(trim((string)$input)), ENT_QUOTES, 'UTF-8');
 }
 
+// نمایش عدد (قیمت/مبلغ/تعداد) با جداکننده‌ی هزارگان به‌صورت نقطه، مثل ۲۰۰.۰۰۰
+function money($n) {
+    return number_format((float)$n, 0, '.', '.');
+}
+
+// تبدیل رشته‌ی قیمت فرمت‌شده با نقطه (ورودی فرم، مثلاً «۲۰۰.۰۰۰») به عدد خام
+function parseMoney($input) {
+    return (float)preg_replace('/[^\d]/', '', (string)$input);
+}
+
 // اعتبارسنجی ورودی عددی
 function validateInt($val, $min = 0, $max = PHP_INT_MAX) {
     $v = filter_var($val, FILTER_VALIDATE_INT);

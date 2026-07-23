@@ -212,7 +212,7 @@ $requests = $pdo->query("
       </div>
       <div class="stat-card">
         <div class="stat-icon">✅</div>
-        <div><div class="stat-value" style="color:var(--success)"><?= number_format($approvedTotal) ?></div><div class="stat-label">کل مبالغ تأیید شده (تومان)</div></div>
+        <div><div class="stat-value" style="color:var(--success)"><?= money($approvedTotal) ?></div><div class="stat-label">کل مبالغ تأیید شده (تومان)</div></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">❌</div>
@@ -250,7 +250,7 @@ $requests = $pdo->query("
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:16px">
-            <div class="req-amount"><?= number_format($req['amount']) ?> ت</div>
+            <div class="req-amount"><?= money($req['amount']) ?> ت</div>
             <?php if ($req['status']==='pending'): ?>
               <span class="badge badge-pending">⏳ در انتظار</span>
             <?php elseif ($req['status']==='approved'): ?>
@@ -285,9 +285,9 @@ $requests = $pdo->query("
             <div class="req-desc">💬 <?= sanitize($req['description']) ?></div>
             <?php endif; ?>
             <div class="req-debt">
-              بدهی فعلی ریسلر: <strong><?= number_format($req['reseller_debt']) ?> تومان</strong>
+              بدهی فعلی ریسلر: <strong><?= money($req['reseller_debt']) ?> تومان</strong>
               <?php if ($req['status']==='approved'): ?>
-              &nbsp;← پس از تأیید: <strong><?= number_format(max(0, $req['reseller_debt'] - $req['amount'])) ?> تومان</strong>
+              &nbsp;← پس از تأیید: <strong><?= money(max(0, $req['reseller_debt'] - $req['amount'])) ?> تومان</strong>
               <?php endif; ?>
             </div>
             <?php if ($req['status'] !== 'pending' && $req['admin_note']): ?>

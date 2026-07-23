@@ -91,7 +91,7 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
   <?php if ($reseller['debt'] > 0): ?>
   <div class="debt-banner">
     <div class="debt-label">💳 بدهی شما</div>
-    <div class="debt-amount"><?= number_format($reseller['debt']) ?> تومان</div>
+    <div class="debt-amount"><?= money($reseller['debt']) ?> تومان</div>
   </div>
   <?php endif; ?>
   <nav class="sidebar-nav">
@@ -128,15 +128,15 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
     ?>
     <div class="summary">
       <div class="sum-card">
-        <div class="sum-value" style="color:#f87171"><?= number_format($reseller['debt']) ?> ت</div>
+        <div class="sum-value" style="color:#f87171"><?= money($reseller['debt']) ?> ت</div>
         <div class="sum-label">بدهی فعلی</div>
       </div>
       <div class="sum-card">
-        <div class="sum-value" style="color:#f87171"><?= number_format($totalDebit) ?> ت</div>
+        <div class="sum-value" style="color:#f87171"><?= money($totalDebit) ?> ت</div>
         <div class="sum-label">کل هزینه‌ها</div>
       </div>
       <div class="sum-card">
-        <div class="sum-value" style="color:#34d399"><?= number_format($totalCredit) ?> ت</div>
+        <div class="sum-value" style="color:#34d399"><?= money($totalCredit) ?> ت</div>
         <div class="sum-label">کل پرداختی‌ها</div>
       </div>
     </div>
@@ -168,7 +168,7 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
               <td><?= sanitize($t['user_name'] ?? '—') ?></td>
               <td><?= sanitize($t['description'] ?? '—') ?></td>
               <td class="<?= $isPositive ? 'amount-pos' : 'amount-neg' ?>">
-                <?= $isPositive ? '+' : '-' ?><?= number_format($t['amount']) ?> ت
+                <?= $isPositive ? '+' : '-' ?><?= money($t['amount']) ?> ت
               </td>
               <td style="font-size:12px; color:var(--muted)"><?= date('Y/m/d H:i', strtotime($t['created_at'])) ?></td>
             </tr>

@@ -162,7 +162,7 @@ function tg_start_new_purchase(array $customer): void {
     }
     $buttons = [];
     foreach ($packages as $p) {
-        $buttons[] = [['text' => $p['title'] . ' - ' . number_format((float)$p['price']) . ' تومان', 'callback_data' => 'pkg_' . $p['id']]];
+        $buttons[] = [['text' => $p['title'] . ' - ' . money((float)$p['price']) . ' تومان', 'callback_data' => 'pkg_' . $p['id']]];
     }
     tg_set_state((int)$customer['id'], null, null);
     tg_sendMessage($chatId, '📦 یکی از بسته‌های زیر را انتخاب کنید:', ['inline_keyboard' => $buttons]);
@@ -203,7 +203,7 @@ function tg_receive_new_username(array $customer, string $username): void {
     $pkg = tg_get_package((int)($data['package_id'] ?? 0));
     $amount = $pkg ? (float)$pkg['price'] : 0;
     $card = getSetting('payment_card_info', '—');
-    tg_sendMessage($chatId, "نام کاربری: {$username}\nمبلغ قابل پرداخت: " . number_format($amount) . " تومان\n\n{$card}\n\nبعد از پرداخت، تصویر رسید را همین‌جا ارسال کنید 📸");
+    tg_sendMessage($chatId, "نام کاربری: {$username}\nمبلغ قابل پرداخت: " . money($amount) . " تومان\n\n{$card}\n\nبعد از پرداخت، تصویر رسید را همین‌جا ارسال کنید 📸");
 }
 
 // ───────────────────────────── تمدید سرویس ─────────────────────────────
@@ -250,7 +250,7 @@ function tg_customer_pick_renew($chatId, int $linkId, string $cqId): void {
     ]);
     tg_answerCallbackQuery($cqId);
     $card = getSetting('payment_card_info', '—');
-    tg_sendMessage($chatId, "تمدید سرویس: {$link['ibs_username']}\nمبلغ: " . number_format((float)$pkg['price']) . " تومان\n\n{$card}\n\nبعد از پرداخت، تصویر رسید را ارسال کنید 📸");
+    tg_sendMessage($chatId, "تمدید سرویس: {$link['ibs_username']}\nمبلغ: " . money((float)$pkg['price']) . " تومان\n\n{$card}\n\nبعد از پرداخت، تصویر رسید را ارسال کنید 📸");
 }
 
 // ───────────────────────────── دریافت رسید (مشترک بین خرید و تمدید) ─────────────────────────────
@@ -277,13 +277,13 @@ function tg_receive_receipt(array $customer, string $fileId): void {
         $stmt->execute([$customer['id'], 'new', $pkg['id'], $data['username'], $pkg['price'], $localName]);
         $orderId = (int)$pdo->lastInsertId();
         $who = $customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId);
-        $summary = "🛒 سفارش جدید #{$orderId}\nمشتری: {$who}\nبسته: {$pkg['title']}\nیوزرنیم درخواستی: {$data['username']}\nمبلغ: " . number_format((float)$pkg['price']) . ' تومان';
+        $summary = "🛒 سفارش جدید #{$orderId}\nمشتری: {$who}\nبسته: {$pkg['title']}\nیوزرنیم درخواستی: {$data['username']}\nمبلغ: " . money((float)$pkg['price']) . ' تومان';
     } elseif ($customer['state'] === 'awaiting_renew_receipt') {
         $stmt = $pdo->prepare("INSERT INTO telegram_orders (telegram_customer_id, order_type, target_username, amount, receipt_file, status) VALUES (?,?,?,?,?,'pending')");
         $stmt->execute([$customer['id'], 'renew', $data['username'], $data['amount'], $localName]);
         $orderId = (int)$pdo->lastInsertId();
         $who = $customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId);
-        $summary = "🔄 سفارش تمدید #{$orderId}\nمشتری: {$who}\nیوزرنیم: {$data['username']}\nمبلغ: " . number_format((float)$data['amount']) . ' تومان';
+        $summary = "🔄 سفارش تمدید #{$orderId}\nمشتری: {$who}\nیوزرنیم: {$data['username']}\nمبلغ: " . money((float)$data['amount']) . ' تومان';
     } else {
         return;
     }
@@ -508,7 +508,7 @@ function tg_handle_admin_message(int $adminId, $chatId, array $msg): bool {
         $totalDebt = (float)($pdo->query("SELECT SUM(debt) FROM resellers")->fetchColumn() ?: 0);
         $online = ibsng_call('report.getOnlineUsersCount', []);
         $onlineCount = $online['result']['internet_onlines'] ?? '?';
-        tg_sendMessage($chatId, "👥 ریسلرها: {$totalResellers}\n💰 کل بدهی: " . number_format($totalDebt) . " تومان\n🟢 آنلاین: {$onlineCount}");
+        tg_sendMessage($chatId, "👥 ریسلرها: {$totalResellers}\n💰 کل بدهی: " . money($totalDebt) . " تومان\n🟢 آنلاین: {$onlineCount}");
         return true;
     }
 

@@ -62,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ibs_user = sanitize($_POST['ibs_user'] ?? '');
         $ibs_pass = $_POST['ibs_pass'] ?? '';
         $site_name = sanitize($_POST['site_name'] ?? '');
-        $create_price = (float)($_POST['create_price'] ?? 5000);
-        $renew_price = (float)($_POST['renew_price'] ?? 200);
+        $create_price = parseMoney($_POST['create_price'] ?? 5000);
+        $renew_price = parseMoney($_POST['renew_price'] ?? 200);
 
         $updates = [
             'ibs_api_url' => $ibs_api_url,
@@ -323,11 +323,11 @@ $siteLogo = getSetting('site_logo', '');
           <div class="form-row">
             <div class="form-group">
               <label>قیمت ایجاد هر کاربر (تومان)</label>
-              <input type="number" name="create_price" value="<?= $createPrice ?>">
+              <input type="text" inputmode="numeric" name="create_price" value="<?= money($createPrice) ?>" oninput="fmtMoneyInput(this)">
             </div>
             <div class="form-group">
               <label>قیمت تمدید به ازای هر روز (تومان)</label>
-              <input type="number" name="renew_price" value="<?= $renewPrice ?>">
+              <input type="text" inputmode="numeric" name="renew_price" value="<?= money($renewPrice) ?>" oninput="fmtMoneyInput(this)">
             </div>
           </div>
           <button type="submit" class="btn btn-primary">💾 ذخیره تنظیمات</button>
@@ -364,4 +364,7 @@ $siteLogo = getSetting('site_logo', '');
 
   </div>
 </main>
+<script>
+function fmtMoneyInput(el){var v=el.value.replace(/\D/g,'');el.value=v?v.replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'';}
+</script>
 </body></html>
