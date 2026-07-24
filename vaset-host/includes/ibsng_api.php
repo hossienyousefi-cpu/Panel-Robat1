@@ -456,8 +456,76 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
 
 // ─── گرفتن سریع صفحه اول بدون کش کامل ───
 // فقط UIDs صفحه اول رو میگیره + getUserInfo - خیلی سریعتر
+// ─── کش محلی کاربران در جدول MySQL (ibsng_users_cache)، پرشده توسط
+// cron/sync_ibsng_users.php هر چند دقیقه. سریع‌تر از کش فایلی (SQL ایندکس‌شده،
+// امکان سرچ هم‌زمان روی همه‌ی ISPها با یک کوئری) و کاملاً بدون تماس با IBSng.
+// اگه جدول خالی/قدیمی باشه (کرون هنوز اجرا نشده یا مدتی متوقف بوده)، false
+// برمی‌گرده تا فراخوان به روش قدیمی (زنده از IBSng) برگرده - یعنی نبود این کش
+// هیچ‌وقت باعث خراب‌شدن سرچ نمی‌شه، فقط کندتر می‌مونه ───
+function ibsng_dbCacheFresh($pdo, $maxAgeSec = 900) {
+    static $fresh = null;
+    if ($fresh !== null) return $fresh;
+    try {
+        $row = $pdo->query("SELECT MAX(updated_at) m, COUNT(*) c FROM ibsng_users_cache")->fetch();
+    } catch (Throwable $e) {
+        return $fresh = false; // جدول هنوز وجود ندارد (migration اجرا نشده)
+    }
+    $fresh = !empty($row['c']) && $row['m'] && (time() - strtotime($row['m'])) < $maxAgeSec;
+    return $fresh;
+}
+
+function ibsng_dbCacheSearch($pdo, $ispName, $groupFilter, $search, $rasFilter, $sortBy, $sortDir, $page, $perPage) {
+    $where = []; $params = [];
+    if ($ispName !== '')    { $where[] = 'isp_name = ?';   $params[] = $ispName; }
+    if ($groupFilter !== '') { $where[] = 'group_name = ?'; $params[] = $groupFilter; }
+    if ($search !== '')      { $where[] = 'username LIKE ?'; $params[] = '%' . $search . '%'; }
+    if ($rasFilter !== '')   { $where[] = 'ras_ip LIKE ?';   $params[] = '%' . $rasFilter . '%'; }
+    $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+    $totalIsp = 0;
+    if ($ispName !== '') {
+        $s = $pdo->prepare("SELECT COUNT(*) FROM ibsng_users_cache WHERE isp_name = ?");
+        $s->execute([$ispName]);
+        $totalIsp = (int)$s->fetchColumn();
+    }
+
+    $cnt = $pdo->prepare("SELECT COUNT(*) FROM ibsng_users_cache $whereSql");
+    $cnt->execute($params);
+    $total = (int)$cnt->fetchColumn();
+
+    $sortCol = ['username' => 'username', 'group' => 'group_name', 'isp' => 'isp_name',
+        'ras' => 'ras_ip', 'exp' => 'exp_ts', 'status' => 'status'][$sortBy] ?? 'uid';
+    $dir = strtolower($sortDir) === 'asc' ? 'ASC' : 'DESC';
+
+    $stmt = $pdo->prepare("SELECT * FROM ibsng_users_cache $whereSql ORDER BY $sortCol $dir LIMIT ? OFFSET ?");
+    $i = 1;
+    foreach ($params as $p) $stmt->bindValue($i++, $p);
+    $stmt->bindValue($i++, $perPage, PDO::PARAM_INT);
+    $stmt->bindValue($i++, $page * $perPage, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $onlineSet = ibsng_getOnlineUsernameSet('');
+    $rows = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $expTs = (int)$r['exp_ts'];
+        $rows[] = [
+            'id' => $r['uid'], 'username' => $r['username'], 'password' => $r['password'],
+            'status' => $r['status'], 'group' => $r['group_name'], 'isp' => $r['isp_name'],
+            'ras' => $r['ras_ip'], 'exp' => $r['exp_date'] !== '' ? $r['exp_date'] : '∞',
+            'exp_ts' => $expTs, 'days_left' => $expTs ? (int)(($expTs - time()) / 86400) : null,
+            'online' => isset($onlineSet[$r['username']]), 'credit' => (float)$r['credit'],
+        ];
+    }
+    return ['total' => $total, 'total_isp' => $totalIsp, 'rows' => $rows, 'cached' => true];
+}
+
 function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDir, $page, $perPage) {
     if ($ispName === '') return ['total' => 0, 'total_isp' => 0, 'rows' => [], 'cached' => false];
+
+    global $pdo;
+    if (isset($pdo) && ibsng_dbCacheFresh($pdo)) {
+        return ibsng_dbCacheSearch($pdo, $ispName, $groupFilter, $search, '', $sortBy, $sortDir, $page, $perPage);
+    }
 
     // اگه کش کامل داریم، از اون استفاده کن
     $cKey = IBS_CACHE_DIR . 'isp_full_' . md5($ispName . $groupFilter) . '.json';

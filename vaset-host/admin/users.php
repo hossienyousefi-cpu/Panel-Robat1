@@ -42,6 +42,15 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
     $sortDir=($_GET['dir']??'desc')==='asc'?'asc':'desc';
     $page   =max(0,(int)($_GET['page']??0));
     $perPage=50;
+    // اگه جدول کش محلی (ibsng_users_cache) تازه‌ست (کرون sync_ibsng_users.php هر
+    // چند دقیقه اجرا می‌شه)، همه‌ی حالت‌های فیلتر/سرچ/ RAS رو با یک کوئری SQL سریع
+    // و بدون هیچ تماسی با IBSng جواب می‌دیم؛ فقط وقتی کش خالی/قدیمی باشه (مثلاً
+    // کرون هنوز اجرا نشده) به منطق قدیمیِ زیر (زنده از IBSng) برمی‌گردیم.
+    if (ibsng_dbCacheFresh($pdo)) {
+        echo json_encode(ibsng_dbCacheSearch($pdo, $ispF, $grpF, $search, $rasF, $sortBy, $sortDir, $page, $perPage));
+        exit;
+    }
+
     // وضعیت آنلاین واقعی: online_status توی getUserInfo وقتی صدها کاربر یک‌جا
     // (bulk) خونده می‌شه همیشه false برمی‌گرده، پس از لیست واقعیِ آنلاین‌ها می‌گیریم.
     $onlineSetGlobal = ibsng_getOnlineUsernameSet('');
