@@ -41,10 +41,12 @@ $stmt = $pdo->prepare("INSERT INTO ibsng_users_cache
 
 foreach ($isps as $ispName) {
     $conds = ibsng_ispCond($ispName);
-    $uids = ibsng_getAllUidsForIsp($conds);
+    // $throttled=true: دسته‌دسته + retry به‌جای فرستادن ده‌ها تماس هم‌زمان -
+    // برای کرون که فشار کم روی IBSng از سرعت مهم‌تره.
+    $uids = ibsng_getAllUidsForIsp($conds, true);
     if (empty($uids)) continue;
 
-    $infos = ibsng_getUserInfoBulk($uids);
+    $infos = ibsng_getUserInfoBulk($uids, true);
     $seenUids = [];
 
     foreach ($uids as $uid) {
@@ -61,12 +63,18 @@ foreach ($isps as $ispName) {
         $totalSynced++;
     }
 
-    // کاربرهایی که دیگه توی این ISP نیستند (حذف‌شده/منتقل‌شده) از کش پاک می‌شوند
-    if (!empty($seenUids)) {
+    $missing = count($uids) - count($seenUids);
+    if ($missing > 0) {
+        error_log("[sync_ibsng_users] {$ispName}: {$missing} کاربر با وجود retry از IBSng جواب نگرفت - این دور، ردیف‌های قدیمی این ISP پاک نمی‌شن (برای جلوگیری از حذف اشتباه).");
+    } elseif (!empty($seenUids)) {
+        // فقط وقتی مطمئنیم لیست کامله (هیچ uid ای جا نمونده)، کاربرهایی که دیگه
+        // توی این ISP نیستند (حذف‌شده/منتقل‌شده) رو از کش پاک می‌کنیم
         $placeholders = implode(',', array_fill(0, count($seenUids), '?'));
         $del = $pdo->prepare("DELETE FROM ibsng_users_cache WHERE isp_name = ? AND uid NOT IN ($placeholders)");
         $del->execute(array_merge([$ispName], $seenUids));
     }
+
+    error_log("[sync_ibsng_users] {$ispName}: " . count($seenUids) . "/" . count($uids) . " کاربر سینک شد.");
 
     // یک مکث کوتاه بین ISPها تا فشار روی IBSng یک‌جا و پشت‌سرهم نباشه
     usleep(300000);

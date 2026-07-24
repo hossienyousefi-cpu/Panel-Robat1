@@ -103,12 +103,35 @@ function ibsng_callParallel(array $calls) {
     return $out;
 }
 
+// ─── مثل ibsng_callParallel ولی به‌جای فرستادن همه‌ی تماس‌ها هم‌زمان (که برای
+// IBSngهای حساس/کم‌منبع می‌تونه باعث تایم‌اوت/شکست بی‌صدای بعضی تماس‌ها بشه -
+// دقیقاً همون چیزی که باعث می‌شد سینک کرون فقط بخشی از کاربرها رو پیدا کنه)،
+// تماس‌ها رو در دسته‌های کوچیک (پیش‌فرض ۵ تا) با یک مکث کوتاه بین دسته‌ها
+// می‌فرسته، و هر تماسی که شکست خورده (خطا/JSON نامعتبر) رو یک‌بار دیگه
+// پشت‌سرهم (نه موازی) retry می‌کنه. برای کارهای پس‌زمینه/کرون که فشار کم روی
+// IBSng از سرعت مهم‌تره ───
+function ibsng_callThrottled(array $calls, $chunkSize = 5, $delayMs = 200) {
+    $out = [];
+    foreach (array_chunk($calls, $chunkSize, true) as $chunk) {
+        $results = ibsng_callParallel($chunk);
+        foreach ($results as $k => $r) {
+            if (!empty($r['error'])) {
+                usleep(200000);
+                $r = ibsng_call($chunk[$k][0], $chunk[$k][1] ?? []);
+            }
+            $out[$k] = $r;
+        }
+        if ($delayMs > 0) usleep($delayMs * 1000);
+    }
+    return $out;
+}
+
 // ─── گرفتن user.getUserInfo برای یک لیست بزرگ از uid، تکه‌تکه (۱۰۰ تایی) ولی
 // هم‌زمان به‌جای پشت‌سرهم - جایگزین الگوی تکراری «array_chunk + foreach با
 // ibsng_call پشت‌سرهم» که برای ISPهای بزرگ (چند هزار کاربر = چند ده chunk) کند
 // بود. خروجی: آرایه‌ی user_id => اطلاعات کاربر (دقیقاً مثل result یک
 // getUserInfo تکی روی همه‌ی uidها).
-function ibsng_getUserInfoBulk(array $uids) {
+function ibsng_getUserInfoBulk(array $uids, $throttled = false) {
     $uids = array_values(array_unique($uids));
     if (empty($uids)) return [];
     $chunks = array_chunk($uids, 100);
@@ -116,7 +139,7 @@ function ibsng_getUserInfoBulk(array $uids) {
     foreach ($chunks as $i => $chunk) {
         $calls[$i] = ['user.getUserInfo', ['user_id' => implode(',', $chunk)]];
     }
-    $results = ibsng_callParallel($calls);
+    $results = $throttled ? ibsng_callThrottled($calls) : ibsng_callParallel($calls);
     $inf = [];
     foreach ($results as $r) {
         if (!empty($r['result'])) $inf += $r['result'];
@@ -333,7 +356,7 @@ function ibsng_getUsersInfo(array $uids) {
 
 // ─── کش کامل کاربران یک ISP (برای پنل ریسلر - 60 ثانیه) ───
 // ─── گرفتن همه UIDs یک ISP با pagination کامل ───
-function ibsng_getAllUidsForIsp($conds) {
+function ibsng_getAllUidsForIsp($conds, $throttled = false) {
     $batchSize = 500;
     // اول فقط total رو با یک تماس سبک بگیر
     $rCount = ibsng_call('user.searchUser', ['conds' => $conds, 'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => true]);
@@ -348,13 +371,17 @@ function ibsng_getAllUidsForIsp($conds) {
 
     // چون همه‌ی صفحات از هم مستقلن (فقط offset فرق می‌کنه)، به‌جای پشت‌سرهم
     // رفتن (که برای ISPهای بزرگ ده‌ها request طول می‌کشید)، همه رو هم‌زمان
-    // می‌فرستیم - زمان کل تقریباً فقط طول کندترینِ تک صفحه می‌شه.
+    // می‌فرستیم - زمان کل تقریباً فقط طول کندترینِ تک صفحه می‌شه. برای کارهای
+    // پس‌زمینه (کرون سینک) که فشار کم روی IBSng از سرعت مهم‌تره، $throttled=true
+    // این صفحات رو دسته‌دسته و با retry می‌فرسته، نه همه رو یک‌جا - چون فرستادن
+    // ده‌ها تماس هم‌زمان به یک IBSng حساس باعث می‌شد بعضی‌شون بی‌صدا timeout/شکست
+    // بخورن و نتیجه (تعداد کاربر) کمتر از واقعی برگرده.
     $calls = [];
     for ($p = 0; $p < $pages; $p++) {
         $from = $p * $batchSize;
         $calls[$p] = ['user.searchUser', ['conds' => $conds, 'from' => $from, 'to' => $from + $batchSize, 'order_by' => 'user_id', 'desc' => true]];
     }
-    $results = ibsng_callParallel($calls);
+    $results = $throttled ? ibsng_callThrottled($calls) : ibsng_callParallel($calls);
     $allUids = [];
     foreach ($results as $r) {
         $allUids = array_merge($allUids, $r['result'][2] ?? []);
