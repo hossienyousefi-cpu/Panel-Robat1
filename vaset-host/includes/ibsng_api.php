@@ -246,6 +246,16 @@ function ibsng_getIspId($ispName) {
     if ($id === null) {
         $map = ibsng_getIspIdMap();
         $id  = $map[$ispName] ?? null;
+        // نگاشت بالا تا ۱ ساعت کش می‌شه؛ برای ISPی که همین تازگی ساخته شده (و توی
+        // اون کش قدیمی‌تر از ۱ ساعت پیش نبوده)، بدون این تلاش دوباره تا یک ساعت
+        // «۰ کاربر»/فقط-آنلاین (چون فیلتر جدول کاربران بر خلاف صفحه‌ی آنلاین از
+        // همین isp_id استفاده می‌کنه) نشون داده می‌شد. یک‌بار با اسکن تازه (بدون
+        // اعتماد به فایل کش) امتحان می‌کنیم - فقط وقتی که نگاشت کش‌شده جواب نداده،
+        // پس این هزینه‌ی اضافه فقط برای ISPهای تازه‌کشف‌نشده‌ست، نه هر سرچ.
+        if ($id === null) {
+            $map = ibsng_getIspIdMap(100, true);
+            $id  = $map[$ispName] ?? null;
+        }
     }
     $mem[$ispName] = $id !== null ? (int)$id : null;
     // چون کشفش گرون بود (اسکن عددی)، برای همیشه ذخیره‌اش می‌کنیم تا دیگه لازم
@@ -260,9 +270,9 @@ function ibsng_getIspId($ispName) {
 // user.searchUser ثابت‌شده کار می‌کنه، برای هر عدد کاندید یک کاربر نمونه می‌گیریم
 // و اسم واقعی ISP اون کاربر رو می‌خونیم. این فقط وقتی صدا زده می‌شه که نگاشت
 // دستی/ذخیره‌شده جواب نداده - نتیجه‌اش هم دائمی ذخیره می‌شه (نه فقط کش موقت).
-function ibsng_getIspIdMap($maxId = 100) {
+function ibsng_getIspIdMap($maxId = 100, $forceRefresh = false) {
     $cKey = IBS_CACHE_DIR . 'ispid_map_v2.json';
-    if (file_exists($cKey) && (time() - filemtime($cKey)) < 3600) {
+    if (!$forceRefresh && file_exists($cKey) && (time() - filemtime($cKey)) < 3600) {
         $cached = @json_decode(@file_get_contents($cKey), true);
         if (is_array($cached) && !empty($cached)) return $cached;
     }
