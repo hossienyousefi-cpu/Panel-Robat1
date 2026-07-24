@@ -750,31 +750,113 @@ function ibsng_getOnlineRaw() {
         'voip_desc'      => false,
         'conds'          => [],
     ], 0, 5);
-    if (!empty($r['error'])) {
-        @file_put_contents($failFlag, (string)time());
-        return ['error' => (string)$r['error'], 'data' => []];
+    if (empty($r['error'])) {
+        @unlink($failFlag);
+        $raw = [];
+        if (isset($r['result'][0]) && is_array($r['result'][0])) {
+            $raw = $r['result'][0];
+        } elseif (isset($r['result']) && is_array($r['result'])) {
+            foreach ($r['result'] as $v) {
+                if (is_array($v) && (isset($v['normal_username']) || isset($v['username'])))
+                    $raw[] = $v;
+            }
+        }
+        $seen = []; $out = [];
+        foreach ($raw as $u) {
+            $un = $u['normal_username'] ?? $u['username'] ?? '';
+            if ($un !== '' && !isset($seen[$un])) {
+                $seen[$un] = true;
+                $out[] = $u;
+            }
+        }
+        @file_put_contents($cKey, json_encode($out));
+        return ['error' => '', 'data' => $out];
     }
-    @unlink($failFlag);
+    @file_put_contents($failFlag, (string)time());
 
-    $raw = [];
-    if (isset($r['result'][0]) && is_array($r['result'][0])) {
-        $raw = $r['result'][0];
-    } elseif (isset($r['result']) && is_array($r['result'])) {
-        foreach ($r['result'] as $v) {
-            if (is_array($v) && (isset($v['normal_username']) || isset($v['username'])))
-                $raw[] = $v;
+    // متد API روی این سرور IBSng همیشه شکست می‌خوره (تأیید شده)، پس به‌جاش از
+    // همون نشست HTML پنل اصلی (مثل Kick) لیست آنلاین‌ها رو می‌خونیم. محدودیت: این
+    // روش مدت اتصال (duration) و RAS رو نداره (IBSng این‌ها رو توی فرم Search
+    // User/تب Online نشون نمی‌ده)، فقط یوزرنیم/گروه/ISP/آی‌پی/user_id.
+    $native = ibsng_getOnlineNative();
+    if ($native['error'] === null) {
+        @file_put_contents($cKey, json_encode($native['data']));
+        return ['error' => '', 'data' => $native['data']];
+    }
+    return ['error' => $native['error'], 'data' => []];
+}
+
+// ─── لیست کاربران آنلاین از طریق نشست HTML پنل اصلی - fallback وقتی
+// report.getOnlineUsers (بالا) جواب نمی‌ده. معلوم شد IBSng گزارش آنلاین
+// جداگانه‌ای نداره: خودِ لینک "Online Users" توی پنل اصلی صرفاً به فرم
+// Search User با تب Online ریدایرکت می‌شه؛ پس همون فرم رو submit می‌کنیم. ───
+function ibsng_getOnlineNative() {
+    if (!ibsng_nativeLogin()) {
+        return ['error' => 'ورود به پنل اصلی IBSng ناموفق بود', 'data' => []];
+    }
+    $cookieFile = ibsng_nativeCookieFile();
+    $base = rtrim(IBS_URL, '/');
+    $searchUrl = $base . '/user/search_user.php';
+
+    $postFields = [
+        'search'            => '1',
+        'show_reports'      => '1',
+        'submit_form'       => '1',
+        'page'              => '1',
+        'is_online_yes'     => 'On',
+        'order_by'          => 'user_id',
+        'desc'              => 'on',
+        'rpp'               => '5000',
+        'view_options'      => '2',
+        'Internet_Username' => 'show__attrs_normal_username',
+        'User_ID'           => 'show__basic_user_id',
+        'Group'             => 'show__basic_group_name',
+        'ISP'               => 'show__basic_isp_name',
+        'Online'            => 'show__online_status|formatOnline',
+        'Remote_IPs'        => 'show__remote_ips',
+    ];
+    $headers = ['Referer: ' . $searchUrl . '?tab1_selected=Online'];
+    $res  = ibsng_nativeHttpEx($searchUrl, $cookieFile, $postFields, $headers);
+    $body = $res['body'];
+
+    if ($body === false || !ibsng_nativeIsLoggedIn($body)) {
+        // شاید نشست منقضی شده - یک‌بار دیگه با لاگین تازه امتحان کن
+        if (ibsng_nativeLogin()) {
+            $res  = ibsng_nativeHttpEx($searchUrl, $cookieFile, $postFields, $headers);
+            $body = $res['body'];
+        }
+        if ($body === false || !ibsng_nativeIsLoggedIn($body)) {
+            return ['error' => 'پاسخ نامعتبر از پنل اصلی IBSng (نشست منقضی؟)', 'data' => []];
         }
     }
-    $seen = []; $out = [];
-    foreach ($raw as $u) {
-        $un = $u['normal_username'] ?? $u['username'] ?? '';
-        if ($un !== '' && !isset($seen[$un])) {
-            $seen[$un] = true;
-            $out[] = $u;
+
+    $out = [];
+    if (preg_match_all(
+        '/<tr class="List_Row_(?:light|dark)Color"[^>]*onClick="window\.open\(\'[^\']*user_id=(\d+)\'[^>]*>(.*?)<\/tr>/s',
+        $body, $rowMatches, PREG_SET_ORDER
+    )) {
+        foreach ($rowMatches as $rm) {
+            $uid = $rm[1];
+            preg_match_all('/<td class="List_Col"[^>]*>(.*?)<\/td>/s', $rm[2], $cellMatches);
+            $cells = $cellMatches[1] ?? [];
+            // ترتیب ستون‌ها دقیقاً همون ترتیبیه که توی $postFields درخواست دادیم:
+            // چک‌باکس، User ID، Internet Username، Group، ISP، Online، Remote IPs
+            if (count($cells) < 7) continue;
+            $clean = function ($html) {
+                $html = preg_replace('/<br\s*\/?>/i', ', ', $html);
+                return trim(html_entity_decode(strip_tags($html), ENT_QUOTES, 'UTF-8'));
+            };
+            $out[] = [
+                'uid'             => $uid,
+                'normal_username' => $clean($cells[2]),
+                'group_name'      => $clean($cells[3]),
+                'isp_name'        => $clean($cells[4]),
+                'remote_ip'       => $clean($cells[6]),
+                'duration_secs'   => -1, // نامشخص - این روش مدت اتصال رو نداره
+            ];
         }
     }
-    @file_put_contents($cKey, json_encode($out));
-    return ['error' => '', 'data' => $out];
+    return ['error' => null, 'data' => $out];
 }
 
 // ─── کاربران آنلاین یک ISP خاص ───
@@ -989,6 +1071,7 @@ function ibsng_kickUser($uid) {
 // ─── فرمت مدت اتصال ───
 function ibsng_formatDuration($secs) {
     $secs = (int)$secs;
+    if ($secs < 0) return '—'; // نامشخص (مثلاً از روش جایگزین native که مدت اتصال رو نداره)
     $h = (int)floor($secs / 3600);
     $m = (int)floor(($secs % 3600) / 60);
     $s = $secs % 60;
