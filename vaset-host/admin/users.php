@@ -271,6 +271,10 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         $rCredit=ibsng_call('user.changeCredit',['user_id'=>$uid,'credit'=>(float)$gc,'is_absolute_change'=>true,'credit_comment'=>'تمدید توسط ادمین']);
         $rExp=null;
         if(!empty($ga['rel_exp_date'])){$m=max(1,(int)round((int)$ga['rel_exp_date']/(30*24*3600)));$rExp=ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['abs_exp_date'=>$m,'abs_exp_date_unit'=>'months'],'to_del_attrs'=>[]]);}
+        // ریست Package First Login - وگرنه  تاریخ انقضا رو نسبت به اولین لاگین قدیمی
+        // کاربر حساب می‌کنه نه از لحظه‌ی تمدید، و همین باعث می‌شد بعضی از کاربرها
+        // فقط چند روز (باقی‌مانده‌ی سیکل قبلی) تمدید بشن نه یک دوره‌ی کامل جدید.
+        ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>(object)[],'to_del_attrs'=>['first_login']]);
         $rStatus=ibsng_call('user.changeStatus',['user_id'=>$uid,'status'=>'Recharged']);
         if($rCredit['error']??null){$error='خطا در شارژ اعتبار: '.$rCredit['error'];}
         elseif($rExp&&($rExp['error']??null)){$error='خطا در تمدید تاریخ انقضا: '.$rExp['error'];}

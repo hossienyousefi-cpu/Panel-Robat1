@@ -459,6 +459,10 @@ function tg_provision_renew_order(array $order, ?array $customer): array {
         $m = max(1, (int)round((int)$ga['rel_exp_date'] / (30 * 24 * 3600)));
         ibsng_call('user.updateUserAttrs', ['user_id' => $uid, 'attrs' => ['abs_exp_date' => $m, 'abs_exp_date_unit' => 'months'], 'to_del_attrs' => []]);
     }
+    // ریست Package First Login - وگرنه  تاریخ انقضا رو نسبت به اولین لاگین قدیمی کاربر
+    // حساب می‌کنه نه از لحظه‌ی تمدید، و همین باعث می‌شد بعضی از کاربرها فقط چند روز
+    // (باقی‌مانده‌ی سیکل قبلی) تمدید بشن نه یک دوره‌ی کامل جدید.
+    ibsng_call('user.updateUserAttrs', ['user_id' => $uid, 'attrs' => (object)[], 'to_del_attrs' => ['first_login']]);
     ibsng_call('user.changeStatus', ['user_id' => $uid, 'status' => 'Recharged']);
 
     $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by) VALUES (?,?,?,?,?)")
