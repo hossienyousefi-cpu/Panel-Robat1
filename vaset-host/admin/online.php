@@ -240,6 +240,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
       </div>
     </div>
     <div id="ispContainer" class="isp-grid"><div class="loading">⏳ در حال بارگذاری...</div></div>
+    <div id="resultsContainer" style="margin-top:16px"></div>
   </div>
 </main>
 
@@ -258,22 +259,50 @@ function killUser(uid, username, afterFn){
   }).catch(()=>alert('خطا در اتصال به سرور'));
 }
 let autoInt=null;
-function doSearch(){
-  const s=document.getElementById('srch').value.trim();
-  if(s===''){load();return;}
-  document.getElementById('ispContainer').innerHTML='<div class="loading">⏳ در حال جستجو...</div>';
-  fetch('online.php?ajax=isp_users&isp=&search='+encodeURIComponent(s)).then(r=>r.json()).then(d=>{
-    if(d.error){document.getElementById('ispContainer').innerHTML='<div class="loading">⚠️ '+d.error+'</div>';return;}
-    if(!d.rows||!d.rows.length){document.getElementById('ispContainer').innerHTML='<div class="loading">هیچ کاربری یافت نشد</div>';return;}
-    let html='<div class="card" style="grid-column:1/-1"><div class="tw"><table class="isp-users-list" style="width:100%"><thead><tr>'
+let curIsp='';
+
+// رندر مشترک نتایج (چه از جستجوی سراسری، چه از کلیک روی یک ISP) توی یک جدول
+// تمام‌عرض زیر گرید ISPها - جای کافی برای همه‌ی ستون‌ها (از جمله دکمه‌ی Kill)
+// داره، برخلاف حالت قبلی که سعی می‌کرد جدول رو داخل خودِ کارت کوچیک ISP جا بده.
+function renderResults(url){
+  var el = document.getElementById('resultsContainer');
+  el.innerHTML = '<div class="loading">⏳ در حال بارگذاری...</div>';
+  fetch(url).then(function(r){return r.json();}).then(function(d){
+    if(d.error){ el.innerHTML='<div class="loading">⚠️ '+d.error+'</div>'; return; }
+    if(!d.rows || !d.rows.length){ el.innerHTML='<div class="loading">📡 هیچ کاربری آنلاین نیست</div>'; return; }
+    var html='<div class="card"><div class="tw"><table class="isp-users-list" style="width:100%"><thead><tr>'
       +'<th>👤 کاربر</th><th>🌐 IP</th><th>⏱ مدت</th><th>📦 گروه</th><th>عملیات</th></tr></thead><tbody>';
-    d.rows.forEach(u=>{
+    d.rows.forEach(function(u,i){
       html+='<tr><td><strong>'+u.username+'</strong></td><td style="font-family:monospace">'+u.ip+'</td><td>'+u.duration+'</td><td>'+u.group+'</td>'
-        +'<td><button class="btn bd bsm" onclick="killUser(\''+u.uid+'\',\''+u.username.replace(/'/g,"\\'")+'\',doSearch)" title="Kill (قطع اتصال)">⚡ Kill</button></td></tr>';
+        +'<td><button class="btn bd bsm" data-i="'+i+'" title="Kill (قطع اتصال)">⚡ Kill</button></td></tr>';
     });
-    html+='</tbody></table></div></div>';
-    document.getElementById('ispContainer').innerHTML=html;
-  }).catch(()=>{document.getElementById('ispContainer').innerHTML='<div class="loading">❌ خطا در بارگذاری</div>';});
+    html+='</tbody></table></div></div><div style="text-align:left;font-size:10px;color:var(--muted);padding:6px 2px">'+d.total+' کاربر</div>';
+    el.innerHTML = html;
+    el.querySelectorAll('button[data-i]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var u = d.rows[parseInt(btn.getAttribute('data-i'),10)];
+        killUser(u.uid, u.username, function(){ renderResults(url); });
+      });
+    });
+  }).catch(function(){
+    el.innerHTML = '<div class="loading">❌ خطا در بارگذاری</div>';
+  });
+}
+
+function selectIsp(isp, cardEl){
+  curIsp = isp;
+  document.getElementById('srch').value = '';
+  document.querySelectorAll('.isp-card').forEach(function(c){ c.classList.remove('expanded'); });
+  if (cardEl) cardEl.classList.add('expanded');
+  renderResults('online.php?ajax=isp_users&isp=' + encodeURIComponent(isp));
+}
+
+function doSearch(){
+  const s = document.getElementById('srch').value.trim();
+  curIsp = '';
+  document.querySelectorAll('.isp-card').forEach(function(c){ c.classList.remove('expanded'); });
+  if (s === '') { document.getElementById('resultsContainer').innerHTML = ''; return; }
+  renderResults('online.php?ajax=isp_users&isp=&search=' + encodeURIComponent(s));
 }
 var srchT=null;
 document.getElementById('srch').addEventListener('input',function(){
@@ -289,62 +318,28 @@ function load(){
       document.getElementById('ispContainer').innerHTML='<div class="loading">هیچ ISP فعالی یافت نشد</div>';
       return;
     }
-    document.getElementById('ispContainer').innerHTML=d.rows.map(r=>`
-      <div class="isp-card" onclick="toggleIspUsers('${r.isp.replace(/'/g,"\\'")}',this)" style="cursor:pointer">
-        <div class="isp-name">🌐 ${r.isp}</div>
-        <div class="isp-nums">
-          <div class="isp-num"><div class="n n-online">${r.online}</div><div class="l">آنلاین</div></div>
-        </div>
-        <div class="isp-users-list" id="ul_${encodeURIComponent(r.isp)}" style="display:none;margin-top:10px"></div>
-      </div>`).join('');
+    document.getElementById('ispContainer').innerHTML=d.rows.map(function(r){
+      var active = (r.isp === curIsp) ? ' expanded' : '';
+      return '<div class="isp-card'+active+'" onclick="selectIsp(\''+r.isp.replace(/'/g,"\\'")+'\', this)" style="cursor:pointer">'
+        +'<div class="isp-name">🌐 '+r.isp+'</div>'
+        +'<div class="isp-nums"><div class="isp-num"><div class="n n-online">'+r.online+'</div><div class="l">آنلاین</div></div></div>'
+        +'</div>';
+    }).join('');
   }).catch(e=>{
     document.getElementById('ispContainer').innerHTML='<div class="loading">❌ خطا در بارگذاری</div>';
   });
 }
-function refresh(){fetch('online.php?refresh_cache=1').then(()=>{ if(document.getElementById('srch').value.trim()!=='') doSearch(); else load(); });}
+function refresh(){
+  fetch('online.php?refresh_cache=1').then(function(){
+    load();
+    var s = document.getElementById('srch').value.trim();
+    if (s !== '') doSearch();
+    else if (curIsp !== '') renderResults('online.php?ajax=isp_users&isp=' + encodeURIComponent(curIsp));
+  });
+}
 function toggleAuto(){
   if(autoInt){clearInterval(autoInt);autoInt=null;document.getElementById('autoBtn').textContent='⏱ خودکار';document.getElementById('autoTxt').textContent='';}
   else{autoInt=setInterval(()=>{refresh();},15000);document.getElementById('autoBtn').textContent='⏹ توقف';document.getElementById('autoTxt').textContent='هر ۱۵ ثانیه';}
-}
-function toggleIspUsers(isp, card) {
-  var key = encodeURIComponent(isp);
-  var el  = document.getElementById('ul_'+key);
-  if (!el) return;
-  var showing = el.style.display !== 'none';
-  if (showing) {
-    el.style.display = 'none';
-    card.classList.remove('expanded');
-    return;
-  }
-  card.classList.add('expanded');
-  el.style.display = '';
-  loadIspUsersInto(isp, el);
-}
-function loadIspUsersInto(isp, el){
-  el.innerHTML = '<div style="text-align:center;padding:8px;color:var(--muted);font-size:11px">⏳ در حال بارگذاری...</div>';
-  fetch('online.php?ajax=isp_users&isp='+encodeURIComponent(isp))
-    .then(r=>r.json()).then(d=>{
-      if(!d.rows||!d.rows.length){
-        el.innerHTML='<div style="text-align:center;padding:8px;color:var(--muted);font-size:11px">📡 هیچ کاربری آنلاین نیست</div>';
-        return;
-      }
-      var html='<table><thead><tr><th>👤 کاربر</th><th>🌐 IP</th><th>⏱ مدت</th><th>📦 گروه</th><th>عملیات</th></tr></thead><tbody>';
-      d.rows.forEach((u,i)=>{
-        html+='<tr><td><strong>'+u.username+'</strong></td><td style="font-family:monospace">'+u.ip+'</td><td>'+u.duration+'</td><td>'+u.group+'</td>'
-          +'<td><button class="btn bd bsm" data-i="'+i+'" title="Kill (قطع اتصال)">⚡</button></td></tr>';
-      });
-      html+='</tbody></table><div style="text-align:left;font-size:10px;color:var(--muted);padding:3px 6px">'+d.total+' کاربر آنلاین</div>';
-      el.innerHTML=html;
-      el.querySelectorAll('button[data-i]').forEach(function(btn){
-        btn.addEventListener('click', function(e){
-          e.stopPropagation();
-          var u = d.rows[parseInt(btn.getAttribute('data-i'),10)];
-          killUser(u.uid, u.username, function(){ loadIspUsersInto(isp, el); });
-        });
-      });
-    }).catch(()=>{
-      el.innerHTML='<div style="text-align:center;color:var(--red);font-size:11px">❌ خطا</div>';
-    });
 }
 
 load();
