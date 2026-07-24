@@ -18,35 +18,57 @@ $base = rtrim(IBS_URL, '/');
 
 // از تست قبلی معلوم شد آدرس واقعی همینه (خودِ IBSng توی پیام خطای Referer لو
 // دادش): user/search_user.php با تب Online. مثل kill_user_by_id.php یک هدر
-// Referer معتبر لازم داره وگرنه رد می‌شه.
-$path = 'user/search_user.php?tab1_selected=Online';
-$url  = $base . '/' . $path;
+// Referer معتبر لازم داره وگرنه رد می‌شه. تست قبلی فقط خودِ فرم خالی رو نشون داد
+// (چون search=1/submit_form=1 ارسال نشده بود) - این بار واقعاً فرم رو submit
+// می‌کنیم (چک‌باکس Online + چند تا attribute) تا نتیجه‌ی واقعی کاربرهای آنلاین
+// رو ببینیم.
+$searchUrl = $base . '/user/search_user.php';
 
-$refererCandidates = [
-    $base . '/user/search_user.php',
-    $base . '/admin_index.php',
+$postFields = [
+    'search'          => '1',
+    'show_reports'    => '1',
+    'submit_form'     => '1',
+    'page'            => '1',
+    'is_online_yes'   => 'On',
+    'order_by'        => 'user_id',
+    'desc'            => 'on',
+    'rpp'             => '5000',
+    'view_options'    => '2', // WEB - برای دیدن ساختار واقعی جدول
+    'Internet_Username' => 'show__attrs_normal_username',
+    'User_ID'           => 'show__basic_user_id',
+    'Group'             => 'show__basic_group_name',
+    'ISP'               => 'show__basic_isp_name',
+    'Online'            => 'show__online_status|formatOnline',
+    'Remote_IPs'        => 'show__remote_ips',
 ];
 
-foreach ($refererCandidates as $ref) {
-    $headers = ['Referer: ' . $ref];
-    $res  = ibsng_nativeHttpEx($url, $cookieFile, null, $headers);
-    $body = $res['body'];
-    $len  = $body === false ? 0 : strlen($body);
-    $isLoggedInPage = $body !== false && ibsng_nativeIsLoggedIn($body);
-    echo "── Referer: $ref ──\n";
-    echo "   HTTP: {$res['http_code']}   effective_url: {$res['effective_url']}\n";
-    echo "   طول پاسخ: $len بایت   صفحه‌ی داخلی معتبر (لینک Logout داره): " . ($isLoggedInPage ? 'بله' : 'خیر') . "\n";
-    if ($body !== false && $len > 0) {
-        if ($isLoggedInPage) {
-            echo "   *** HTML کامل (برای پیدا کردن ساختار جدول) ***\n";
-            echo $body . "\n";
-        } else {
-            $snippet = trim(preg_replace('/\s+/', ' ', strip_tags($body)));
-            echo "   متن خام (بدون تگ، ۳۰۰ کاراکتر اول): " . substr($snippet, 0, 300) . "\n";
-        }
+$headers = ['Referer: ' . $searchUrl . '?tab1_selected=Online'];
+$res  = ibsng_nativeHttpEx($searchUrl, $cookieFile, $postFields, $headers);
+$body = $res['body'];
+$len  = $body === false ? 0 : strlen($body);
+$isLoggedInPage = $body !== false && ibsng_nativeIsLoggedIn($body);
+
+echo "── POST جستجوی کاربران آنلاین ──\n";
+echo "   HTTP: {$res['http_code']}   effective_url: {$res['effective_url']}\n";
+echo "   طول پاسخ: $len بایت   صفحه‌ی داخلی معتبر: " . ($isLoggedInPage ? 'بله' : 'خیر') . "\n\n";
+
+if ($body === false || $len === 0) {
+    echo "پاسخی دریافت نشد.\n";
+} elseif (!$isLoggedInPage) {
+    $snippet = trim(preg_replace('/\s+/', ' ', strip_tags($body)));
+    echo "متن خام (بدون تگ، ۵۰۰ کاراکتر اول): " . substr($snippet, 0, 500) . "\n";
+} else {
+    // فقط بخش جدول نتایج (list_table0) رو نشون بده، نه کل فرم جستجو
+    $pos = strpos($body, "id='list_table0'");
+    if ($pos === false) $pos = strpos($body, 'id="list_table0"');
+    if ($pos !== false) {
+        $start = max(0, $pos - 50);
+        echo "*** بخش جدول نتایج (از نزدیک list_table0) ***\n";
+        echo substr($body, $start, 8000) . "\n";
+    } else {
+        echo "!!! id='list_table0' توی پاسخ پیدا نشد - کل HTML رو چاپ می‌کنم:\n";
+        echo $body . "\n";
     }
-    echo "\n";
-    if ($isLoggedInPage) break;
 }
 
-echo "=== پایان تست ===\n";
+echo "\n=== پایان تست ===\n";
