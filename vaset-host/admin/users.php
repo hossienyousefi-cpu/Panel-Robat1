@@ -331,12 +331,6 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         if($rLock['error']??null){$error='خطا در '.($lock?'قفل کردن':'رفع قفل').': '.$rLock['error'];}
         else{header('Location: users.php?success='.($lock?'کاربر+قفل+شد':'قفل+برداشته+شد'));exit;}
     }
-    if($act==='kick_user'){
-        $uid=$_POST['user_id'];
-        $rKick=ibsng_kickUser($uid);
-        if($rKick['error']??null){$error='خطا در Kick کردن: '.$rKick['error'];}
-        else{header('Location: users.php?success=کاربر+Kick+شد+(روش+'.($rKick['method']??'?').')');exit;}
-    }
     // ساخت گروهی
     if($act==='bulk_create'){
         $pfx   =sanitize($_POST['bulk_prefix']??'user');
@@ -581,10 +575,9 @@ input:focus,select:focus{border-color:var(--acc)}
             <th class="th-sort" onclick="setSort('username')">کاربر <span id="s_username">↕</span></th><th>رمز</th><th>وضعیت</th>
             <th class="th-sort" onclick="setSort('group')">گروه <span id="s_group">↕</span></th>
             <th class="th-sort" onclick="setSort('isp')">ISP <span id="s_isp">↕</span></th>
-            <th>وضعیت اتصال</th>
             <th class="th-sort" onclick="setSort('exp')">انقضا <span id="s_exp">↕</span></th><th>عملیات</th>
           </tr></thead>
-          <tbody id="tbody"><tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr></tbody>
+          <tbody id="tbody"><tr><td colspan="7" class="loading">⏳ در حال بارگذاری...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -717,21 +710,6 @@ input:focus,select:focus{border-color:var(--acc)}
   </div>
 </div>
 
-<!-- Kick (قطع اتصال آنلاین) -->
-<div class="mbg" id="kickM">
-  <div class="modal msm">
-    <div class="mh"><div class="mt">⚡ Kick کاربر</div><button class="mc" onclick="closeM('kickM')" title="بستن">✕</button></div>
-    <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
-      <input type="hidden" name="action" value="kick_user">
-      <input type="hidden" name="user_id" id="kUid">
-      <div class="mb"><p style="color:var(--txt2)">اتصال آنلاین کاربر «<b id="kUname"></b>» قطع بشه؟</p></div>
-      <div class="mf">
-        <button type="button" class="btn bg" onclick="closeM('kickM')">انصراف</button>
-        <button type="submit" class="btn bpu2">⚡ Kick</button>
-      </div>
-    </form>
-  </div>
-</div>
 
 <!-- ساخت گروهی -->
 <div class="mbg" id="bulkM">
@@ -849,7 +827,7 @@ function restoreUsersState(){
 
 function load(){
   saveUsersState();
-  document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">⏳ در حال بارگذاری...</td></tr>';
+  document.getElementById('tbody').innerHTML='<tr><td colspan="7" class="loading">⏳ در حال بارگذاری...</td></tr>';
   if(curTab==='exp3'){loadExp();return;}
   const s=document.getElementById('fSrch').value.trim();
   const g=document.getElementById('fGrp').value;
@@ -857,19 +835,19 @@ function load(){
   const ras=document.getElementById('fRas').value.trim();
   fetch(`users.php?ajax=list&page=${curP}&search=${encodeURIComponent(s)}&group=${encodeURIComponent(g)}&isp=${encodeURIComponent(isp)}&ras=${encodeURIComponent(ras)}&sort=${encodeURIComponent(curSort)}&dir=${encodeURIComponent(curDir)}`)
     .then(r=>r.json()).then(d=>renderTable(d,50))
-    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
+    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="7" class="loading">❌ خطا</td></tr>';});
 }
 
 function loadExp(){
   fetch('users.php?ajax=expiring&days=3')
     .then(r=>r.json()).then(d=>renderTable(d,200))
-    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">❌ خطا</td></tr>';});
+    .catch(()=>{document.getElementById('tbody').innerHTML='<tr><td colspan="7" class="loading">❌ خطا</td></tr>';});
 }
 
 function renderTable(d,pp){
   const total=d.total,rows=d.rows||[];
   document.getElementById('tinfo').textContent=rows.length?`نمایش ${curP*pp+1}–${Math.min((curP+1)*pp,total)} از ${total.toLocaleString('de-DE')} کاربر`:'هیچ کاربری یافت نشد';
-  if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="8" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
+  if(!rows.length){document.getElementById('tbody').innerHTML='<tr><td colspan="7" class="loading">هیچ کاربری یافت نشد</td></tr>';document.getElementById('pag').innerHTML='';return;}
   document.getElementById('tbody').innerHTML=rows.map(u=>{
     const st=u.status==='Active'||u.status==='Recharged'?`<span class="badge bok">${u.status}</span>`:`<span class="badge ber">${u.status}</span>`;
     const ec=u.days_left===null?'bbl':u.days_left<0?'ber':u.days_left<=7?'bwa':'bok';
@@ -879,18 +857,16 @@ function renderTable(d,pp){
     // لاک/آنلاک رو نشون نمی‌ده)، برای همین نمی‌تونیم مطمئن حدس بزنیم کاربر الان
     // لاکه یا نه - هر دو دکمه رو همیشه نشون می‌دیم.
     return `<tr>
-      <td>${u.online?'<span class="od"></span>':''}<strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
+      <td><strong style="color:var(--txt);font-size:13px">${u.username}</strong><br><small style="color:var(--muted)">#${u.id}</small></td>
       <td>${pw}</td><td>${st}</td>
       <td><span class="badge bpu2">${u.group}</span></td>
       <td style="font-size:11px">${u.isp}</td>
-      <td>${u.online?'<span class="badge bok">🟢 آنلاین</span>':'<span class="badge ber">🔴 آفلاین</span>'}</td>
       <td style="font-size:11px">${expT}</td>
       <td><div class="acts">
         <button class="btn by bsm" onclick="openPM('${u.id}','${u.username}')" title="تغییر رمز">🔑</button>
         <button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید">🔄</button>
         <button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>
         <button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>
-        <button class="btn bpu2 bsm" onclick="openKick('${u.id}','${u.username}')" title="Kick (قطع اتصال)">⚡</button>
         <button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')" title="حذف کاربر">🗑</button>
       </div></td>
     </tr>`;
@@ -916,12 +892,6 @@ function openLk(uid,un,st){
   document.getElementById('lockTitle').textContent=lock?'🔒 قفل کاربر':'🔓 رفع قفل';
   document.getElementById('lockMsg').textContent=(lock?'کاربر ':'رفع قفل ')+un+(lock?' قفل می‌شود':' می‌شود');
   openM('lockM');
-}
-
-function openKick(uid,un){
-  document.getElementById('kUid').value=uid;
-  document.getElementById('kUname').textContent=un;
-  openM('kickM');
 }
 
 restoreUsersState();

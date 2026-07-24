@@ -60,18 +60,32 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'online_stats') {
 
     // ساخت ردیف‌ها
     $rows = [];
+    $usernames = [];
     foreach ($filtered as $u) {
         $dur    = (int)($u['duration_secs'] ?? 0);
         $durStr = ibsng_formatDuration($dur);
+        $un     = $u['normal_username'] ?? $u['username'] ?? '—';
+        $usernames[] = $un;
         $rows[] = [
-            'username' => $u['normal_username'] ?? $u['username'] ?? '—',
+            'username' => $un,
             'ip'       => $u['remote_ip'] ?? $u['framed_ip_address'] ?? '—',
             'ras'      => $u['unique_id'] ?? $u['nas_ip_address'] ?? $u['nas_identifier'] ?? '—',
             'duration' => $durStr,
             'dur_secs' => $dur,
             'group'    => $u['group_name'] ?? '—',
             'isp'      => $u['isp_name']   ?? '—',
+            'uid'      => null,
         ];
+    }
+
+    if (!empty($usernames)) {
+        $ph = implode(',', array_fill(0, count($usernames), '?'));
+        $uStmt = $pdo->prepare("SELECT username, uid FROM ibsng_users_cache WHERE username IN ($ph)");
+        $uStmt->execute($usernames);
+        $uidMap = [];
+        foreach ($uStmt->fetchAll() as $r) $uidMap[$r['username']] = $r['uid'];
+        foreach ($rows as &$row) $row['uid'] = $uidMap[$row['username']] ?? null;
+        unset($row);
     }
 
     echo json_encode([
@@ -80,6 +94,36 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'online_stats') {
         'grp_stats'    => $grpStats,
         'rows'         => $rows,
     ]);
+    exit;
+}
+
+// ═══════════════════════════════════════════════════════════
+// POST: Kill کردن کاربر آنلاین (فقط اگر متعلق به ISP همین ریسلر باشه)
+// ═══════════════════════════════════════════════════════════
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kill_user') {
+    header('Content-Type: application/json');
+    if (!verifyCsrf($_POST['csrf_token'] ?? '')) {
+        echo json_encode(['ok' => false, 'error' => 'درخواست نامعتبر است، صفحه را رفرش کنید.']);
+        exit;
+    }
+    $uid = sanitize($_POST['user_id'] ?? '');
+    if ($uid === '') { echo json_encode(['ok' => false, 'error' => 'کاربر نامعتبر']); exit; }
+
+    // چک مالکیت: بدون این، یک ریسلر می‌تونست با فرستادن user_id دلخواه
+    // کاربر متعلق به ریسلر دیگه رو Kick کنه.
+    $infK = ibsng_call('user.getUserInfo', ['user_id' => $uid]);
+    $uIspK = $infK['result'][$uid]['basic_info']['isp_name'] ?? '';
+    if ($ispName === '' || $uIspK !== $ispName) {
+        echo json_encode(['ok' => false, 'error' => 'شما اجازه‌ی Kick این کاربر را ندارید']);
+        exit;
+    }
+
+    $rKick = ibsng_kickUser($uid);
+    if ($rKick['error'] ?? null) {
+        echo json_encode(['ok' => false, 'error' => $rKick['error']]);
+    } else {
+        echo json_encode(['ok' => true, 'method' => $rKick['method'] ?? '?']);
+    }
     exit;
 }
 
@@ -128,6 +172,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 .bp{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
 .bg{background:rgba(16,185,129,.15);color:var(--grn);border:1px solid rgba(16,185,129,.3)}
 .bc{background:rgba(6,182,212,.15);color:#22d3ee;border:1px solid rgba(6,182,212,.3)}
+.bd{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3)}
 .bsm{padding:5px 8px;font-size:11px;border-radius:7px}
 .stats-top{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap}
 .sc{background:var(--card);border:1px solid var(--bor);border-radius:12px;padding:18px 28px;text-align:center;flex:1;min-width:120px}
@@ -237,9 +282,23 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
 </main>
 
 <script>
+const CSRF_TOKEN = <?=json_encode(generateCsrf())?>;
 function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').style.display='block'}
 function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').style.display='none'}
 var autoInt=null, curGrp='';
+
+function killUser(uid, username, afterFn){
+  if(!uid){ alert('امکان Kick این کاربر وجود ندارد (شناسه پیدا نشد)'); return; }
+  if(!confirm('اتصال کاربر «'+username+'» قطع شود؟')) return;
+  var fd=new FormData();
+  fd.append('action','kill_user');
+  fd.append('user_id',uid);
+  fd.append('csrf_token',CSRF_TOKEN);
+  fetch('online.php',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){ alert('⚠️ خطا: '+(d.error||'نامشخص')); return; }
+    if(afterFn) afterFn(); else loadData();
+  }).catch(function(){ alert('⚠️ خطا در اتصال به سرور'); });
+}
 
 function loadData(){
   var s=document.getElementById('srch').value.trim();
@@ -270,9 +329,9 @@ function loadData(){
       return;
     }
     var html='<div class="card"><div class="tw"><table class="t"><thead><tr>'
-      +'<th>👤 کاربر</th><th>🌐 IP</th><th>📡 RAS</th><th>⏱ مدت</th><th>📦 گروه</th><th>🌐 ISP</th>'
+      +'<th>👤 کاربر</th><th>🌐 IP</th><th>📡 RAS</th><th>⏱ مدت</th><th>📦 گروه</th><th>🌐 ISP</th><th>عملیات</th>'
       +'</tr></thead><tbody>';
-    d.rows.forEach(function(u){
+    d.rows.forEach(function(u,i){
       html+='<tr>'
         +'<td><span class="od"></span><strong style="color:var(--txt)">'+u.username+'</strong></td>'
         +'<td style="font-family:monospace;font-size:11px">'+u.ip+'</td>'
@@ -280,11 +339,18 @@ function loadData(){
         +'<td style="color:var(--acc2);font-weight:600">'+u.duration+'</td>'
         +'<td><span class="badge bpu2">'+u.group+'</span></td>'
         +'<td style="font-size:11px;color:var(--acc2)">'+u.isp+'</td>'
+        +'<td><button class="btn bd bsm" data-i="'+i+'" title="Kill (قطع اتصال)">⚡</button></td>'
         +'</tr>';
     });
     html+='</tbody></table></div></div>';
     html+='<div style="text-align:center;margin-top:9px;font-size:11px;color:var(--muted)">نمایش '+d.rows.length+' کاربر آنلاین</div>';
     document.getElementById('container').innerHTML=html;
+    document.getElementById('container').querySelectorAll('button[data-i]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var u=d.rows[parseInt(btn.getAttribute('data-i'),10)];
+        killUser(u.uid, u.username, loadData);
+      });
+    });
   }).catch(function(e){
     document.getElementById('errBox').style.display='';
     document.getElementById('errBox').textContent='⚠️ خطا در اتصال به سرور';

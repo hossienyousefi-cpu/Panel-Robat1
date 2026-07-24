@@ -46,24 +46,60 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_stats') {
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_users') {
     header('Content-Type: application/json');
     $ispFilter = trim($_GET['isp'] ?? '');
+    $search    = trim($_GET['search'] ?? '');
     $onlineResult = ibsng_getOnlineRaw();
     if (!empty($onlineResult['error'])) {
         echo json_encode(['error' => $onlineResult['error'], 'rows' => []]);
         exit;
     }
     $rows = [];
+    $usernames = [];
     foreach ($onlineResult['data'] as $u) {
         if ($ispFilter !== '' && ($u['isp_name'] ?? '') !== $ispFilter) continue;
+        $un = $u['normal_username'] ?? $u['username'] ?? '—';
+        if ($search !== '' && stripos($un, $search) === false) continue;
         $dur = (int)($u['duration_secs'] ?? 0);
+        $usernames[] = $un;
         $rows[] = [
-            'username' => $u['normal_username'] ?? $u['username'] ?? '—',
+            'username' => $un,
             'ip'       => $u['remote_ip'] ?? $u['framed_ip_address'] ?? '—',
             'ras'      => $u['unique_id'] ?? $u['nas_ip_address'] ?? $u['nas_identifier'] ?? '—',
             'duration' => ibsng_formatDuration($dur),
             'group'    => $u['group_name'] ?? '—',
+            'uid'      => null,
         ];
     }
+    // uid هر ردیف رو از جدول کش محلی (که هر شب پر می‌شه) به‌جای یک تماس جدا برای
+    // هر کاربر، با یک کوئری دسته‌ای می‌گیریم - برای دکمه‌ی Kill لازمه.
+    if (!empty($usernames)) {
+        $ph = implode(',', array_fill(0, count($usernames), '?'));
+        $uStmt = $pdo->prepare("SELECT username, uid FROM ibsng_users_cache WHERE username IN ($ph)");
+        $uStmt->execute($usernames);
+        $uidMap = [];
+        foreach ($uStmt->fetchAll() as $r) $uidMap[$r['username']] = $r['uid'];
+        foreach ($rows as &$row) $row['uid'] = $uidMap[$row['username']] ?? null;
+        unset($row);
+    }
     echo json_encode(['rows' => $rows, 'total' => count($rows)]);
+    exit;
+}
+
+// AJAX: Kill کردن یک کاربر آنلاین
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kill_user') {
+    header('Content-Type: application/json');
+    if (!verifyCsrf($_POST['csrf_token'] ?? '')) {
+        echo json_encode(['ok' => false, 'error' => 'درخواست نامعتبر است، صفحه را رفرش کنید.']);
+        exit;
+    }
+    $uid = sanitize($_POST['user_id'] ?? '');
+    if ($uid === '') { echo json_encode(['ok' => false, 'error' => 'کاربر نامعتبر']); exit; }
+    $rKick = ibsng_kickUser($uid);
+    if ($rKick['error'] ?? null) {
+        echo json_encode(['ok' => false, 'error' => $rKick['error']]);
+    } else {
+        logActivity('admin', $_SESSION['admin_id'], 'kill_user', "کاربر #$uid از قسمت کاربران آنلاین Kick شد");
+        echo json_encode(['ok' => true, 'method' => $rKick['method'] ?? '?']);
+    }
     exit;
 }
 
@@ -113,6 +149,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 .bp{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
 .bg{background:rgba(16,185,129,.15);color:var(--grn);border:1px solid rgba(16,185,129,.3)}
 .bc{background:rgba(6,182,212,.15);color:#22d3ee;border:1px solid rgba(6,182,212,.3)}
+.bd{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3)}
 .bsm{padding:5px 8px;font-size:11px;border-radius:7px}
 /* stats top */
 .stats-top{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap}
@@ -135,6 +172,12 @@ main{margin-right:var(--sw);flex:1;min-width:0}
 .isp-users-list td{font-size:11px;padding:4px 6px;border-bottom:1px solid rgba(30,48,50,.3);color:var(--txt2)}
 .isp-card.expanded{border-color:var(--acc)}
 .loading{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+.sbox{background:var(--card);border:1px solid var(--bor);border-radius:12px;padding:12px 14px;margin-bottom:16px}
+.srow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.si{padding:9px 12px;background:var(--surf);border:1px solid var(--bor);border-radius:8px;color:var(--txt);font-family:'Vazirmatn';font-size:13px;outline:none;transition:border .2s;flex:1;min-width:150px}
+.si:focus{border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--bor);border-radius:12px;overflow:hidden}
+.tw{overflow-x:auto}
 </style>
 </head>
 <body>
@@ -190,12 +233,53 @@ main{margin-right:var(--sw);flex:1;min-width:0}
       <div class="sc"><div class="sv" style="color:var(--grn)" id="sTotalOnline">—</div><div class="sl">کل آنلاین</div></div>
       <div class="sc"><div class="sv" style="color:var(--acc)" id="sTotalIsps">—</div><div class="sl">تعداد ISP</div></div>
     </div>
+    <div class="sbox">
+      <div class="srow">
+        <input type="text" class="si" id="srch" placeholder="🔍 جستجوی نام کاربری در بین همه‌ی ISPها...">
+        <button class="btn bc bsm" onclick="document.getElementById('srch').value='';doSearch()">✕ پاک</button>
+      </div>
+    </div>
     <div id="ispContainer" class="isp-grid"><div class="loading">⏳ در حال بارگذاری...</div></div>
   </div>
 </main>
 
 <script>
+const CSRF_TOKEN = <?=json_encode(generateCsrf())?>;
+function killUser(uid, username, afterFn){
+  if(!uid){alert('شناسه‌ی این کاربر پیدا نشد (شاید هنوز توی کش سینک نشده)');return;}
+  if(!confirm('اتصال آنلاین کاربر «'+username+'» قطع بشه؟'))return;
+  const fd=new FormData();
+  fd.append('csrf_token',CSRF_TOKEN);
+  fd.append('action','kill_user');
+  fd.append('user_id',uid);
+  fetch('online.php',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+    if(d.ok){ if(afterFn) afterFn(); else load(); }
+    else alert('خطا: '+(d.error||'نامشخص'));
+  }).catch(()=>alert('خطا در اتصال به سرور'));
+}
 let autoInt=null;
+function doSearch(){
+  const s=document.getElementById('srch').value.trim();
+  if(s===''){load();return;}
+  document.getElementById('ispContainer').innerHTML='<div class="loading">⏳ در حال جستجو...</div>';
+  fetch('online.php?ajax=isp_users&isp=&search='+encodeURIComponent(s)).then(r=>r.json()).then(d=>{
+    if(d.error){document.getElementById('ispContainer').innerHTML='<div class="loading">⚠️ '+d.error+'</div>';return;}
+    if(!d.rows||!d.rows.length){document.getElementById('ispContainer').innerHTML='<div class="loading">هیچ کاربری یافت نشد</div>';return;}
+    let html='<div class="card" style="grid-column:1/-1"><div class="tw"><table class="isp-users-list" style="width:100%"><thead><tr>'
+      +'<th>👤 کاربر</th><th>🌐 IP</th><th>⏱ مدت</th><th>📦 گروه</th><th>عملیات</th></tr></thead><tbody>';
+    d.rows.forEach(u=>{
+      html+='<tr><td><strong>'+u.username+'</strong></td><td style="font-family:monospace">'+u.ip+'</td><td>'+u.duration+'</td><td>'+u.group+'</td>'
+        +'<td><button class="btn bd bsm" onclick="killUser(\''+u.uid+'\',\''+u.username.replace(/'/g,"\\'")+'\',doSearch)" title="Kill (قطع اتصال)">⚡ Kill</button></td></tr>';
+    });
+    html+='</tbody></table></div></div>';
+    document.getElementById('ispContainer').innerHTML=html;
+  }).catch(()=>{document.getElementById('ispContainer').innerHTML='<div class="loading">❌ خطا در بارگذاری</div>';});
+}
+var srchT=null;
+document.getElementById('srch').addEventListener('input',function(){
+  clearTimeout(srchT);
+  srchT=setTimeout(doSearch,500);
+});
 function load(){
   fetch('online.php?ajax=isp_stats').then(r=>r.json()).then(d=>{
     document.getElementById('hCnt').textContent='('+d.total_online+')';
@@ -217,7 +301,7 @@ function load(){
     document.getElementById('ispContainer').innerHTML='<div class="loading">❌ خطا در بارگذاری</div>';
   });
 }
-function refresh(){fetch('online.php?refresh_cache=1').then(()=>load());}
+function refresh(){fetch('online.php?refresh_cache=1').then(()=>{ if(document.getElementById('srch').value.trim()!=='') doSearch(); else load(); });}
 function toggleAuto(){
   if(autoInt){clearInterval(autoInt);autoInt=null;document.getElementById('autoBtn').textContent='⏱ خودکار';document.getElementById('autoTxt').textContent='';}
   else{autoInt=setInterval(()=>{refresh();},15000);document.getElementById('autoBtn').textContent='⏹ توقف';document.getElementById('autoTxt').textContent='هر ۱۵ ثانیه';}
@@ -234,6 +318,9 @@ function toggleIspUsers(isp, card) {
   }
   card.classList.add('expanded');
   el.style.display = '';
+  loadIspUsersInto(isp, el);
+}
+function loadIspUsersInto(isp, el){
   el.innerHTML = '<div style="text-align:center;padding:8px;color:var(--muted);font-size:11px">⏳ در حال بارگذاری...</div>';
   fetch('online.php?ajax=isp_users&isp='+encodeURIComponent(isp))
     .then(r=>r.json()).then(d=>{
@@ -241,12 +328,20 @@ function toggleIspUsers(isp, card) {
         el.innerHTML='<div style="text-align:center;padding:8px;color:var(--muted);font-size:11px">📡 هیچ کاربری آنلاین نیست</div>';
         return;
       }
-      var html='<table><thead><tr><th>👤 کاربر</th><th>🌐 IP</th><th>⏱ مدت</th><th>📦 گروه</th></tr></thead><tbody>';
-      d.rows.forEach(u=>{
-        html+='<tr><td><strong>'+u.username+'</strong></td><td style="font-family:monospace">'+u.ip+'</td><td>'+u.duration+'</td><td>'+u.group+'</td></tr>';
+      var html='<table><thead><tr><th>👤 کاربر</th><th>🌐 IP</th><th>⏱ مدت</th><th>📦 گروه</th><th>عملیات</th></tr></thead><tbody>';
+      d.rows.forEach((u,i)=>{
+        html+='<tr><td><strong>'+u.username+'</strong></td><td style="font-family:monospace">'+u.ip+'</td><td>'+u.duration+'</td><td>'+u.group+'</td>'
+          +'<td><button class="btn bd bsm" data-i="'+i+'" title="Kill (قطع اتصال)">⚡</button></td></tr>';
       });
       html+='</tbody></table><div style="text-align:left;font-size:10px;color:var(--muted);padding:3px 6px">'+d.total+' کاربر آنلاین</div>';
       el.innerHTML=html;
+      el.querySelectorAll('button[data-i]').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+          e.stopPropagation();
+          var u = d.rows[parseInt(btn.getAttribute('data-i'),10)];
+          killUser(u.uid, u.username, function(){ loadIspUsersInto(isp, el); });
+        });
+      });
     }).catch(()=>{
       el.innerHTML='<div style="text-align:center;color:var(--red);font-size:11px">❌ خطا</div>';
     });

@@ -14,7 +14,16 @@ $reseller = $reseller->fetch();
 // «کل کاربران من» باید تعداد واقعی کاربرهای این ISP توی IBSng باشه، نه شمارش
 // جدول محلی users (که فقط کاربرهایی رو داره که از همین پنل ساخته شدن - برای
 // کاربرهایی که قبلاً توی IBSng بودن یا از پنل اصلی ساخته شدن صفر/خیلی کم بود).
-$totalUsers = ibsng_getIspUserCount($reseller['isp_name'] ?? '');
+// اگه جدول کش محلی (ibsng_users_cache) تازه‌ست، از همون‌جا (سریع) می‌خونیم.
+$ispName_dash0 = $reseller['isp_name'] ?? '';
+$dbCacheOk = ibsng_dbCacheFresh($pdo);
+if ($dbCacheOk && $ispName_dash0 !== '') {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM ibsng_users_cache WHERE isp_name=?");
+    $stmt->execute([$ispName_dash0]);
+    $totalUsers = (int)$stmt->fetchColumn();
+} else {
+    $totalUsers = ibsng_getIspUserCount($ispName_dash0);
+}
 
 $expiredUsers = $pdo->prepare("SELECT COUNT(*) FROM users WHERE reseller_id=? AND (status='expired' OR expire_date < CURDATE())");
 $expiredUsers->execute([$rid]); $expiredUsers = $expiredUsers->fetchColumn();
@@ -22,8 +31,15 @@ $expiredUsers->execute([$rid]); $expiredUsers = $expiredUsers->fetchColumn();
 // کاربران رو به اتمام (۷ روز آینده) از خودِ IBSng - نه جدول محلی users (که فقط
 // کاربرهای ساخته‌شده از همین پنل رو داره).
 $expiringSoon = [];
-$ispName_dash0 = $reseller['isp_name'] ?? '';
-if ($ispName_dash0 !== '') {
+if ($ispName_dash0 !== '' && $dbCacheOk) {
+    $in7Ts = strtotime('+7 days');
+    $stmt = $pdo->prepare("SELECT username, exp_date FROM ibsng_users_cache
+        WHERE isp_name=? AND exp_ts >= ? AND exp_ts <= ? ORDER BY exp_ts ASC LIMIT 200");
+    $stmt->execute([$ispName_dash0, time(), $in7Ts]);
+    foreach ($stmt->fetchAll() as $r) {
+        $expiringSoon[] = ['username' => $r['username'], 'expire_date' => $r['exp_date'] !== '' ? $r['exp_date'] : '—'];
+    }
+} elseif ($ispName_dash0 !== '') {
     $now    = date('Y/m/d');
     $future = date('Y/m/d', strtotime('+7 days'));
     $rExp = ibsng_call('user.searchExpiredUsersExtended', [

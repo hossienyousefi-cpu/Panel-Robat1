@@ -9,73 +9,98 @@ $activeResellers = $pdo->query("SELECT COUNT(*) FROM resellers WHERE status='act
 $totalDebt       = $pdo->query("SELECT SUM(debt) FROM resellers")->fetchColumn() ?: 0;
 $totalTrans      = $pdo->query("SELECT SUM(ABS(amount)) FROM transactions")->fetchColumn() ?: 0;
 
-// ===== آمار از  =====
+// ===== آمار از IBSng =====
 // کاربران آنلاین - کش ۳۰ ثانیه‌ای + تایم‌اوت کوتاه (۵ ثانیه به‌جای ۲۰ ثانیه) تا
 // اگه IBSng به این متد جواب نداد، کل داشبورد معطل نمونه.
 $onlineResult = ibsng_call('report.getOnlineUsersCount', [], 30, 5);
 $onlineCount  = $onlineResult['result']['internet_onlines'] ?? '?';
 
-// کل کاربران از 
-$searchResult = ibsng_call('user.searchUser', [
-    'conds'    => [],
-    'from'     => 0,
-    'to'       => 1,
-    'order_by' => 'user_id',
-    'desc'     => false,
-]);
-$totalUsers = $searchResult['result'][0] ?? 0;
+$in7Ts = strtotime('+7 days');
 
-// کاربران فعال (Recharged) از 
-$activeResult = ibsng_call('user.searchUser', [
-    'conds'    => ['status' => 'Recharged', 'status_op' => 'equals'],
-    'from'     => 0,
-    'to'       => 1,
-    'order_by' => 'user_id',
-    'desc'     => false,
-]);
-$activeUsers = $activeResult['result'][0] ?? 0;
+// اگه جدول کش محلی (ibsng_users_cache) تازه‌ست، آمار کاربران/رو-به-اتمام رو از
+// همون‌جا (سریع، بدون تماس با IBSng) می‌خونیم؛ وگرنه به روش قدیمیِ زنده برمی‌گردیم.
+if (ibsng_dbCacheFresh($pdo)) {
+    $totalUsers  = (int)$pdo->query("SELECT COUNT(*) FROM ibsng_users_cache")->fetchColumn();
+    $activeUsers = (int)$pdo->query("SELECT COUNT(*) FROM ibsng_users_cache WHERE status='Recharged'")->fetchColumn();
 
-// کاربران رو به اتمام 7 روز از 
-$now  = date('Y/m/d');
-$in7  = date('Y/m/d', strtotime('+7 days'));
-
-// یک call برای تعداد کل + 10 تای اول برای نمایش
-$expiringResult = ibsng_call('user.searchExpiredUsersExtended', [
-    'conds'    => [
-        'exp_date_from'      => $now,
-        'exp_date_from_unit' => 'gregorian',
-        'exp_date_to'        => $in7,
-        'exp_date_to_unit'   => 'gregorian',
-    ],
-    'from'     => 0,
-    'to'       => 200,
-    'order_by' => 'user_id',
-    'desc'     => false,
-]);
-$expiringUsers = $expiringResult['result'][2] ?? [];
-// تعداد واقعی = count آرایه برگشتی (چون to=200 بیشتر از کل کاربران رو به اتمام است)
-$expiringCount = count($expiringUsers);
-// فقط 10 تای اول برای نمایش در داشبورد
-$expiringUsersDisplay = array_slice($expiringUsers, 0, 10, true);
-
-// جزئیات کاربران رو به اتمام (batch)
-$expiringSoon = [];
-if (!empty($expiringUsersDisplay)) {
-    $allUIDs    = implode(',', array_keys($expiringUsersDisplay));
-    $infoResult = ibsng_call('user.getUserInfo', ['user_id' => $allUIDs]);
-    $infos      = $infoResult['result'] ?? [];
-    foreach ($expiringUsersDisplay as $uid => $expDate) {
-        $basic = $infos[$uid]['basic_info'] ?? [];
-        $attrs = $infos[$uid]['attrs']      ?? [];
+    $stmt = $pdo->prepare("SELECT username, isp_name, group_name, exp_date, exp_ts FROM ibsng_users_cache
+        WHERE exp_ts >= ? AND exp_ts <= ? ORDER BY exp_ts ASC");
+    $stmt->execute([time(), $in7Ts]);
+    $expRows = $stmt->fetchAll();
+    $expiringCount = count($expRows);
+    $expiringSoon = [];
+    foreach (array_slice($expRows, 0, 10) as $r) {
         $expiringSoon[] = [
-            'username'   => $attrs['normal_username'] ?? "UserID $uid",
-            'isp'        => $basic['isp_name']  ?? '—',
-            'group'      => $basic['group_name'] ?? '—',
-            'expire_date'=> substr($expDate, 0, 10),
-            'days_left'  => (int)((strtotime($expDate) - time()) / 86400),
+            'username'    => $r['username'],
+            'isp'         => $r['isp_name'],
+            'group'       => $r['group_name'],
+            'expire_date' => $r['exp_date'],
+            'days_left'   => (int)(($r['exp_ts'] - time()) / 86400),
         ];
     }
-    usort($expiringSoon, fn($a,$b) => $a['days_left'] <=> $b['days_left']);
+} else {
+    // کل کاربران از
+    $searchResult = ibsng_call('user.searchUser', [
+        'conds'    => [],
+        'from'     => 0,
+        'to'       => 1,
+        'order_by' => 'user_id',
+        'desc'     => false,
+    ]);
+    $totalUsers = $searchResult['result'][0] ?? 0;
+
+    // کاربران فعال (Recharged) از
+    $activeResult = ibsng_call('user.searchUser', [
+        'conds'    => ['status' => 'Recharged', 'status_op' => 'equals'],
+        'from'     => 0,
+        'to'       => 1,
+        'order_by' => 'user_id',
+        'desc'     => false,
+    ]);
+    $activeUsers = $activeResult['result'][0] ?? 0;
+
+    // کاربران رو به اتمام 7 روز از
+    $now = date('Y/m/d');
+    $in7 = date('Y/m/d', $in7Ts);
+
+    // یک call برای تعداد کل + 10 تای اول برای نمایش
+    $expiringResult = ibsng_call('user.searchExpiredUsersExtended', [
+        'conds'    => [
+            'exp_date_from'      => $now,
+            'exp_date_from_unit' => 'gregorian',
+            'exp_date_to'        => $in7,
+            'exp_date_to_unit'   => 'gregorian',
+        ],
+        'from'     => 0,
+        'to'       => 200,
+        'order_by' => 'user_id',
+        'desc'     => false,
+    ]);
+    $expiringUsers = $expiringResult['result'][2] ?? [];
+    // تعداد واقعی = count آرایه برگشتی (چون to=200 بیشتر از کل کاربران رو به اتمام است)
+    $expiringCount = count($expiringUsers);
+    // فقط 10 تای اول برای نمایش در داشبورد
+    $expiringUsersDisplay = array_slice($expiringUsers, 0, 10, true);
+
+    // جزئیات کاربران رو به اتمام (batch)
+    $expiringSoon = [];
+    if (!empty($expiringUsersDisplay)) {
+        $allUIDs    = implode(',', array_keys($expiringUsersDisplay));
+        $infoResult = ibsng_call('user.getUserInfo', ['user_id' => $allUIDs]);
+        $infos      = $infoResult['result'] ?? [];
+        foreach ($expiringUsersDisplay as $uid => $expDate) {
+            $basic = $infos[$uid]['basic_info'] ?? [];
+            $attrs = $infos[$uid]['attrs']      ?? [];
+            $expiringSoon[] = [
+                'username'   => $attrs['normal_username'] ?? "UserID $uid",
+                'isp'        => $basic['isp_name']  ?? '—',
+                'group'      => $basic['group_name'] ?? '—',
+                'expire_date'=> substr($expDate, 0, 10),
+                'days_left'  => (int)((strtotime($expDate) - time()) / 86400),
+            ];
+        }
+        usort($expiringSoon, fn($a,$b) => $a['days_left'] <=> $b['days_left']);
+    }
 }
 
 // آخرین لاگ‌ها از دیتابیس
