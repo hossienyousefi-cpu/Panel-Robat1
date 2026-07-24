@@ -292,16 +292,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'is_absolute_change' => true, 'credit_comment' => 'تمدید توسط ریسلر']);
                 $rExp = null;
                 if (!empty($ga['rel_exp_date'])) {
-                    $m = max(1, (int)round((int)$ga['rel_exp_date'] / (30*24*3600)));
+                    // انقضا باید بر اساس Relative Expiration Date گروه از اولین اتصال بعدی
+                    // کاربر شمرده بشه، نه از همین لحظه‌ی تمدید. پس دیگه abs_exp_date رو ست
+                    // نمی‌کنیم (و اگه از قبل روی کاربر مونده باشه پاکش می‌کنیم)، فقط
+                    // first_login/real_first_login رو ریست می‌کنیم تا شمارش از اولین لاگین
+                    // بعدی از نو شروع بشه (نه از اولین لاگین قدیمی کاربر).
                     $rExp = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2,
-                        'attrs' => ['abs_exp_date' => $m, 'abs_exp_date_unit' => 'months'], 'to_del_attrs' => []]);
+                        'attrs' => (object)[], 'to_del_attrs' => ['abs_exp_date', 'abs_exp_date_unit', 'first_login', 'real_first_login']]);
                 }
-                // ریست Package First Login + Real First Login - وگرنه  تاریخ انقضا رو نسبت به
-                // اولین لاگین قدیمی کاربر حساب می‌کنه نه از لحظه‌ی تمدید. اگه فقط first_login
-                // پاک بشه ولی real_first_login قدیمی بمونه، یک مکانیزم انقضای دیگه (Nearest
-                // Expiration Date از روی Real First Login) خودش رو فعال می‌کنه که نباید فعال باشه.
-                ibsng_call('user.updateUserAttrs', ['user_id' => $uid2,
-                    'attrs' => (object)[], 'to_del_attrs' => ['first_login', 'real_first_login']]);
                 $rStatus = ibsng_call('user.changeStatus', ['user_id' => $uid2, 'status' => 'Recharged']);
                 if ($rCredit['error'] ?? null) { $error = 'خطا در شارژ اعتبار: ' . $rCredit['error']; }
                 elseif ($rExp && ($rExp['error'] ?? null)) { $error = 'خطا در تمدید تاریخ انقضا: ' . $rExp['error']; }

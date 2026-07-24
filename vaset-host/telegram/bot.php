@@ -456,14 +456,12 @@ function tg_provision_renew_order(array $order, ?array $customer): array {
 
     ibsng_call('user.changeCredit', ['user_id' => $uid, 'credit' => (float)$gc, 'is_absolute_change' => true, 'credit_comment' => 'تمدید مستقیم تلگرام']);
     if (!empty($ga['rel_exp_date'])) {
-        $m = max(1, (int)round((int)$ga['rel_exp_date'] / (30 * 24 * 3600)));
-        ibsng_call('user.updateUserAttrs', ['user_id' => $uid, 'attrs' => ['abs_exp_date' => $m, 'abs_exp_date_unit' => 'months'], 'to_del_attrs' => []]);
+        // انقضا باید بر اساس Relative Expiration Date گروه از اولین اتصال بعدی کاربر
+        // شمرده بشه، نه از همین لحظه‌ی تمدید. پس دیگه abs_exp_date رو ست نمی‌کنیم (و اگه
+        // از قبل روی کاربر مونده باشه پاکش می‌کنیم)، فقط first_login/real_first_login رو
+        // ریست می‌کنیم تا شمارش از اولین لاگین بعدی از نو شروع بشه.
+        ibsng_call('user.updateUserAttrs', ['user_id' => $uid, 'attrs' => (object)[], 'to_del_attrs' => ['abs_exp_date', 'abs_exp_date_unit', 'first_login', 'real_first_login']]);
     }
-    // ریست Package First Login + Real First Login - وگرنه  تاریخ انقضا رو نسبت به اولین
-    // لاگین قدیمی کاربر حساب می‌کنه نه از لحظه‌ی تمدید. اگه فقط first_login پاک بشه ولی
-    // real_first_login قدیمی بمونه، یک مکانیزم انقضای دیگه (Nearest Expiration Date از
-    // روی Real First Login) خودش رو فعال می‌کنه که نباید فعال باشه.
-    ibsng_call('user.updateUserAttrs', ['user_id' => $uid, 'attrs' => (object)[], 'to_del_attrs' => ['first_login', 'real_first_login']]);
     ibsng_call('user.changeStatus', ['user_id' => $uid, 'status' => 'Recharged']);
 
     $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by) VALUES (?,?,?,?,?)")
