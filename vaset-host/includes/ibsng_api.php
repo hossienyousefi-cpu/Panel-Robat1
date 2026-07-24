@@ -730,49 +730,52 @@ function ibsng_getOnlineRaw() {
         if (is_array($c)) return ['error' => '', 'data' => $c];
     }
 
-    // Circuit breaker: این متد خاص روی این IBSng گاهی اصلاً جواب نمی‌ده (حتی با
-    // تایم‌اوت ۵ ثانیه هم شکست می‌خوره). اگه همین الان (طی ۶۰ ثانیه‌ی گذشته) یک‌بار
-    // شکست خورده، دیگه دوباره امتحانش نمی‌کنیم - فقط لیست خالی (همه آفلاین) برمی‌گردونیم
-    // تا هر بار که کسی صفحه‌ی کاربران/داشبورد رو باز می‌کنه، معطل یک تماسِ
-    // همیشه‌ناموفق نمونه. بعد از ۶۰ ثانیه دوباره یک‌بار امتحان می‌کنه.
+    // Circuit breaker: این متد خاص روی این IBSng همیشه شکست می‌خوره (حتی با
+    // تایم‌اوت ۵ ثانیه). اگه همین الان (طی ۶۰ ثانیه‌ی گذشته) یک‌بار شکست خورده،
+    // دیگه دوباره امتحانش نمی‌کنیم تا معطل یک تماسِ همیشه‌ناموفق نمونیم - ولی
+    // مهم: این فقط خودِ تماس API رو skip می‌کنه، نه کل تابع رو؛ همیشه به fallback
+    // نشست HTML (پایین) می‌رسیم، چون اون یکی واقعاً کار می‌کنه. قبلاً این تابع
+    // موقع skip کردن API مستقیماً خطا برمی‌گردوند و اصلاً سراغ fallback نمی‌رفت -
+    // همون چیزی که باعث می‌شد بعضی وقت‌ها (بین ۳۰ تا ۶۰ ثانیه بعد از یک شکست) پیام
+    // «موقتاً رد شد» به‌جای لیست واقعی نشون داده بشه.
     $failFlag = IBS_CACHE_DIR . 'online_failing.flag';
-    if (file_exists($failFlag) && (time() - filemtime($failFlag)) < 60) {
-        return ['error' => 'گزارش آنلاین اخیراً از IBSng جواب نگرفته (موقتاً رد شد)', 'data' => []];
-    }
+    $skipApi  = file_exists($failFlag) && (time() - filemtime($failFlag)) < 60;
 
-    // نتیجه‌اش فقط یک نشانگر «آنلاین/آفلاین» توی جدول‌هاست (نه چیز حیاتی)، پس
-    // تایم‌اوت این تماس رو ۵ ثانیه می‌ذاریم تا اگه IBSng جواب نداد، صفحه به‌جای
-    // ۲۰ ثانیه فقط ۵ ثانیه (و فقط همین یک‌بار در هر ۶۰ ثانیه) معطل بمونه.
-    $r = ibsng_call('report.getOnlineUsers', [
-        'normal_sort_by' => 'username',
-        'normal_desc'    => false,
-        'voip_sort_by'   => 'username',
-        'voip_desc'      => false,
-        'conds'          => [],
-    ], 0, 5);
-    if (empty($r['error'])) {
-        @unlink($failFlag);
-        $raw = [];
-        if (isset($r['result'][0]) && is_array($r['result'][0])) {
-            $raw = $r['result'][0];
-        } elseif (isset($r['result']) && is_array($r['result'])) {
-            foreach ($r['result'] as $v) {
-                if (is_array($v) && (isset($v['normal_username']) || isset($v['username'])))
-                    $raw[] = $v;
+    if (!$skipApi) {
+        // نتیجه‌اش فقط یک نشانگر «آنلاین/آفلاین» توی جدول‌هاست (نه چیز حیاتی)، پس
+        // تایم‌اوت این تماس رو ۵ ثانیه می‌ذاریم تا اگه IBSng جواب نداد، صفحه به‌جای
+        // ۲۰ ثانیه فقط ۵ ثانیه (و فقط همین یک‌بار در هر ۶۰ ثانیه) معطل بمونه.
+        $r = ibsng_call('report.getOnlineUsers', [
+            'normal_sort_by' => 'username',
+            'normal_desc'    => false,
+            'voip_sort_by'   => 'username',
+            'voip_desc'      => false,
+            'conds'          => [],
+        ], 0, 5);
+        if (empty($r['error'])) {
+            @unlink($failFlag);
+            $raw = [];
+            if (isset($r['result'][0]) && is_array($r['result'][0])) {
+                $raw = $r['result'][0];
+            } elseif (isset($r['result']) && is_array($r['result'])) {
+                foreach ($r['result'] as $v) {
+                    if (is_array($v) && (isset($v['normal_username']) || isset($v['username'])))
+                        $raw[] = $v;
+                }
             }
-        }
-        $seen = []; $out = [];
-        foreach ($raw as $u) {
-            $un = $u['normal_username'] ?? $u['username'] ?? '';
-            if ($un !== '' && !isset($seen[$un])) {
-                $seen[$un] = true;
-                $out[] = $u;
+            $seen = []; $out = [];
+            foreach ($raw as $u) {
+                $un = $u['normal_username'] ?? $u['username'] ?? '';
+                if ($un !== '' && !isset($seen[$un])) {
+                    $seen[$un] = true;
+                    $out[] = $u;
+                }
             }
+            @file_put_contents($cKey, json_encode($out));
+            return ['error' => '', 'data' => $out];
         }
-        @file_put_contents($cKey, json_encode($out));
-        return ['error' => '', 'data' => $out];
+        @file_put_contents($failFlag, (string)time());
     }
-    @file_put_contents($failFlag, (string)time());
 
     // متد API روی این سرور IBSng همیشه شکست می‌خوره (تأیید شده)، پس به‌جاش از
     // همون نشست HTML پنل اصلی (مثل Kick) لیست آنلاین‌ها رو می‌خونیم. محدودیت: این
