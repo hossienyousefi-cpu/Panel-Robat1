@@ -10,8 +10,9 @@ $totalDebt       = $pdo->query("SELECT SUM(debt) FROM resellers")->fetchColumn()
 $totalTrans      = $pdo->query("SELECT SUM(ABS(amount)) FROM transactions")->fetchColumn() ?: 0;
 
 // ===== آمار از  =====
-// کاربران آنلاین
-$onlineResult = ibsng_call('report.getOnlineUsersCount', []);
+// کاربران آنلاین - کش ۳۰ ثانیه‌ای + تایم‌اوت کوتاه (۵ ثانیه به‌جای ۲۰ ثانیه) تا
+// اگه IBSng به این متد جواب نداد، کل داشبورد معطل نمونه.
+$onlineResult = ibsng_call('report.getOnlineUsersCount', [], 30, 5);
 $onlineCount  = $onlineResult['result']['internet_onlines'] ?? '?';
 
 // کل کاربران از 

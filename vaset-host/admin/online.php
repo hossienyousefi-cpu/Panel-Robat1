@@ -7,22 +7,10 @@ requireAdmin();
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'isp_stats') {
     header('Content-Type: application/json');
 
-    // کش 30 ثانیه برای آنلاین
-    $cacheOnline = sys_get_temp_dir() . '/ibs_online_cache.json';
-    $allOnline = [];
-    if (file_exists($cacheOnline) && (time() - filemtime($cacheOnline)) < 30) {
-        $allOnline = json_decode(file_get_contents($cacheOnline), true) ?? [];
-    } else {
-        $r   = ibsng_call('report.getOnlineUsers', ['normal_sort_by' => 'username', 'normal_desc' => false, 'voip_sort_by' => 'username', 'voip_desc' => false, 'conds' => []]);
-        $raw = is_array($r['result'][0] ?? null) ? $r['result'][0] : [];
-        $uniq = [];
-        foreach ($raw as $u) {
-            $un = $u['normal_username'] ?? $u['attrs']['username'] ?? '';
-            if (!isset($uniq[$un])) $uniq[$un] = $u;
-        }
-        $allOnline = array_values($uniq);
-        file_put_contents($cacheOnline, json_encode($allOnline));
-    }
+    // به‌جای کش/تماس جداگانه، از ibsng_getOnlineRaw() استفاده می‌کنیم که خودش
+    // کش ۳۰ ثانیه‌ای + تایم‌اوت کوتاه + circuit breaker (وقتی IBSng به این متد
+    // جواب نمی‌ده، دیگه هر بار معطلش نمی‌مونیم) رو یک‌جا داره.
+    $allOnline = ibsng_getOnlineRaw()['data'] ?? [];
 
     $totalOnline = count($allOnline);
 

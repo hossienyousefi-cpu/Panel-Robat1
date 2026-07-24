@@ -50,8 +50,12 @@ $onlineUsers = [];
 $onlineCount = 0;
 try {
     $ispName_dash = $reseller['isp_name'] ?? '';
-    $r_online = ibsng_call('report.getOnlineUsers',['normal_sort_by'=>'username','normal_desc'=>false,'voip_sort_by'=>'username','voip_desc'=>false,'conds'=>[]]);
-    $raw_online = is_array($r_online['result'][0]??null) ? $r_online['result'][0] : [];
+    // از ibsng_getOnlineRaw() استفاده می‌کنیم (نه تماس مستقیم) چون این تابع خودش
+    // کش ۳۰ ثانیه‌ای + تایم‌اوت کوتاه + circuit breaker داره - وگرنه این تماس
+    // مستقیم با تایم‌اوت پیش‌فرض ۲۰ ثانیه، وقتی IBSng به این متد جواب نمی‌داد،
+    // کل بارگذاری داشبورد رو معطل می‌کرد.
+    $r_online = ibsng_getOnlineRaw();
+    $raw_online = $r_online['data'] ?? [];
     // دریافت لیست کاربران این ریسلر
     $myUsernames2 = $pdo->prepare("SELECT ibs_username FROM users WHERE reseller_id=?");
     $myUsernames2->execute([$rid]);

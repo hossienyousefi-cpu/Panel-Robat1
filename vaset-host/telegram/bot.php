@@ -509,7 +509,7 @@ function tg_handle_admin_message(int $adminId, $chatId, array $msg): bool {
     if ($text === '/stats') {
         $totalResellers = (int)$pdo->query("SELECT COUNT(*) FROM resellers")->fetchColumn();
         $totalDebt = (float)($pdo->query("SELECT SUM(debt) FROM resellers")->fetchColumn() ?: 0);
-        $online = ibsng_call('report.getOnlineUsersCount', []);
+        $online = ibsng_call('report.getOnlineUsersCount', [], 30, 5);
         $onlineCount = $online['result']['internet_onlines'] ?? '?';
         tg_sendMessage($chatId, "👥 ریسلرها: {$totalResellers}\n💰 کل بدهی: " . money($totalDebt) . " تومان\n🟢 آنلاین: {$onlineCount}");
         return true;

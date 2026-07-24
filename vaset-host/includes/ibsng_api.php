@@ -729,10 +729,20 @@ function ibsng_getOnlineRaw() {
         $c = json_decode(file_get_contents($cKey), true);
         if (is_array($c)) return ['error' => '', 'data' => $c];
     }
-    // این متد خاص روی این IBSng گاهی خیلی کند/بدون‌جواب می‌مونه (تا حد تایم‌اوت
-    // کامل ۲۰ ثانیه‌ای) و چون نتیجه‌اش فقط یک نشانگر «آنلاین/آفلاین» توی جدول‌هاست
-    // (نه چیز حیاتی)، تایم‌اوت این تماس رو ۵ ثانیه می‌ذاریم تا اگه IBSng جواب
-    // نداد، کل صفحه‌ی لیست کاربران به‌جای ۲۰ ثانیه فقط ۵ ثانیه معطل بمونه.
+
+    // Circuit breaker: این متد خاص روی این IBSng گاهی اصلاً جواب نمی‌ده (حتی با
+    // تایم‌اوت ۵ ثانیه هم شکست می‌خوره). اگه همین الان (طی ۶۰ ثانیه‌ی گذشته) یک‌بار
+    // شکست خورده، دیگه دوباره امتحانش نمی‌کنیم - فقط لیست خالی (همه آفلاین) برمی‌گردونیم
+    // تا هر بار که کسی صفحه‌ی کاربران/داشبورد رو باز می‌کنه، معطل یک تماسِ
+    // همیشه‌ناموفق نمونه. بعد از ۶۰ ثانیه دوباره یک‌بار امتحان می‌کنه.
+    $failFlag = IBS_CACHE_DIR . 'online_failing.flag';
+    if (file_exists($failFlag) && (time() - filemtime($failFlag)) < 60) {
+        return ['error' => 'گزارش آنلاین اخیراً از IBSng جواب نگرفته (موقتاً رد شد)', 'data' => []];
+    }
+
+    // نتیجه‌اش فقط یک نشانگر «آنلاین/آفلاین» توی جدول‌هاست (نه چیز حیاتی)، پس
+    // تایم‌اوت این تماس رو ۵ ثانیه می‌ذاریم تا اگه IBSng جواب نداد، صفحه به‌جای
+    // ۲۰ ثانیه فقط ۵ ثانیه (و فقط همین یک‌بار در هر ۶۰ ثانیه) معطل بمونه.
     $r = ibsng_call('report.getOnlineUsers', [
         'normal_sort_by' => 'username',
         'normal_desc'    => false,
@@ -740,7 +750,11 @@ function ibsng_getOnlineRaw() {
         'voip_desc'      => false,
         'conds'          => [],
     ], 0, 5);
-    if (!empty($r['error'])) return ['error' => (string)$r['error'], 'data' => []];
+    if (!empty($r['error'])) {
+        @file_put_contents($failFlag, (string)time());
+        return ['error' => (string)$r['error'], 'data' => []];
+    }
+    @unlink($failFlag);
 
     $raw = [];
     if (isset($r['result'][0]) && is_array($r['result'][0])) {
