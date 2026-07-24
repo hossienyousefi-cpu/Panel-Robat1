@@ -1,13 +1,15 @@
 <?php
-// این اسکریپت با کرون (cPanel → Cron Jobs) هر ۵ دقیقه اجرا می‌شود و همه‌ی کاربرهای
-// IBSng (تمام ISPها) را در جدول محلی ibsng_users_cache به‌روز می‌کند. صفحات سرچ
-// کاربران (admin/users.php و reseller/users.php) اگر این جدول تازه باشد، به‌جای
-// زدن مستقیم و مکرر به IBSng، فقط از همین جدول محلی (سریع + بدون فشار روی IBSng)
-// می‌خوانند. قبل از فعال‌شدن باید migrations/004_ibsng_users_cache.sql را از
-// phpMyAdmin اجرا کرده باشید.
+// این اسکریپت با کرون (cPanel → Cron Jobs) روزی یک‌بار اجرا می‌شود و همه‌ی
+// کاربرهای IBSng (تمام ISPها) را در جدول محلی ibsng_users_cache به‌روز می‌کند.
+// صفحات سرچ کاربران (admin/users.php و reseller/users.php) اگر این جدول تازه
+// باشد (کمتر از ۲۶ ساعت از آخرین سینک گذشته باشد)، به‌جای زدن مستقیم و مکرر به
+// IBSng، فقط از همین جدول محلی (سریع + بدون فشار روی IBSng/CPU هاست) می‌خوانند.
+// قبل از فعال‌شدن باید migrations/004_ibsng_users_cache.sql را از phpMyAdmin
+// اجرا کرده باشید.
 //
-// نمونه‌ی خط کرون (مسیر php و مسیر پروژه را با مسیر واقعی هاست خودتان جایگزین کنید):
-//   */5 * * * * /usr/local/bin/php /home/USERNAME/public_html/cron/sync_ibsng_users.php >/dev/null 2>&1
+// نمونه‌ی خط کرون (ساعت ۴ بامداد، ساعت کم‌ترافیک - مسیر php و مسیر پروژه را با
+// مسیر واقعی هاست خودتان جایگزین کنید):
+//   0 4 * * * /usr/local/bin/php /home/USERNAME/public_html/cron/sync_ibsng_users.php >/dev/null 2>&1
 
 if (php_sapi_name() !== 'cli') {
     http_response_code(403);
@@ -17,10 +19,10 @@ if (php_sapi_name() !== 'cli') {
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/ibsng_api.php';
 
-// جلوگیری از اجرای هم‌زمان دو نمونه از این اسکریپت (اگر یک اجرا بیشتر از ۵ دقیقه طول
-// بکشد و اجرای بعدی کرون هنوز تمام‌نشده شروع بشه)
+// جلوگیری از اجرای هم‌زمان دو نمونه از این اسکریپت (مثلاً اگر یک اجرای دستی
+// هم‌زمان با اجرای روزانه‌ی کرون بشه)
 $lockFile = IBS_CACHE_DIR . 'sync_ibsng_users.lock';
-if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 600) {
+if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 1800) {
     error_log('[sync_ibsng_users] اجرای قبلی هنوز در حال انجام است، رد شد.');
     exit(0);
 }

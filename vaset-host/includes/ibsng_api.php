@@ -489,7 +489,10 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
 // اگه جدول خالی/قدیمی باشه (کرون هنوز اجرا نشده یا مدتی متوقف بوده)، false
 // برمی‌گرده تا فراخوان به روش قدیمی (زنده از IBSng) برگرده - یعنی نبود این کش
 // هیچ‌وقت باعث خراب‌شدن سرچ نمی‌شه، فقط کندتر می‌مونه ───
-function ibsng_dbCacheFresh($pdo, $maxAgeSec = 900) {
+// $maxAgeSec پیش‌فرض ۲۶ ساعته (نه ۱۵ دقیقه) چون سینک روزی یک‌بار (کرون
+// cron/sync_ibsng_users.php با شیدول روزانه) اجرا می‌شه، نه هر چند دقیقه -
+// اجرای مکرر فشار/بار زیادی روی IBSng و CPU خود هاست می‌ذاشت.
+function ibsng_dbCacheFresh($pdo, $maxAgeSec = 93600) {
     static $fresh = null;
     if ($fresh !== null) return $fresh;
     try {
