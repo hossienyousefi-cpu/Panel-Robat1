@@ -554,6 +554,23 @@ function ibsng_dbCacheFresh($pdo, $maxAgeSec = 93600) {
     return $fresh;
 }
 
+// ─── چک اینکه آیا این ISP خاص اصلاً توی کش هست یا نه. ibsng_dbCacheFresh بالا
+// فقط تازگیِ کل جدول رو چک می‌کنه، نه اینکه هر ISP خاصی توش باشه. بدون این چک،
+// یک ISP تازه‌ساز (یا یوزرهایی که تازه بهش منتقل شدن) که هنوز کرون شبانه روش
+// اجرا نشده، با اینکه صفر ردیف توی کش داره، چون بقیه‌ی جدول "تازه" حساب می‌شه
+// نتیجه‌ی سرچ صفر (به‌جای برگشت به روش زنده‌ی IBSng) نشون می‌داد - انگار اصلاً
+// کاربری نداره، در حالی که فقط هنوز سینک نشده. ───
+function ibsng_dbCacheHasIsp($pdo, $ispName) {
+    if ($ispName === '') return true; // فیلتر ISP نداریم، این چک اصلاً معنی نداره
+    try {
+        $stmt = $pdo->prepare("SELECT 1 FROM ibsng_users_cache WHERE isp_name = ? LIMIT 1");
+        $stmt->execute([$ispName]);
+        return (bool)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 function ibsng_dbCacheSearch($pdo, $ispName, $groupFilter, $search, $rasFilter, $sortBy, $sortDir, $page, $perPage) {
     $where = []; $params = [];
     if ($ispName !== '')    { $where[] = 'isp_name = ?';   $params[] = $ispName; }
@@ -603,7 +620,7 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
     if ($ispName === '') return ['total' => 0, 'total_isp' => 0, 'rows' => [], 'cached' => false];
 
     global $pdo;
-    if (isset($pdo) && ibsng_dbCacheFresh($pdo)) {
+    if (isset($pdo) && ibsng_dbCacheFresh($pdo) && ibsng_dbCacheHasIsp($pdo, $ispName)) {
         return ibsng_dbCacheSearch($pdo, $ispName, $groupFilter, $search, '', $sortBy, $sortDir, $page, $perPage);
     }
 

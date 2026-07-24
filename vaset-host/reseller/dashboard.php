@@ -16,7 +16,11 @@ $reseller = $reseller->fetch();
 // کاربرهایی که قبلاً توی IBSng بودن یا از پنل اصلی ساخته شدن صفر/خیلی کم بود).
 // اگه جدول کش محلی (ibsng_users_cache) تازه‌ست، از همون‌جا (سریع) می‌خونیم.
 $ispName_dash0 = $reseller['isp_name'] ?? '';
-$dbCacheOk = ibsng_dbCacheFresh($pdo);
+// ibsng_dbCacheFresh فقط تازگیِ کل جدول رو چک می‌کنه؛ ibsng_dbCacheHasIsp هم
+// لازمه چون یک ISP تازه‌ساز (که هنوز کرون شبانه روش اجرا نشده) با اینکه صفر
+// ردیف توی کش داره، بدون این چک باعث می‌شد «کل کاربران من» و «رو به اتمام»
+// اشتباهاً صفر نشون داده بشه (انگار اصلاً کاربری نداره).
+$dbCacheOk = ibsng_dbCacheFresh($pdo) && ibsng_dbCacheHasIsp($pdo, $ispName_dash0);
 if ($dbCacheOk && $ispName_dash0 !== '') {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM ibsng_users_cache WHERE isp_name=?");
     $stmt->execute([$ispName_dash0]);

@@ -46,7 +46,7 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
     // چند دقیقه اجرا می‌شه)، همه‌ی حالت‌های فیلتر/سرچ/ RAS رو با یک کوئری SQL سریع
     // و بدون هیچ تماسی با IBSng جواب می‌دیم؛ فقط وقتی کش خالی/قدیمی باشه (مثلاً
     // کرون هنوز اجرا نشده) به منطق قدیمیِ زیر (زنده از IBSng) برمی‌گردیم.
-    if (ibsng_dbCacheFresh($pdo)) {
+    if (ibsng_dbCacheFresh($pdo) && ibsng_dbCacheHasIsp($pdo, $ispF)) {
         echo json_encode(ibsng_dbCacheSearch($pdo, $ispF, $grpF, $search, $rasF, $sortBy, $sortDir, $page, $perPage));
         exit;
     }
