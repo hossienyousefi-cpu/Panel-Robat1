@@ -11,7 +11,11 @@ define('IBS_CACHE_DIR',  sys_get_temp_dir() . '/ibs_cache/');
 if (!is_dir(IBS_CACHE_DIR)) @mkdir(IBS_CACHE_DIR, 0750, true);
 
 // ─── تابع اصلی JSON-RPC با timeout بهینه ───
-function ibsng_call($method, $params = [], $cacheSec = 0) {
+// $timeoutSec: برای تماس‌های «بهترین تلاش»/غیرحیاتی (مثل وضعیت آنلاین که فقط
+// یک نشانگر توی جدول‌هاست) یک تایم‌اوت کوتاه‌تر از پیش‌فرض ۲۰ ثانیه می‌شه پاس
+// داد، تا اگر آن یک متد خاص روی IBSng کند/خراب بود، کل صفحه (که به این نتیجه
+// وابسته نیست) رو معطل نکنه.
+function ibsng_call($method, $params = [], $cacheSec = 0, $timeoutSec = null) {
     if ($cacheSec > 0) {
         $cKey = IBS_CACHE_DIR . md5($method . serialize($params)) . '.json';
         if (file_exists($cKey) && (time() - filemtime($cKey)) < $cacheSec) {
@@ -38,9 +42,14 @@ function ibsng_call($method, $params = [], $cacheSec = 0) {
             CURLOPT_TCP_KEEPIDLE   => 30,
         ]);
     }
+    // چون $ch یک curl handle استاتیک/مشترکه، اگه این تماس تایم‌اوت سفارشی خواسته،
+    // بعد از تمام‌شدنش باید به پیش‌فرض ۲۰ ثانیه برگردونیمش تا روی تماس بعدیِ همین
+    // request (که شاید سفارشی نخواد) اثر نذاره.
+    if ($timeoutSec !== null) curl_setopt($ch, CURLOPT_TIMEOUT, $timeoutSec);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
     $response = curl_exec($ch);
     $curlErr  = curl_error($ch);
+    if ($timeoutSec !== null) curl_setopt($ch, CURLOPT_TIMEOUT, 20);
     if ($curlErr) return ['error' => $curlErr, 'result' => null];
     $result = json_decode($response, true);
     if ($result === null) return ['error' => 'Invalid JSON from IBS API', 'result' => null];
@@ -716,17 +725,21 @@ function ibsng_searchUsersForReseller($ispName, $search, $group, $page, $perPage
 // ─── کاربران آنلاین با کش 20 ثانیه ───
 function ibsng_getOnlineRaw() {
     $cKey = IBS_CACHE_DIR . 'online_all.json';
-    if (file_exists($cKey) && (time() - filemtime($cKey)) < 20) {
+    if (file_exists($cKey) && (time() - filemtime($cKey)) < 30) {
         $c = json_decode(file_get_contents($cKey), true);
         if (is_array($c)) return ['error' => '', 'data' => $c];
     }
+    // این متد خاص روی این IBSng گاهی خیلی کند/بدون‌جواب می‌مونه (تا حد تایم‌اوت
+    // کامل ۲۰ ثانیه‌ای) و چون نتیجه‌اش فقط یک نشانگر «آنلاین/آفلاین» توی جدول‌هاست
+    // (نه چیز حیاتی)، تایم‌اوت این تماس رو ۵ ثانیه می‌ذاریم تا اگه IBSng جواب
+    // نداد، کل صفحه‌ی لیست کاربران به‌جای ۲۰ ثانیه فقط ۵ ثانیه معطل بمونه.
     $r = ibsng_call('report.getOnlineUsers', [
         'normal_sort_by' => 'username',
         'normal_desc'    => false,
         'voip_sort_by'   => 'username',
         'voip_desc'      => false,
         'conds'          => [],
-    ]);
+    ], 0, 5);
     if (!empty($r['error'])) return ['error' => (string)$r['error'], 'data' => []];
 
     $raw = [];
