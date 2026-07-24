@@ -30,4 +30,20 @@ echo "۴) زمان کامل ibsng_dbCacheSearch (بدون هیچ فیلتری، 
 echo "   تعداد کل نتیجه: {$res['total']}\n";
 echo "   کش استفاده شد: " . ($res['cached'] ? 'بله' : 'خیر') . "\n\n";
 
+echo "۵) تماس مستقیم و خام با report.getOnlineUsers (تایم‌اوت ۳۰ ثانیه، بدون کش/circuit breaker):\n";
+$t6 = microtime(true);
+$raw = ibsng_call('report.getOnlineUsers', [
+    'normal_sort_by' => 'username',
+    'normal_desc'    => false,
+    'voip_sort_by'   => 'username',
+    'voip_desc'      => false,
+    'conds'          => [],
+], 0, 30);
+$t7 = microtime(true);
+echo "   زمان: " . round(($t7 - $t6) * 1000) . " ms\n";
+echo "   error: " . var_export($raw['error'] ?? null, true) . "\n";
+echo "   ساختار result: " . (isset($raw['result']) ? gettype($raw['result']) : 'وجود ندارد') . "\n";
+echo "   خروجی کامل (اگر خیلی بزرگ بود فقط ۲۰۰۰ کاراکتر اول): \n";
+echo substr(json_encode($raw, JSON_UNESCAPED_UNICODE), 0, 2000) . "\n\n";
+
 echo "=== پایان تست ===\n";
