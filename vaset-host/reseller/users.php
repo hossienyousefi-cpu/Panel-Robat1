@@ -180,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $pdo->prepare("INSERT INTO transactions (reseller_id,type,amount,description) VALUES (?,?,?,?)")
                                 ->execute([$rid, 'user_create', $price, "ساخت $un - $grp"]);
                             $balance -= $price;
+                            ibsng_cacheUpsertUser($pdo, $newUID, $isp);
                             header('Location: users.php?success=' . urlencode('کاربر ' . $un . ' ساخته شد')); exit;
                         }
                     }
@@ -235,6 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $pdo->prepare("INSERT INTO transactions (reseller_id,type,amount,description) VALUES (?,?,?,?)")
                             ->execute([$rid, 'user_create', $price, "دسته‌جمعی - $grp"]);
                         $created[] = ['u' => $un, 'p' => $pw];
+                        ibsng_cacheUpsertUser($pdo, $newUID, $isp);
                     }
                 }
                 if (!empty($created)) {
@@ -271,7 +273,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $r2 = ibsng_call('user.updateUserAttrs', ['user_id' => $uid2,
                 'attrs' => ['normal_user_spec' => $updateAttrs], 'to_del_attrs' => []]);
             if ($r2['error'] ?? null) $error = 'خطا: ' . $r2['error'];
-            else { header('Location: users.php?success=رمز+تغییر+کرد'); exit; }
+            else {
+                ibsng_cacheUpsertUser($pdo, $uid2, $curIsp);
+                header('Location: users.php?success=رمز+تغییر+کرد'); exit;
+            }
             }
         }
     }
@@ -315,6 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by,reseller_id) VALUES (?,?,?,?,?,?)")
                         ->execute([$unL, $ispName, $gn, $price, 'reseller', $rid]);
                     ibsng_clearCache('isp_full_*.json');
+                    ibsng_cacheUpsertUser($pdo, $uid2, $ispName);
                     header('Location: users.php?success=تمدید+شد'); exit;
                 }
             }
@@ -331,6 +337,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'del_connection_logs' => false, 'del_audit_logs' => false]);
             $pdo->prepare("DELETE FROM users WHERE ibs_username=? AND reseller_id=?")->execute([$un, $rid]);
             ibsng_clearCache('isp_full_*.json');
+            ibsng_cacheDeleteUser($pdo, $uid2);
             header('Location: users.php?success=حذف+شد'); exit;
         }
     }

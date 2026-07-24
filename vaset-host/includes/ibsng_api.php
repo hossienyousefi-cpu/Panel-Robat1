@@ -501,6 +501,47 @@ function ibsng_getIspUsersCache($ispName, $groupFilter = '') {
 // $maxAgeSec پیش‌فرض ۲۶ ساعته (نه ۱۵ دقیقه) چون سینک روزی یک‌بار (کرون
 // cron/sync_ibsng_users.php با شیدول روزانه) اجرا می‌شه، نه هر چند دقیقه -
 // اجرای مکرر فشار/بار زیادی روی IBSng و CPU خود هاست می‌ذاشت.
+// ─── به‌روزرسانی فوری یک ردیف از کش محلی (ibsng_users_cache) درست بعد از
+// ساخت/تمدید/تغییر رمز یک کاربر از خودِ پنل (ادمین/ریسلر/تلگرام). کرون شبانه
+// (cron/sync_ibsng_users.php) فقط یک‌بار در روز کل جدول رو تازه می‌کنه - این
+// باعث می‌شد اگه کسی همین الان از پنل یوزر بسازه/تمدید کنه، توی سرچ (که از
+// همین کش می‌خونه) تا ۴ صبح فردا با اطلاعات قدیمی/ناقص دیده بشه. این تابع فقط
+// همون یک کاربر (نه کل ISP) رو با یک تماس زنده‌ی سبک به‌روز می‌کنه، پس روی
+// سرعت سرچ بقیه یا فشار کلی روی IBSng تأثیری نمی‌ذاره - فقط دقیقاً همون لحظه‌ای
+// اجرا می‌شه که خودِ پنل داره یک عملیات نوشتنی روی همون کاربر انجام می‌ده.
+function ibsng_cacheUpsertUser($pdo, $uid, $ispNameHint = '') {
+    try {
+        $inf = ibsng_call('user.getUserInfo', ['user_id' => (string)$uid]);
+        $u = $inf['result'][(string)$uid] ?? $inf['result'][$uid] ?? null;
+        if (!$u) return;
+        $row = ibsng_uidToRow($uid, $u, $ispNameHint, []);
+        $stmt = $pdo->prepare("INSERT INTO ibsng_users_cache
+            (uid, username, password, status, group_name, isp_name, ras_ip, credit, exp_date, exp_ts, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,NOW())
+            ON DUPLICATE KEY UPDATE
+                username=VALUES(username), password=VALUES(password), status=VALUES(status),
+                group_name=VALUES(group_name), isp_name=VALUES(isp_name), ras_ip=VALUES(ras_ip),
+                credit=VALUES(credit), exp_date=VALUES(exp_date), exp_ts=VALUES(exp_ts), updated_at=NOW()");
+        $stmt->execute([
+            (string)$uid, $row['username'], $row['password'], $row['status'],
+            $row['group'], $row['isp'] ?: $ispNameHint, $row['ras'],
+            (float)($u['basic_info']['credit'] ?? 0),
+            $row['exp'] === '∞' ? '' : $row['exp'], (int)$row['exp_ts'],
+        ]);
+    } catch (Throwable $e) {
+        // کش محلی فقط برای سرعت سرچه؛ شکست این به‌روزرسانی نباید عملیات اصلی
+        // (که موفق شده) رو خراب کنه - کرون شبانه بالاخره جبرانش می‌کنه.
+    }
+}
+
+// ─── حذف فوری یک ردیف از کش محلی بعد از حذف کاربر از خودِ پنل ───
+function ibsng_cacheDeleteUser($pdo, $uid) {
+    try {
+        $pdo->prepare("DELETE FROM ibsng_users_cache WHERE uid = ?")->execute([(string)$uid]);
+    } catch (Throwable $e) {
+    }
+}
+
 function ibsng_dbCacheFresh($pdo, $maxAgeSec = 93600) {
     static $fresh = null;
     if ($fresh !== null) return $fresh;

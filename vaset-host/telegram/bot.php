@@ -425,6 +425,8 @@ function tg_provision_new_order(array $order, ?array $customer): array {
     $pdo->prepare("INSERT INTO telegram_user_links (telegram_customer_id, ibs_username, ibs_uid, group_name) VALUES (?,?,?,?)")
         ->execute([$order['telegram_customer_id'], $username, $newUID, $pkg['group_name']]);
 
+    ibsng_cacheUpsertUser($pdo, $newUID, $pkg['isp_name']);
+
     if ($customer) {
         tg_sendMessage($customer['chat_id'], "✅ سرویس شما فعال شد!\n\nنام کاربری: {$username}\nرمز عبور: {$password}\n\nاین اطلاعات را نزد خود نگه دارید.");
     }
@@ -466,6 +468,8 @@ function tg_provision_renew_order(array $order, ?array $customer): array {
 
     $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by) VALUES (?,?,?,?,?)")
         ->execute([$username, $basic['isp_name'] ?? '', $gn, (float)$order['amount'], 'telegram']);
+
+    ibsng_cacheUpsertUser($pdo, $uid, $basic['isp_name'] ?? '');
 
     if ($customer) {
         tg_sendMessage($customer['chat_id'], "✅ سرویس «{$username}» با موفقیت تمدید شد.");

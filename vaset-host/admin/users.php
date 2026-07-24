@@ -264,6 +264,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     $error='خطا در تنظیم مشخصات: '.$r2['error'];
                 }else{
                     logActivity('admin',$_SESSION['admin_id'],'create_user','کاربر '.$_POST['username'].' ایجاد شد');
+                    ibsng_cacheUpsertUser($pdo,$newUID,$_POST['isp_name']);
                     header('Location: users.php?success='.urlencode('کاربر '.$_POST['username'].' ساخته شد'));exit;
                 }
             }
@@ -295,6 +296,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $unL=$inf['result'][$uid]['attrs']['normal_username']??$inf['result'][$uid]['attrs']['username']??'';
             $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by,admin_id) VALUES (?,?,?,?,?,?)")
                 ->execute([$unL,$basic['isp_name']??'',$gn,0,'admin',$_SESSION['admin_id']]);
+            ibsng_cacheUpsertUser($pdo,$uid,$basic['isp_name']??'');
             header('Location: users.php?success=تمدید+شد');exit;
         }
     }
@@ -302,6 +304,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         $uid=$_POST['user_id'];
         ibsng_call('user.delUser',['user_id'=>$uid,'delete_comment'=>'حذف توسط ادمین','del_connection_logs'=>false,'del_audit_logs'=>false]);
         $pdo->prepare("DELETE FROM users WHERE ibs_uid=?")->execute([$uid]);
+        ibsng_cacheDeleteUser($pdo,$uid);
         header('Location: users.php?success=حذف+شد');exit;
     }
     if($act==='change_password'){
@@ -313,6 +316,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         if($curUN!=='') $updAttrs['normal_username']=$curUN;
         ibsng_call('user.updateUserAttrs',['user_id'=>$uid,'attrs'=>['normal_user_spec'=>$updAttrs],'to_del_attrs'=>[]]);
         $pdo->prepare("UPDATE users SET password=? WHERE ibs_uid=?")->execute([$np,$uid]);
+        ibsng_cacheUpsertUser($pdo,$uid);
         header('Location: users.php?success=رمز+تغییر+کرد');exit;
     }
     if($act==='toggle_lock'){
@@ -361,6 +365,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 $failed[]=$uname;
             }else{
                 $created[]=['u'=>$uname,'p'=>$thispw];
+                ibsng_cacheUpsertUser($pdo,$newUID,$isp);
             }
         }
         session_start();
