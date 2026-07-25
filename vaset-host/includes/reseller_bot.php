@@ -51,6 +51,17 @@ function rb_saveBranding(int $resellerId, string $shopName, string $welcomeMessa
         ->execute([$shopName !== '' ? $shopName : null, $welcomeMessage !== '' ? $welcomeMessage : null, $resellerId]);
 }
 
+// ─── پیشوند یوزرنیم خودکار: وقتی تنظیم شده باشه، دیگه از مشتری خواسته
+// نمی‌شه یوزرنیم انتخاب کنه - خودِ بات به‌ترتیب prefix+شماره می‌سازه (مثلاً
+// ars1، ars2، ...). فقط حروف/عدد انگلیسی مجازه. ───
+function rb_saveUsernamePrefix(int $resellerId, string $prefix): void {
+    global $pdo;
+    $prefix = preg_replace('/[^a-zA-Z0-9]/', '', $prefix);
+    $prefix = strtolower(substr($prefix, 0, 20));
+    $pdo->prepare("UPDATE reseller_bots SET username_prefix=? WHERE reseller_id=?")
+        ->execute([$prefix !== '' ? $prefix : null, $resellerId]);
+}
+
 function rb_setEnabled(int $resellerId, bool $enabled): void {
     global $pdo;
     $pdo->prepare("UPDATE reseller_bots SET enabled=? WHERE reseller_id=?")->execute([$enabled ? 1 : 0, $resellerId]);

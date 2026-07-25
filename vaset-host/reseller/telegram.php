@@ -40,6 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'برندینگ بات ذخیره شد.';
     }
 
+    if ($action === 'save_username_prefix') {
+        rb_saveUsernamePrefix($rid, $_POST['username_prefix'] ?? '');
+        logActivity('reseller', $rid, 'save_username_prefix', 'پیشوند یوزرنیم خودکار به‌روز شد');
+        $success = 'پیشوند یوزرنیم ذخیره شد.';
+    }
+
     if ($action === 'toggle_enabled') {
         $bot = rb_getBot($rid);
         rb_setEnabled($rid, empty($bot['enabled']));
@@ -259,6 +265,26 @@ $groupCount = (int)$grpStmt->fetchColumn();
     </div>
 
     <?php if ($bot): ?>
+    <div class="card">
+      <div class="card-header">
+        <div style="font-size:20px">🔢</div>
+        <div>
+          <div class="card-title">یوزرنیم خودکار مشتری‌ها</div>
+          <div class="card-desc">اگه یک پیشوند اینجا بذارید (مثلاً <code>ars</code>)، دیگه مشتری خودش یوزرنیم انتخاب نمی‌کنه - بات به‌ترتیب می‌سازه: <code><?=sanitize($bot['username_prefix'] ?: 'ars')?>1</code>، <code><?=sanitize($bot['username_prefix'] ?: 'ars')?>2</code> و... خالی بذارید تا مثل قبل خودِ مشتری یوزرنیم دلخواهش رو تایپ کنه.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="save_username_prefix">
+          <div class="form-group">
+            <label>پیشوند یوزرنیم (فقط حروف/عدد انگلیسی)</label>
+            <input type="text" name="username_prefix" placeholder="مثلاً: ars" value="<?= sanitize($bot['username_prefix'] ?? '') ?>">
+          </div>
+          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+        </form>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <div style="font-size:20px">🎨</div>

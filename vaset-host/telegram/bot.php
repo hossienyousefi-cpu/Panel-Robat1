@@ -89,6 +89,42 @@ function tg_shop_name(int $resellerId): string {
     return getSetting('site_name', 'فروشگاه اینترنت');
 }
 
+// ─── پیشوند یوزرنیم خودکار یک ریسلر (تنظیم‌شده توی reseller/telegram.php).
+// اگه خالی باشه یعنی این ریسلر هنوز از حالت قدیمی (خودِ مشتری یوزرنیم
+// انتخاب می‌کنه) استفاده می‌کنه. بات اصلی (resellerId=0) پیشوند نداره. ───
+function tg_username_prefix(int $resellerId): string {
+    if ($resellerId <= 0) return '';
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT username_prefix FROM reseller_bots WHERE reseller_id=?");
+    $stmt->execute([$resellerId]);
+    $v = $stmt->fetchColumn();
+    return $v ?: '';
+}
+
+// ─── اولین یوزرنیمِ آزادِ prefix+شماره (مثلاً ars1، ars2، ...). اول از
+// جدول محلی users بزرگ‌ترین شماره‌ی قبلاً استفاده‌شده رو پیدا می‌کنه (سریع،
+// بدون تماس با IBSng)، بعد فقط برای همون یکی/دو تا کاندیدای بعدی (نه از
+// صفر) با IBSng چک می‌کنه که واقعاً آزاده - برای اطمینان از اینکه کاربری که
+// شاید مستقیم توی IBSng یا از پنل وب ساخته شده رو دوباره نساخته باشیم. ───
+function tg_next_username(string $prefix, int $resellerId): string {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT username FROM users WHERE reseller_id=? AND username LIKE ? ORDER BY id DESC LIMIT 500");
+    $stmt->execute([$resellerId, $prefix . '%']);
+    $max = 0;
+    $pattern = '/^' . preg_quote($prefix, '/') . '(\d+)$/';
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $un) {
+        if (preg_match($pattern, $un, $m)) $max = max($max, (int)$m[1]);
+    }
+    $n = $max + 1;
+    for ($i = 0; $i < 50; $i++) {
+        $candidate = $prefix . $n;
+        $chk = ibsng_call('user.doesUserExists', ['normal_username' => $candidate]);
+        if (empty($chk['result'])) return $candidate;
+        $n++;
+    }
+    return $prefix . $n;
+}
+
 // ─── متن خوش‌آمدگویی /start: اگه ریسلر پیام سفارشی نوشته باشه همون، وگرنه
 // یک قالب پیش‌فرض خوشگل با اسم فروشگاه و اسم مشتری ───
 function tg_welcome_message(int $resellerId, string $name): string {
@@ -107,10 +143,11 @@ function tg_welcome_message(int $resellerId, string $name): string {
     return "🎉 سلام {$nameSafe} 👋\nبه <b>{$shop}</b> خوش آمدید!\n\n✨ از منوی زیر یکی از گزینه‌ها رو انتخاب کن:";
 }
 
-function tg_generate_password(int $len = 6): string {
-    $chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+// رمز ۴ رقمی عددی (به‌جای حروف/عدد ترکیبی قبلی) - ساده‌تر برای تایپ کردن
+// مشتری‌هایی که از تلگرام خرید می‌کنن.
+function tg_generate_password(int $len = 4): string {
     $pw = '';
-    for ($i = 0; $i < $len; $i++) $pw .= $chars[random_int(0, strlen($chars) - 1)];
+    for ($i = 0; $i < $len; $i++) $pw .= (string)random_int(0, 9);
     return $pw;
 }
 
@@ -254,6 +291,7 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
     if ($resellerId === 0) {
         $adminId = tg_admin_id_by_chat($chatId);
         if ($adminId !== null) {
+            if (tg_try_relay_owner_reply($resellerId, $chatId, $msg)) return;
             if (!tg_handle_admin_message($adminId, $chatId, $msg)) {
                 tg_sendMessage($chatId, "دستور ناشناخته.\n\n/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql) بازگردانی دیتابیس\n/pending - موارد در انتظار تأیید\n/stats - آمار سریع");
             }
@@ -261,6 +299,7 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
         }
     } else {
         if (tg_is_reseller_owner_chat($resellerId, $chatId)) {
+            if (tg_try_relay_owner_reply($resellerId, $chatId, $msg)) return;
             if (!tg_handle_reseller_owner_message($resellerId, $chatId, $msg)) {
                 tg_sendMessage($chatId, "دستور ناشناخته.\n\n/pending - سفارش‌های در انتظار تأیید\n/stats - آمار سریع");
             }
@@ -284,7 +323,11 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
     if ($text === '🔵 تمدید سرویس') { tg_start_renew($customer, $resellerId); return; }
     if ($text === '🟣 سرویس‌های من') { tg_show_my_services($customer); return; }
     if ($text === '🟡 اطلاعات پرداخت') { tg_sendMessage($chatId, "💳 <b>اطلاعات پرداخت</b>\n\n" . htmlspecialchars(tg_payment_card_info($resellerId), ENT_QUOTES, 'UTF-8')); return; }
-    if ($text === '🔴 پشتیبانی') { tg_sendMessage($chatId, "🆘 <b>پشتیبانی</b>\n\n" . htmlspecialchars(tg_support_message($resellerId), ENT_QUOTES, 'UTF-8')); return; }
+    if ($text === '🔴 پشتیبانی') {
+        tg_set_state((int)$customer['id'], 'support_chat', null);
+        tg_sendMessage($chatId, "🆘 <b>پشتیبانی</b>\n\n" . htmlspecialchars(tg_support_message($resellerId), ENT_QUOTES, 'UTF-8') . "\n\n💬 پیام خودتون رو همینجا بنویسید، به زودی پاسخ داده می‌شه:");
+        return;
+    }
 
     $state = $customer['state'];
 
@@ -297,6 +340,11 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
         $fileId = tg_extract_receipt_file_id($msg);
         if ($fileId !== null) { tg_receive_receipt($customer, $fileId, $resellerId); return; }
         tg_sendMessage($chatId, 'لطفاً تصویر یا فایل رسید پرداخت را ارسال کنید.');
+        return;
+    }
+
+    if ($state === 'support_chat' && $text !== '') {
+        tg_relay_customer_message($customer, $text, $resellerId);
         return;
     }
 
@@ -330,9 +378,24 @@ function tg_customer_pick_package($chatId, int $pkgId, string $cqId, int $resell
     $pkg = tg_get_package($pkgId, $resellerId);
     if (!$pkg || !$pkg['is_active']) { tg_answerCallbackQuery($cqId, 'این بسته دیگر در دسترس نیست', true); return; }
 
-    tg_set_state((int)$customer['id'], 'awaiting_new_username', ['package_id' => (int)$pkg['id']]);
     tg_answerCallbackQuery($cqId);
     $titleSafe = htmlspecialchars($pkg['title'], ENT_QUOTES, 'UTF-8');
+
+    // اگه ریسلر پیشوند یوزرنیم تنظیم کرده باشه (مثلاً ars)، دیگه از مشتری
+    // خواسته نمی‌شه یوزرنیم انتخاب کنه - خودِ بات به‌ترتیب می‌سازه (ars1،
+    // ars2، ...) و مستقیم می‌ره سراغ مرحله‌ی پرداخت.
+    $prefix = tg_username_prefix($resellerId);
+    if ($prefix !== '') {
+        $username = tg_next_username($prefix, $resellerId);
+        tg_set_state((int)$customer['id'], 'awaiting_new_receipt', ['package_id' => (int)$pkg['id'], 'username' => $username]);
+        $amount = (float)$pkg['price'];
+        $card = htmlspecialchars(tg_payment_card_info($resellerId), ENT_QUOTES, 'UTF-8');
+        $usernameSafe = htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
+        tg_sendMessage($chatId, "✅ بسته انتخابی: <b>{$titleSafe}</b>\n👤 نام کاربری شما: <code>{$usernameSafe}</code>\n💰 مبلغ قابل پرداخت: <b>" . money($amount) . "</b> تومان\n\n💳 <b>اطلاعات پرداخت</b>\n{$card}\n\n📸 بعد از پرداخت، تصویر رسید را همین‌جا ارسال کنید.");
+        return;
+    }
+
+    tg_set_state((int)$customer['id'], 'awaiting_new_username', ['package_id' => (int)$pkg['id']]);
     tg_sendMessage($chatId, "✅ بسته انتخابی: <b>{$titleSafe}</b>\n\n✏️ یک نام کاربری انگلیسی برای سرویس خود انتخاب کنید\n<i>(فقط حروف/عدد/آندرلاین، ۳ تا ۲۰ کاراکتر)</i>:");
 }
 
@@ -490,6 +553,64 @@ function tg_show_my_services(array $customer): void {
         $lines[] = "👤 <b>{$unSafe}</b> ({$grpSafe})\n{$statusDot} وضعیت: {$status} | 📅 انقضا: {$exp}";
     }
     tg_sendMessage($chatId, implode("\n\n", $lines));
+}
+
+// ───────────────────────────── چت پشتیبانی دوطرفه ─────────────────────────────
+// مشتری توی حالت support_chat هر متنی بفرسته، عیناً برای ریسلر/ادمین (صاحب
+// همین بات) فوروارد می‌شه؛ نگاشت «کدوم پیامِ فوروارد‌شده مال کدوم مشتریه»
+// توی telegram_chat_relay ذخیره می‌شه تا وقتی صاحب بات روی همون پیام Reply
+// زد (تلگرام خودش reply_to_message.message_id رو توی آپدیت بعدی می‌فرسته)
+// بتونیم جواب رو دقیقاً برای همون مشتری برگردونیم.
+function tg_relay_customer_message(array $customer, string $text, int $resellerId): void {
+    global $pdo;
+    $who = htmlspecialchars($customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $customer['chat_id']), ENT_QUOTES, 'UTF-8');
+    $textSafe = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    $body = "💬 <b>پیام پشتیبانی از {$who}</b>\n\n{$textSafe}\n\n<i>برای پاسخ، روی همین پیام Reply بزنید.</i>";
+
+    $targets = $resellerId > 0
+        ? (($own = tg_reseller_chat_id($resellerId)) !== null ? [$own] : [])
+        : tg_admin_chat_ids();
+
+    if (empty($targets)) {
+        tg_sendMessage($customer['chat_id'], '⚠️ در حال حاضر امکان ارسال پیام پشتیبانی وجود نداره. لطفاً بعداً امتحان کنید.');
+        return;
+    }
+    foreach ($targets as $ownerChatId) {
+        $res = tg_sendMessage($ownerChatId, $body);
+        $msgId = $res['result']['message_id'] ?? null;
+        if ($msgId) {
+            $pdo->prepare("INSERT INTO telegram_chat_relay (reseller_id, customer_id, owner_message_id) VALUES (?,?,?)")
+                ->execute([$resellerId, $customer['id'], $msgId]);
+        }
+    }
+    tg_sendMessage($customer['chat_id'], '✅ پیام شما ارسال شد. منتظر پاسخ پشتیبانی باشید ⏳');
+}
+
+// ─── وقتی صاحب بات (ادمین برای بات اصلی، خودِ ریسلر برای بات اختصاصی‌اش) با
+// Reply روی یک پیامِ فوروارد‌شده‌ی مشتری جواب می‌ده، این تابع تشخیصش می‌ده و
+// جواب رو مستقیم برای همون مشتری می‌فرسته. اگه پیام Reply نبود یا به پیام
+// مربوط به یک مشتری اشاره نمی‌کرد، false برمی‌گردونه تا جریان عادی (دستورهای
+// /export و... ) ادامه پیدا کنه. ───
+function tg_try_relay_owner_reply(int $resellerId, $ownerChatId, array $msg): bool {
+    global $pdo;
+    $replyToId = $msg['reply_to_message']['message_id'] ?? null;
+    $text = trim($msg['text'] ?? '');
+    if ($replyToId === null || $text === '') return false;
+
+    $stmt = $pdo->prepare("SELECT customer_id FROM telegram_chat_relay WHERE reseller_id=? AND owner_message_id=? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$resellerId, $replyToId]);
+    $customerId = $stmt->fetchColumn();
+    if (!$customerId) return false;
+
+    $cStmt = $pdo->prepare("SELECT * FROM telegram_customers WHERE id=?");
+    $cStmt->execute([$customerId]);
+    $customer = $cStmt->fetch();
+    if (!$customer) return false;
+
+    $textSafe = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    tg_sendMessage($customer['chat_id'], "💬 <b>پاسخ پشتیبانی:</b>\n\n{$textSafe}");
+    tg_sendMessage($ownerChatId, '✅ پیام برای مشتری ارسال شد.');
+    return true;
 }
 
 // ───────────────────────────── callback ها ─────────────────────────────
