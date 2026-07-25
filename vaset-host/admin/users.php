@@ -30,6 +30,7 @@ function expandBulkPattern($pattern){
 
 $error=$_GET['error']??'';$success=$_GET['success']??'';
 $action=$_GET['action']??'';$user_id=$_GET['uid']??'';
+$bulkResult=$_SESSION['bulk_result']??[];unset($_SESSION['bulk_result']);
 
 // AJAX: لیست کاربران
 if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
@@ -467,7 +468,10 @@ table.t tr:hover td{background:rgba(59,130,246,.02)}
 .bbl{background:rgba(59,130,246,.1);color:var(--acc);border:1px solid rgba(59,130,246,.2)}
 .bpu2{background:rgba(139,92,246,.1);color:#a78bfa;border:1px solid rgba(139,92,246,.2)}
 .bwa{background:rgba(245,158,11,.1);color:var(--yel);border:1px solid rgba(245,158,11,.2)}
-.pass-box{font-family:monospace;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.2);padding:2px 7px;border-radius:5px;font-size:12px;color:#34d399;letter-spacing:.5px}
+.pass-box{font-family:monospace;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.2);padding:2px 7px;border-radius:5px;font-size:12px;color:#34d399;letter-spacing:.5px;cursor:pointer}
+.bulk-tbl{width:100%;border-collapse:collapse}
+.bulk-tbl th{font-size:11px;padding:8px 10px;background:rgba(0,0,0,.2);color:var(--muted);font-weight:600;text-align:right}
+.bulk-tbl td{padding:7px 10px;font-size:12px;border-bottom:1px solid rgba(30,45,69,.3)}
 .acts{display:flex;gap:3px;flex-wrap:wrap}
 .od{display:inline-block;width:6px;height:6px;background:var(--grn);border-radius:50%;margin-left:3px;animation:bk 2s infinite}
 @keyframes bk{0%,100%{opacity:1}50%{opacity:.3}}
@@ -556,6 +560,26 @@ input:focus,select:focus{border-color:var(--acc)}
   <div class="content">
     <?php if($success):?><div class="alert a-ok">✅ <?=sanitize($success)?></div><?php endif;?>
     <?php if($error):?><div class="alert a-err">❌ <?=sanitize($error)?></div><?php endif;?>
+
+    <?php if(!empty($bulkResult)):?>
+    <div class="card" style="margin-bottom:14px">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--bor);font-weight:700;font-size:13px;display:flex;align-items:center;gap:10px">
+        📋 <?=count($bulkResult)?> کاربر ساخته شد
+        <button onclick="copyBulk()" class="btn bg bsm" title="کپی نتایج ساخت گروهی">📋 کپی همه</button>
+        <button onclick="downloadBulk()" class="btn bp bsm" title="دانلود تصویر JPEG">⬇️ دانلود</button>
+      </div>
+      <div style="overflow-x:auto;max-height:260px;overflow-y:auto">
+        <table class="bulk-tbl">
+          <thead><tr><th>#</th><th>نام کاربری</th><th>رمز</th></tr></thead>
+          <tbody id="bulkTB"><?php foreach($bulkResult as $i=>$b):?>
+          <tr><td style="color:var(--muted)"><?=$i+1?></td>
+          <td style="font-weight:700;color:var(--txt)"><?=sanitize($b['u'])?></td>
+          <td><span class="pass-box" onclick="cp(this)"><?=sanitize($b['p'])?></span></td></tr>
+          <?php endforeach;?></tbody>
+        </table>
+      </div>
+    </div>
+    <?php endif;?>
 
     <div class="tabs">
       <button class="tab active" onclick="setTab('all',this)">📋 همه کاربران</button>
@@ -777,6 +801,64 @@ function closeSB(){document.getElementById('sidebar').classList.remove('open');d
 function openM(id){document.getElementById(id).classList.add('open')}
 function closeM(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.mbg').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open')}));
+
+function cp(el){
+  navigator.clipboard.writeText(el.textContent).then(function(){
+    el.style.background='rgba(16,185,129,.25)';setTimeout(function(){el.style.background='';},700);
+  });
+}
+function copyBulk(){
+  var rows=[].slice.call(document.querySelectorAll('#bulkTB tr'));
+  var txt=rows.map(function(r){var c=[].slice.call(r.querySelectorAll('td'));return (c[1]?c[1].textContent.trim():'')+'\t'+(c[2]?c[2].textContent.trim():'');}).join('\n');
+  navigator.clipboard.writeText(txt).then(function(){alert('کپی شد!');});
+}
+function renderTableAsJpeg(rows, filename){
+  var padding=12, rowH=34;
+  var canvas=document.createElement('canvas');
+  var ctx=canvas.getContext('2d');
+  ctx.font='14px Tahoma, Arial, sans-serif';
+  var colCount=rows[0].length, colWidths=[];
+  for(var c=0;c<colCount;c++){
+    var maxW=0;
+    rows.forEach(function(r){ var w=ctx.measureText(String(r[c])).width; if(w>maxW) maxW=w; });
+    colWidths.push(maxW+padding*2);
+  }
+  var totalW=colWidths.reduce(function(a,b){return a+b;},0);
+  var totalH=rowH*rows.length;
+  canvas.width=totalW; canvas.height=totalH;
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,totalW,totalH);
+  var y=0;
+  rows.forEach(function(r,ri){
+    var x=0;
+    for(var c=0;c<colCount;c++){
+      var w=colWidths[c];
+      ctx.fillStyle = ri===0 ? '#eaf1fb' : (ri%2===0 ? '#fafafa' : '#ffffff');
+      ctx.fillRect(x,y,w,rowH);
+      ctx.strokeStyle='#cccccc'; ctx.strokeRect(x,y,w,rowH);
+      ctx.fillStyle = ri===0 ? '#1a4fa0' : '#111111';
+      ctx.font = ri===0 ? 'bold 14px Tahoma, Arial, sans-serif' : '14px Tahoma, Arial, sans-serif';
+      ctx.textBaseline='middle';
+      ctx.fillText(String(r[c]), x+padding, y+rowH/2);
+      x+=w;
+    }
+    y+=rowH;
+  });
+  var a=document.createElement('a');
+  a.href=canvas.toDataURL('image/jpeg',0.95);
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+function downloadBulk(){
+  var rows=[].slice.call(document.querySelectorAll('#bulkTB tr'));
+  var data=[['Internet Username','Internet Password']];
+  rows.forEach(function(r){
+    var c=[].slice.call(r.querySelectorAll('td'));
+    data.push([(c[1]?c[1].textContent.trim():''), (c[2]?c[2].textContent.trim():'')]);
+  });
+  renderTableAsJpeg(data, 'users_'+(new Date().toISOString().slice(0,10))+'.jpg');
+}
 
 function setTab(t,el){curTab=t;curP=0;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));el.classList.add('active');load();}
 function clrSrch(){document.getElementById('fSrch').value='';document.getElementById('fGrp').value='';document.getElementById('fIsp').value='';document.getElementById('fRas').value='';curP=0;load();}

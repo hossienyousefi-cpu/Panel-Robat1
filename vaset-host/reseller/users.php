@@ -535,7 +535,7 @@ input:focus,select:focus{border-color:var(--acc)}
       <div style="padding:10px 14px;border-bottom:1px solid var(--bor);font-weight:700;font-size:13px;display:flex;align-items:center;gap:10px">
         📋 <?=count($bulkResult)?> کاربر ساخته شد
         <button onclick="copyBulk()" class="btn bg bsm" title="کپی نتایج ساخت گروهی">📋 کپی همه</button>
-        <button onclick="downloadBulk()" class="btn bp bsm" title="دانلود فایل اکسل (CSV)">⬇️ دانلود</button>
+        <button onclick="downloadBulk()" class="btn bp bsm" title="دانلود تصویر JPEG">⬇️ دانلود</button>
       </div>
       <div style="overflow-x:auto;max-height:260px;overflow-y:auto">
         <table class="bulk-tbl">
@@ -793,25 +793,53 @@ function copyBulk(){
   navigator.clipboard.writeText(txt).then(function(){alert('کپی شد!');});
 }
 
-function downloadBulk(){
-  var rows=[].slice.call(document.querySelectorAll('#bulkTB tr'));
-  var lines=['Internet Username,Internet Password'];
-  rows.forEach(function(r){
-    var c=[].slice.call(r.querySelectorAll('td'));
-    var u=(c[1]?c[1].textContent.trim():'').replace(/"/g,'""');
-    var p=(c[2]?c[2].textContent.trim():'').replace(/"/g,'""');
-    lines.push('"'+u+'","'+p+'"');
+function renderTableAsJpeg(rows, filename){
+  var padding=12, rowH=34;
+  var canvas=document.createElement('canvas');
+  var ctx=canvas.getContext('2d');
+  ctx.font='14px Tahoma, Arial, sans-serif';
+  var colCount=rows[0].length, colWidths=[];
+  for(var c=0;c<colCount;c++){
+    var maxW=0;
+    rows.forEach(function(r){ var w=ctx.measureText(String(r[c])).width; if(w>maxW) maxW=w; });
+    colWidths.push(maxW+padding*2);
+  }
+  var totalW=colWidths.reduce(function(a,b){return a+b;},0);
+  var totalH=rowH*rows.length;
+  canvas.width=totalW; canvas.height=totalH;
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,totalW,totalH);
+  var y=0;
+  rows.forEach(function(r,ri){
+    var x=0;
+    for(var c=0;c<colCount;c++){
+      var w=colWidths[c];
+      ctx.fillStyle = ri===0 ? '#eaf1fb' : (ri%2===0 ? '#fafafa' : '#ffffff');
+      ctx.fillRect(x,y,w,rowH);
+      ctx.strokeStyle='#cccccc'; ctx.strokeRect(x,y,w,rowH);
+      ctx.fillStyle = ri===0 ? '#1a4fa0' : '#111111';
+      ctx.font = ri===0 ? 'bold 14px Tahoma, Arial, sans-serif' : '14px Tahoma, Arial, sans-serif';
+      ctx.textBaseline='middle';
+      ctx.fillText(String(r[c]), x+padding, y+rowH/2);
+      x+=w;
+    }
+    y+=rowH;
   });
-  var csv='﻿'+lines.join('\r\n');
-  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
-  a.href=url;
-  a.download='users_'+(new Date().toISOString().slice(0,10))+'.csv';
+  a.href=canvas.toDataURL('image/jpeg',0.95);
+  a.download=filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+}
+
+function downloadBulk(){
+  var rows=[].slice.call(document.querySelectorAll('#bulkTB tr'));
+  var data=[['Internet Username','Internet Password']];
+  rows.forEach(function(r){
+    var c=[].slice.call(r.querySelectorAll('td'));
+    data.push([(c[1]?c[1].textContent.trim():''), (c[2]?c[2].textContent.trim():'')]);
+  });
+  renderTableAsJpeg(data, 'users_'+(new Date().toISOString().slice(0,10))+'.jpg');
 }
 
 let srchT=null;
