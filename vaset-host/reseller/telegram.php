@@ -34,6 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = 'متن‌ها ذخیره شد.';
     }
 
+    if ($action === 'save_branding') {
+        rb_saveBranding($rid, trim($_POST['shop_name'] ?? ''), trim($_POST['welcome_message'] ?? ''));
+        logActivity('reseller', $rid, 'save_bot_branding', 'برندینگ بات تلگرام اختصاصی به‌روز شد');
+        $success = 'برندینگ بات ذخیره شد.';
+    }
+
     if ($action === 'toggle_enabled') {
         $bot = rb_getBot($rid);
         rb_setEnabled($rid, empty($bot['enabled']));
@@ -253,6 +259,30 @@ $groupCount = (int)$grpStmt->fetchColumn();
     </div>
 
     <?php if ($bot): ?>
+    <div class="card">
+      <div class="card-header">
+        <div style="font-size:20px">🎨</div>
+        <div>
+          <div class="card-title">برندینگ فروشگاه</div>
+          <div class="card-desc">اسم مغازه/کسب‌وکار خودتان را وارد کنید - همه‌جای بات (پیام خوش‌آمد و غیره) با همین اسم نشون داده می‌شه. پیام خوش‌آمد اختیاریه؛ اگه خالی بذارید، یک متن پیش‌فرض خوشگل با همین اسم فروشگاه ساخته می‌شه.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="save_branding">
+          <div class="form-group">
+            <label>اسم فروشگاه</label>
+            <input type="text" name="shop_name" placeholder="مثلاً: اینترنت پرسرعت آرشیا" value="<?= sanitize($bot['shop_name'] ?? '') ?>">
+          </div>
+          <div class="form-group">
+            <label>پیام خوش‌آمد اختصاصی (اختیاری)</label>
+            <textarea name="welcome_message" placeholder="مثلاً: با ما بهترین اینترنت رو با بهترین قیمت تجربه کن 🚀"><?= sanitize($bot['welcome_message'] ?? '') ?></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+        </form>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <div style="font-size:20px">🛡️</div>

@@ -49,15 +49,62 @@ function tg_is_reseller_owner_chat(int $resellerId, $chatId): bool {
     return $own !== null && $own === (string)$chatId;
 }
 
+// تلگرام رنگ واقعی به دکمه‌ها نمی‌ده (نه Reply Keyboard نه Inline)، پس برای
+// حس «دکمه‌ی رنگی» از یک دایره‌ی رنگی به‌عنوان پیشوند هر دکمه استفاده می‌کنیم -
+// ترفند رایج بات‌های تلگرامی برای متمایز کردن بصریِ گزینه‌ها.
 function tg_main_keyboard(): array {
     return [
         'keyboard' => [
-            ['🛒 خرید سرویس جدید', '🔄 تمدید سرویس'],
-            ['📋 سرویس‌های من', '💳 اطلاعات پرداخت'],
-            ['💬 پشتیبانی'],
+            ['🟢 خرید سرویس جدید', '🔵 تمدید سرویس'],
+            ['🟣 سرویس‌های من', '🟡 اطلاعات پرداخت'],
+            ['🔴 پشتیبانی'],
         ],
         'resize_keyboard' => true,
     ];
+}
+
+// ─── دایره‌های رنگی که به‌ترتیب برای شماره‌گذاری بصری پکیج‌ها/سرویس‌ها توی
+// دکمه‌های inline استفاده می‌شن (فقط ظاهری - تلگرام رنگ واقعی روی دکمه نداره) ─
+function tg_color_dot(int $i): string {
+    static $dots = ['🟢', '🔵', '🟣', '🟡', '🟠', '🔴', '⚪️', '🟤'];
+    return $dots[$i % count($dots)];
+}
+
+// ─── اسم فروشگاه: برای بات ریسلر از shop_name خودش (یا در نبودش از اسم
+// کاربری‌اش)، برای بات اصلی از تنظیمات سراسری سایت ───
+function tg_shop_name(int $resellerId): string {
+    global $pdo;
+    if ($resellerId > 0) {
+        $stmt = $pdo->prepare("SELECT rb.shop_name, r.username, r.full_name FROM reseller_bots rb
+            JOIN resellers r ON r.id = rb.reseller_id WHERE rb.reseller_id=?");
+        $stmt->execute([$resellerId]);
+        $row = $stmt->fetch();
+        if ($row) {
+            if (!empty($row['shop_name'])) return $row['shop_name'];
+            if (!empty($row['full_name'])) return $row['full_name'];
+            return $row['username'] ?? 'فروشگاه اینترنت';
+        }
+        return 'فروشگاه اینترنت';
+    }
+    return getSetting('site_name', 'فروشگاه اینترنت');
+}
+
+// ─── متن خوش‌آمدگویی /start: اگه ریسلر پیام سفارشی نوشته باشه همون، وگرنه
+// یک قالب پیش‌فرض خوشگل با اسم فروشگاه و اسم مشتری ───
+function tg_welcome_message(int $resellerId, string $name): string {
+    global $pdo;
+    $shop = htmlspecialchars(tg_shop_name($resellerId), ENT_QUOTES, 'UTF-8');
+    $nameSafe = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    if ($resellerId > 0) {
+        $stmt = $pdo->prepare("SELECT welcome_message FROM reseller_bots WHERE reseller_id=?");
+        $stmt->execute([$resellerId]);
+        $custom = $stmt->fetchColumn();
+        if (!empty($custom)) {
+            return "🎉 <b>{$shop}</b>\n\n" . htmlspecialchars($custom, ENT_QUOTES, 'UTF-8')
+                . "\n\n👇 از منوی زیر یکی رو انتخاب کن:";
+        }
+    }
+    return "🎉 سلام {$nameSafe} 👋\nبه <b>{$shop}</b> خوش آمدید!\n\n✨ از منوی زیر یکی از گزینه‌ها رو انتخاب کن:";
 }
 
 function tg_generate_password(int $len = 6): string {
@@ -229,15 +276,15 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
     if ($text === '/start') {
         tg_set_state((int)$customer['id'], null, null);
         $name = $fullName ?: 'دوست عزیز';
-        tg_sendMessage($chatId, "سلام {$name} 👋\nبه ربات فروش اینترنت خوش آمدید.\nاز منوی زیر یکی را انتخاب کنید:", tg_main_keyboard());
+        tg_sendMessage($chatId, tg_welcome_message($resellerId, $name), tg_main_keyboard());
         return;
     }
 
-    if ($text === '🛒 خرید سرویس جدید') { tg_start_new_purchase($customer, $resellerId); return; }
-    if ($text === '🔄 تمدید سرویس') { tg_start_renew($customer, $resellerId); return; }
-    if ($text === '📋 سرویس‌های من') { tg_show_my_services($customer); return; }
-    if ($text === '💳 اطلاعات پرداخت') { tg_sendMessage($chatId, tg_payment_card_info($resellerId)); return; }
-    if ($text === '💬 پشتیبانی') { tg_sendMessage($chatId, tg_support_message($resellerId)); return; }
+    if ($text === '🟢 خرید سرویس جدید') { tg_start_new_purchase($customer, $resellerId); return; }
+    if ($text === '🔵 تمدید سرویس') { tg_start_renew($customer, $resellerId); return; }
+    if ($text === '🟣 سرویس‌های من') { tg_show_my_services($customer); return; }
+    if ($text === '🟡 اطلاعات پرداخت') { tg_sendMessage($chatId, "💳 <b>اطلاعات پرداخت</b>\n\n" . htmlspecialchars(tg_payment_card_info($resellerId), ENT_QUOTES, 'UTF-8')); return; }
+    if ($text === '🔴 پشتیبانی') { tg_sendMessage($chatId, "🆘 <b>پشتیبانی</b>\n\n" . htmlspecialchars(tg_support_message($resellerId), ENT_QUOTES, 'UTF-8')); return; }
 
     $state = $customer['state'];
 
@@ -265,11 +312,12 @@ function tg_start_new_purchase(array $customer, int $resellerId = 0): void {
         return;
     }
     $buttons = [];
-    foreach ($packages as $p) {
-        $buttons[] = [['text' => $p['title'] . ' - ' . money((float)$p['price']) . ' تومان', 'callback_data' => 'pkg_' . $p['id']]];
+    foreach ($packages as $i => $p) {
+        $dot = tg_color_dot($i);
+        $buttons[] = [['text' => "{$dot} {$p['title']} — " . money((float)$p['price']) . ' تومان', 'callback_data' => 'pkg_' . $p['id']]];
     }
     tg_set_state((int)$customer['id'], null, null);
-    tg_sendMessage($chatId, '📦 یکی از بسته‌های زیر را انتخاب کنید:', ['inline_keyboard' => $buttons]);
+    tg_sendMessage($chatId, "📦 <b>یکی از بسته‌های زیر را انتخاب کنید:</b>", ['inline_keyboard' => $buttons]);
 }
 
 function tg_customer_pick_package($chatId, int $pkgId, string $cqId, int $resellerId = 0): void {
@@ -284,7 +332,8 @@ function tg_customer_pick_package($chatId, int $pkgId, string $cqId, int $resell
 
     tg_set_state((int)$customer['id'], 'awaiting_new_username', ['package_id' => (int)$pkg['id']]);
     tg_answerCallbackQuery($cqId);
-    tg_sendMessage($chatId, "بسته انتخابی: {$pkg['title']}\n\nیک نام کاربری انگلیسی برای سرویس خود انتخاب کنید (فقط حروف/عدد/آندرلاین، ۳ تا ۲۰ کاراکتر):");
+    $titleSafe = htmlspecialchars($pkg['title'], ENT_QUOTES, 'UTF-8');
+    tg_sendMessage($chatId, "✅ بسته انتخابی: <b>{$titleSafe}</b>\n\n✏️ یک نام کاربری انگلیسی برای سرویس خود انتخاب کنید\n<i>(فقط حروف/عدد/آندرلاین، ۳ تا ۲۰ کاراکتر)</i>:");
 }
 
 function tg_receive_new_username(array $customer, string $username, int $resellerId = 0): void {
@@ -306,8 +355,9 @@ function tg_receive_new_username(array $customer, string $username, int $reselle
 
     $pkg = tg_get_package((int)($data['package_id'] ?? 0), $resellerId);
     $amount = $pkg ? (float)$pkg['price'] : 0;
-    $card = tg_payment_card_info($resellerId);
-    tg_sendMessage($chatId, "نام کاربری: {$username}\nمبلغ قابل پرداخت: " . money($amount) . " تومان\n\n{$card}\n\nبعد از پرداخت، تصویر رسید را همین‌جا ارسال کنید 📸");
+    $card = htmlspecialchars(tg_payment_card_info($resellerId), ENT_QUOTES, 'UTF-8');
+    $usernameSafe = htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
+    tg_sendMessage($chatId, "👤 نام کاربری: <b>{$usernameSafe}</b>\n💰 مبلغ قابل پرداخت: <b>" . money($amount) . "</b> تومان\n\n💳 <b>اطلاعات پرداخت</b>\n{$card}\n\n📸 بعد از پرداخت، تصویر رسید را همین‌جا ارسال کنید.");
 }
 
 // ───────────────────────────── تمدید سرویس ─────────────────────────────
@@ -317,13 +367,14 @@ function tg_start_renew(array $customer, int $resellerId = 0): void {
     $links = $pdo->prepare("SELECT * FROM telegram_user_links WHERE telegram_customer_id=? ORDER BY id DESC");
     $links->execute([$customer['id']]);
     $links = $links->fetchAll();
-    if (!$links) { tg_sendMessage($chatId, 'شما سرویس فعالی برای تمدید ثبت‌شده در ربات ندارید.'); return; }
+    if (!$links) { tg_sendMessage($chatId, '📭 شما سرویس فعالی برای تمدید ثبت‌شده در ربات ندارید.'); return; }
 
     $buttons = [];
-    foreach ($links as $l) {
-        $buttons[] = [['text' => $l['ibs_username'] . ' (' . $l['group_name'] . ')', 'callback_data' => 'renew_' . $l['id']]];
+    foreach ($links as $i => $l) {
+        $dot = tg_color_dot($i);
+        $buttons[] = [['text' => "{$dot} {$l['ibs_username']} ({$l['group_name']})", 'callback_data' => 'renew_' . $l['id']]];
     }
-    tg_sendMessage($chatId, '🔄 کدام سرویس را می‌خواهید تمدید کنید؟', ['inline_keyboard' => $buttons]);
+    tg_sendMessage($chatId, '🔁 <b>کدام سرویس را می‌خواهید تمدید کنید؟</b>', ['inline_keyboard' => $buttons]);
 }
 
 function tg_customer_pick_renew($chatId, int $linkId, string $cqId, int $resellerId = 0): void {
@@ -351,8 +402,9 @@ function tg_customer_pick_renew($chatId, int $linkId, string $cqId, int $reselle
         'link_id'  => (int)$link['id'],
     ]);
     tg_answerCallbackQuery($cqId);
-    $card = tg_payment_card_info($resellerId);
-    tg_sendMessage($chatId, "تمدید سرویس: {$link['ibs_username']}\nمبلغ: " . money((float)$pkg['price']) . " تومان\n\n{$card}\n\nبعد از پرداخت، تصویر رسید را ارسال کنید 📸");
+    $card = htmlspecialchars(tg_payment_card_info($resellerId), ENT_QUOTES, 'UTF-8');
+    $unSafe = htmlspecialchars($link['ibs_username'], ENT_QUOTES, 'UTF-8');
+    tg_sendMessage($chatId, "🔁 تمدید سرویس: <b>{$unSafe}</b>\n💰 مبلغ: <b>" . money((float)$pkg['price']) . "</b> تومان\n\n💳 <b>اطلاعات پرداخت</b>\n{$card}\n\n📸 بعد از پرداخت، تصویر رسید را ارسال کنید.");
 }
 
 // ───────────────────────────── دریافت رسید (مشترک بین خرید و تمدید) ─────────────────────────────
@@ -378,20 +430,23 @@ function tg_receive_receipt(array $customer, string $fileId, int $resellerId = 0
         $stmt = $pdo->prepare("INSERT INTO telegram_orders (telegram_customer_id, reseller_id, order_type, package_id, target_username, amount, receipt_file, status) VALUES (?,?,?,?,?,?,?,'pending')");
         $stmt->execute([$customer['id'], $resellerId, 'new', $pkg['id'], $data['username'], $pkg['price'], $localName]);
         $orderId = (int)$pdo->lastInsertId();
-        $who = $customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId);
-        $summary = "🛒 سفارش جدید #{$orderId}\nمشتری: {$who}\nبسته: {$pkg['title']}\nیوزرنیم درخواستی: {$data['username']}\nمبلغ: " . money((float)$pkg['price']) . ' تومان';
+        $who = htmlspecialchars($customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId), ENT_QUOTES, 'UTF-8');
+        $titleSafe = htmlspecialchars($pkg['title'], ENT_QUOTES, 'UTF-8');
+        $unSafe = htmlspecialchars($data['username'], ENT_QUOTES, 'UTF-8');
+        $summary = "🛒 <b>سفارش جدید #{$orderId}</b>\n👤 مشتری: {$who}\n📦 بسته: {$titleSafe}\n✏️ یوزرنیم درخواستی: <b>{$unSafe}</b>\n💰 مبلغ: <b>" . money((float)$pkg['price']) . '</b> تومان';
     } elseif ($customer['state'] === 'awaiting_renew_receipt') {
         $stmt = $pdo->prepare("INSERT INTO telegram_orders (telegram_customer_id, reseller_id, order_type, target_username, amount, receipt_file, status) VALUES (?,?,?,?,?,?,'pending')");
         $stmt->execute([$customer['id'], $resellerId, 'renew', $data['username'], $data['amount'], $localName]);
         $orderId = (int)$pdo->lastInsertId();
-        $who = $customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId);
-        $summary = "🔄 سفارش تمدید #{$orderId}\nمشتری: {$who}\nیوزرنیم: {$data['username']}\nمبلغ: " . money((float)$data['amount']) . ' تومان';
+        $who = htmlspecialchars($customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId), ENT_QUOTES, 'UTF-8');
+        $unSafe = htmlspecialchars($data['username'], ENT_QUOTES, 'UTF-8');
+        $summary = "🔁 <b>سفارش تمدید #{$orderId}</b>\n👤 مشتری: {$who}\n✏️ یوزرنیم: <b>{$unSafe}</b>\n💰 مبلغ: <b>" . money((float)$data['amount']) . '</b> تومان';
     } else {
         return;
     }
 
     tg_set_state((int)$customer['id'], null, null);
-    tg_sendMessage($chatId, '✅ رسید شما ثبت شد. پس از بررسی نتیجه اطلاع‌رسانی می‌شود.', tg_main_keyboard());
+    tg_sendMessage($chatId, "✅ <b>رسید شما ثبت شد.</b>\nپس از بررسی، نتیجه اطلاع‌رسانی می‌شود ⏳", tg_main_keyboard());
 
     $kb = ['inline_keyboard' => [[
         ['text' => '✅ تأیید', 'callback_data' => "ord_approve_{$orderId}"],
@@ -417,9 +472,9 @@ function tg_show_my_services(array $customer): void {
     $links = $pdo->prepare("SELECT * FROM telegram_user_links WHERE telegram_customer_id=? ORDER BY id DESC");
     $links->execute([$customer['id']]);
     $links = $links->fetchAll();
-    if (!$links) { tg_sendMessage($chatId, 'شما هنوز سرویسی از این ربات نخریده‌اید.'); return; }
+    if (!$links) { tg_sendMessage($chatId, '📭 شما هنوز سرویسی از این ربات نخریده‌اید.'); return; }
 
-    $lines = [];
+    $lines = ['📋 <b>سرویس‌های شما</b>', ''];
     foreach ($links as $l) {
         $exp = '-';
         $status = '-';
@@ -429,7 +484,10 @@ function tg_show_my_services(array $customer): void {
             $exp = !empty($basic['nearest_exp_date']) ? substr($basic['nearest_exp_date'], 0, 10) : '∞';
             $status = $basic['status'] ?? '-';
         }
-        $lines[] = "👤 {$l['ibs_username']} ({$l['group_name']})\nوضعیت: {$status} | انقضا: {$exp}";
+        $statusDot = $status === 'Recharged' ? '🟢' : ($status === 'Disable' ? '🔴' : '⚪️');
+        $unSafe = htmlspecialchars($l['ibs_username'], ENT_QUOTES, 'UTF-8');
+        $grpSafe = htmlspecialchars($l['group_name'], ENT_QUOTES, 'UTF-8');
+        $lines[] = "👤 <b>{$unSafe}</b> ({$grpSafe})\n{$statusDot} وضعیت: {$status} | 📅 انقضا: {$exp}";
     }
     tg_sendMessage($chatId, implode("\n\n", $lines));
 }
@@ -571,7 +629,9 @@ function tg_provision_new_order(array $order, ?array $customer, int $resellerId 
     }
 
     if ($customer) {
-        tg_sendMessage($customer['chat_id'], "✅ سرویس شما فعال شد!\n\nنام کاربری: {$username}\nرمز عبور: {$password}\n\nاین اطلاعات را نزد خود نگه دارید.");
+        $unSafe = htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
+        $pwSafe = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
+        tg_sendMessage($customer['chat_id'], "🎉 <b>سرویس شما فعال شد!</b>\n\n👤 نام کاربری: <code>{$unSafe}</code>\n🔑 رمز عبور: <code>{$pwSafe}</code>\n\n⚠️ این اطلاعات را نزد خود نگه دارید.");
     }
 
     return ['ok' => true, 'ibs_uid' => $newUID];
@@ -628,7 +688,8 @@ function tg_provision_renew_order(array $order, ?array $customer, int $resellerI
     }
 
     if ($customer) {
-        tg_sendMessage($customer['chat_id'], "✅ سرویس «{$username}» با موفقیت تمدید شد.");
+        $unSafe = htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
+        tg_sendMessage($customer['chat_id'], "🎉 <b>سرویس «{$unSafe}» با موفقیت تمدید شد!</b> ✅");
     }
 
     return ['ok' => true, 'ibs_uid' => $uid];

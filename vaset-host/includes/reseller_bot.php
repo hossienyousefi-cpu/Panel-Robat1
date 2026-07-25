@@ -42,6 +42,15 @@ function rb_saveTexts(int $resellerId, string $paymentCardInfo, string $supportM
         ->execute([$paymentCardInfo, $supportMessage, $resellerId]);
 }
 
+// ─── برندینگ بات: اسم فروشگاه (توی پیام خوش‌آمد و همه‌جای بات نشون داده
+// می‌شه) + یک پیام خوش‌آمد اختصاصی اختیاری (اگه خالی بمونه، یک متن پیش‌فرض
+// خوشگل با همون اسم فروشگاه ساخته می‌شه - نیازی به پر کردن اجباری نیست) ───
+function rb_saveBranding(int $resellerId, string $shopName, string $welcomeMessage): void {
+    global $pdo;
+    $pdo->prepare("UPDATE reseller_bots SET shop_name=?, welcome_message=? WHERE reseller_id=?")
+        ->execute([$shopName !== '' ? $shopName : null, $welcomeMessage !== '' ? $welcomeMessage : null, $resellerId]);
+}
+
 function rb_setEnabled(int $resellerId, bool $enabled): void {
     global $pdo;
     $pdo->prepare("UPDATE reseller_bots SET enabled=? WHERE reseller_id=?")->execute([$enabled ? 1 : 0, $resellerId]);

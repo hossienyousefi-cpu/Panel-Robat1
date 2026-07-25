@@ -93,14 +93,20 @@ function tg_api($method, $params = [], $timeout = 15) {
     return is_array($decoded) ? $decoded : ['ok' => false, 'description' => 'invalid json از تلگرام'];
 }
 
-function tg_sendMessage($chatId, $text, $replyMarkup = null) {
+// $parseMode='HTML' به‌صورت پیش‌فرض تا بشه توی متن پیام‌ها از <b>پررنگ</b>/
+// <i>مورب</i> برای ظاهر بهتر استفاده کرد؛ هر رشته‌ی متغیر (یوزرنیم، اسم
+// فروشگاه و...) باید قبل از قرار گرفتن توی متن با htmlspecialchars() پاک‌سازی
+// بشه وگرنه اگه شامل </>&  باشه می‌تونه فرمت پیام رو خراب کنه.
+function tg_sendMessage($chatId, $text, $replyMarkup = null, $parseMode = 'HTML') {
     $params = ['chat_id' => $chatId, 'text' => $text];
+    if ($parseMode !== null) $params['parse_mode'] = $parseMode;
     if ($replyMarkup !== null) $params['reply_markup'] = json_encode($replyMarkup);
     return tg_api('sendMessage', $params);
 }
 
-function tg_editMessageText($chatId, $messageId, $text, $replyMarkup = null) {
+function tg_editMessageText($chatId, $messageId, $text, $replyMarkup = null, $parseMode = 'HTML') {
     $params = ['chat_id' => $chatId, 'message_id' => $messageId, 'text' => $text];
+    if ($parseMode !== null) $params['parse_mode'] = $parseMode;
     if ($replyMarkup !== null) $params['reply_markup'] = json_encode($replyMarkup);
     return tg_api('editMessageText', $params);
 }
@@ -122,8 +128,9 @@ function tg_answerCallbackQuery($callbackId, $text = '', $showAlert = false) {
 }
 
 // ─── ارسال عکس با file_id (برای فوروارد رسید پرداخت به ادمین) ───
-function tg_sendPhotoByFileId($chatId, $fileId, $caption = '', $replyMarkup = null) {
+function tg_sendPhotoByFileId($chatId, $fileId, $caption = '', $replyMarkup = null, $parseMode = 'HTML') {
     $params = ['chat_id' => $chatId, 'photo' => $fileId, 'caption' => $caption];
+    if ($parseMode !== null) $params['parse_mode'] = $parseMode;
     if ($replyMarkup !== null) $params['reply_markup'] = json_encode($replyMarkup);
     return tg_api('sendPhoto', $params);
 }
