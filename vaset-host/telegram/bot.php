@@ -586,18 +586,33 @@ function tg_relay_customer_message(array $customer, string $text, int $resellerI
         : tg_admin_chat_ids();
 
     if (empty($targets)) {
+        error_log("[tg_relay_customer_message] reseller_id={$resellerId} customer_id={$customer['id']}: هیچ مقصدی برای ارسال پیام پشتیبانی وجود نداره (Chat ID ریسلر/ادمین ثبت نشده).");
         tg_sendMessage($customer['chat_id'], '⚠️ در حال حاضر امکان ارسال پیام پشتیبانی وجود نداره. لطفاً بعداً امتحان کنید.');
         return;
     }
+    $anySent = false;
     foreach ($targets as $ownerChatId) {
         $res = tg_sendMessage($ownerChatId, $body);
         $msgId = $res['result']['message_id'] ?? null;
+        if (!($res['ok'] ?? false)) {
+            error_log("[tg_relay_customer_message] reseller_id={$resellerId} customer_id={$customer['id']}: ارسال پیام پشتیبانی به Chat ID ({$ownerChatId}) ناموفق بود: " . ($res['description'] ?? json_encode($res, JSON_UNESCAPED_UNICODE)));
+            continue;
+        }
+        $anySent = true;
         if ($msgId) {
-            $pdo->prepare("INSERT INTO telegram_chat_relay (reseller_id, customer_id, owner_message_id) VALUES (?,?,?)")
-                ->execute([$resellerId, $customer['id'], $msgId]);
+            try {
+                $pdo->prepare("INSERT INTO telegram_chat_relay (reseller_id, customer_id, owner_message_id) VALUES (?,?,?)")
+                    ->execute([$resellerId, $customer['id'], $msgId]);
+            } catch (Throwable $e) {
+                error_log("[tg_relay_customer_message] reseller_id={$resellerId} customer_id={$customer['id']}: ثبت نگاشت telegram_chat_relay ناموفق بود (احتمالاً جدول ساخته نشده - migration 007 رو چک کنید): " . $e->getMessage());
+            }
         }
     }
-    tg_sendMessage($customer['chat_id'], '✅ پیام شما ارسال شد. منتظر پاسخ پشتیبانی باشید ⏳');
+    if ($anySent) {
+        tg_sendMessage($customer['chat_id'], '✅ پیام شما ارسال شد. منتظر پاسخ پشتیبانی باشید ⏳');
+    } else {
+        tg_sendMessage($customer['chat_id'], '⚠️ ارسال پیام پشتیبانی با خطا مواجه شد. لطفاً بعداً دوباره امتحان کنید.');
+    }
 }
 
 // ─── وقتی صاحب بات (ادمین برای بات اصلی، خودِ ریسلر برای بات اختصاصی‌اش) با
@@ -611,9 +626,14 @@ function tg_try_relay_owner_reply(int $resellerId, $ownerChatId, array $msg): bo
     $text = trim($msg['text'] ?? '');
     if ($replyToId === null || $text === '') return false;
 
-    $stmt = $pdo->prepare("SELECT customer_id FROM telegram_chat_relay WHERE reseller_id=? AND owner_message_id=? ORDER BY id DESC LIMIT 1");
-    $stmt->execute([$resellerId, $replyToId]);
-    $customerId = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->prepare("SELECT customer_id FROM telegram_chat_relay WHERE reseller_id=? AND owner_message_id=? ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$resellerId, $replyToId]);
+        $customerId = $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        error_log("[tg_try_relay_owner_reply] reseller_id={$resellerId}: خواندن telegram_chat_relay ناموفق بود (احتمالاً جدول ساخته نشده - migration 007 رو چک کنید): " . $e->getMessage());
+        return false;
+    }
     if (!$customerId) return false;
 
     $cStmt = $pdo->prepare("SELECT * FROM telegram_customers WHERE id=?");

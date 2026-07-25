@@ -84,6 +84,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         logActivity('reseller', $rid, 'set_telegram_chat_id', 'ثبت Chat ID تلگرام ریسلر');
         $success = 'Chat ID ذخیره شد. برای تست، دستور /start را به بات خودتان بفرستید.';
     }
+
+    // برای پیدا کردن اینکه چرا کارت تأیید سفارش به Chat ID نمی‌رسه: مستقیم
+    // یک پیام تست با همون بات/همون Chat ID می‌فرستیم و پاسخ خامِ خودِ تلگرام
+    // رو نشون می‌دیم - اگه Chat ID اشتباه باشه یا هنوز به بات /start نزده
+    // باشید، تلگرام همینجا دقیقاً می‌گه چرا (مثلاً "chat not found").
+    if ($action === 'send_test_message') {
+        $bot = rb_getBot($rid);
+        $rInfo = $pdo->prepare("SELECT telegram_chat_id FROM resellers WHERE id=?");
+        $rInfo->execute([$rid]);
+        $myChatId = $rInfo->fetchColumn();
+        if (!$bot) {
+            $error = 'ابتدا توکن بات را ذخیره کنید.';
+        } elseif (!$myChatId) {
+            $error = 'ابتدا Chat ID خودتان را ذخیره کنید.';
+        } else {
+            tg_setActiveBotToken($bot['bot_token']);
+            $res = tg_sendMessage($myChatId, '✅ این یک پیام تستی است. اگه این رو می‌بینید، اتصال بات به Chat ID شما درست کار می‌کنه.');
+            if ($res['ok'] ?? false) {
+                $success = 'پیام تست با موفقیت ارسال شد ✅ (توی تلگرام چک کنید)';
+            } else {
+                $error = 'پیام تست ارسال نشد: ' . ($res['description'] ?? json_encode($res, JSON_UNESCAPED_UNICODE)) . ' — یعنی همین دلیل باعث نرسیدن کارت تأیید سفارش هم می‌شه. معمولاً یعنی یا Chat ID اشتباهه یا هنوز به بات /start نزدید.';
+            }
+        }
+    }
 }
 
 $bot = rb_getBot($rid);
@@ -326,6 +350,12 @@ $groupCount = (int)$grpStmt->fetchColumn();
             <input type="text" name="my_chat_id" placeholder="مثلاً 123456789" value="<?= sanitize((string)($reseller['telegram_chat_id'] ?: '')) ?>">
           </div>
           <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+        </form>
+        <form method="POST" style="margin-top:12px">
+          <input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="send_test_message">
+          <button type="submit" class="btn btn-warn">🧪 ارسال پیام تست</button>
+          <p style="font-size:12px;color:var(--text2);margin-top:8px">اگه پیام تست نرسید، دقیقاً همون دلیلیه که کارت تأیید سفارش هم نمی‌رسه. اول توکن و Chat ID رو ذخیره کنید و به بات <code>/start</code> بزنید، بعد این دکمه رو بزنید.</p>
         </form>
       </div>
     </div>
