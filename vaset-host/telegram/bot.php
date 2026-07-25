@@ -682,21 +682,25 @@ function tg_relay_customer_message(array $customer, string $text, int $resellerI
     // اگه این تیکت قبلاً (برای پیام اول) یک‌بار به همه‌ی ادمین‌ها فرستاده شده و
     // هنوز کسی نپذیرفته، به‌جای اسپم کردنِ یک پیامِ کاملاً جدید به‌ازای هر پیامِ
     // بعدیِ مشتری (که هم دکمه‌های تکراری می‌ساخت هم چت ادمین رو شلوغ می‌کرد)،
-    // همون کارت‌های قبلی رو ویرایش و پیام جدید رو بهشون اضافه می‌کنیم.
+    // همون کارت‌های قبلی رو ویرایش و پیام جدید رو بهشون اضافه می‌کنیم. اگه
+    // مشتری خیلی پشت‌سرهم (کمتر از چند ثانیه فاصله) پیام بفرسته، متن جدید
+    // همیشه ذخیره می‌شه ولی درخواست ویرایش به API تلگرام محدود می‌شه (throttle)
+    // تا اسپم واقعیِ چندین پیام در ثانیه چت ادمین رو غرق نکنه.
     if (!empty($ticket['broadcast_json'])) {
         $broadcast = json_decode($ticket['broadcast_json'], true) ?: [];
         $combinedText = rtrim((string)$ticket['initial_text']) . "\n\n💬 {$who}: {$textSafe}";
         if (mb_strlen(strip_tags($combinedText)) > 3500) {
             $combinedText = "🎫 <b>تیکت #{$ticket['id']}</b>\n<i>(پیام‌های قبلی‌تر بالاتر بود)</i>\n\n💬 {$who}: {$textSafe}";
         }
-        $kb = ['inline_keyboard' => [[['text' => '✅ پذیرش تیکت', 'callback_data' => 'tkt_claim_' . $ticket['id']]]]];
-        $anyOk = false;
-        foreach ($broadcast as $adminChat => $mid) {
-            $r = tg_editMessageText($adminChat, $mid, $combinedText, $kb);
-            if ($r['ok'] ?? false) $anyOk = true;
+        $lastAt = !empty($ticket['last_message_at']) ? strtotime($ticket['last_message_at']) : 0;
+        $throttled = (time() - $lastAt) < 4;
+        $pdo->prepare("UPDATE support_tickets SET initial_text=?, last_message_at=NOW() WHERE id=?")->execute([$combinedText, $ticket['id']]);
+
+        if (!$throttled) {
+            $kb = ['inline_keyboard' => [[['text' => '✅ پذیرش تیکت', 'callback_data' => 'tkt_claim_' . $ticket['id']]]]];
+            foreach ($broadcast as $adminChat => $mid) tg_editMessageText($adminChat, $mid, $combinedText, $kb);
         }
-        $pdo->prepare("UPDATE support_tickets SET initial_text=? WHERE id=?")->execute([$combinedText, $ticket['id']]);
-        tg_sendMessage($chatId, $anyOk ? '✅ پیام شما اضافه شد.' : '⚠️ ارسال پیام با خطا مواجه شد. لطفاً بعداً دوباره امتحان کنید.');
+        tg_sendMessage($chatId, '✅ پیام شما ثبت شد.');
         return;
     }
 
@@ -1129,6 +1133,25 @@ function tg_provision_renew_order(array $order, ?array $customer, int $resellerI
     return ['ok' => true, 'ibs_uid' => $uid];
 }
 
+// ─── ارسال پیام همگانی برای همه‌ی مشتریانِ همین بات (reseller_id=0 یعنی بات
+// اصلی). هم از دستور /broadcast توی خودِ تلگرام هم از admin/telegram.php
+// (پنل وب) استفاده می‌شه - یک پیاده‌سازی مشترک برای سرعت ارسال (رعایت
+// محدودیت نرخ تلگرام) و اینکه مشتری‌های بلاک‌شده پیام نگیرن. ───
+function tg_do_broadcast(int $resellerId, string $text): array {
+    global $pdo;
+    set_time_limit(0);
+    $stmt = $pdo->prepare("SELECT chat_id FROM telegram_customers WHERE reseller_id=? AND is_blocked=0");
+    $stmt->execute([$resellerId]);
+    $chats = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $sent = 0; $failed = 0;
+    foreach ($chats as $chatId) {
+        $r = tg_sendMessage($chatId, $text);
+        if ($r['ok'] ?? false) $sent++; else $failed++;
+        usleep(50000);
+    }
+    return [$sent, $failed];
+}
+
 // ───────────────────────────── پنل کنترلی خودِ ریسلر توی بات اختصاصی‌اش ─────────────────────────────
 function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg): bool {
     global $pdo;
@@ -1155,11 +1178,24 @@ function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg):
         return true;
     }
 
+    // فقط خودِ صاحب بات (نه ادمین‌های اضافه‌ی bot_admins) - چون این دستور برای
+    // *همه‌ی* مشتریان بات پیام می‌فرسته و نباید دستِ هرکسی باشه.
+    if ($text === '/broadcast' || str_starts_with($text, '/broadcast ')) {
+        if (!ba_is_owner_chat($resellerId, $chatId)) { tg_sendMessage($chatId, '⛔️ این قابلیت فقط برای صاحب بات در دسترسه.'); return true; }
+        $body = trim(substr($text, strlen('/broadcast')));
+        if ($body === '') { tg_sendMessage($chatId, 'فرمت درست: <code>/broadcast متن پیام</code>'); return true; }
+        tg_sendMessage($chatId, '⏳ در حال ارسال...');
+        [$sent, $failed] = tg_do_broadcast($resellerId, $body);
+        tg_sendMessage($chatId, "✅ پیام همگانی ارسال شد.\nموفق: {$sent} | ناموفق: {$failed}");
+        logActivity('reseller', $resellerId, 'broadcast_message', "پیام همگانی از تلگرام برای {$sent} مشتری ارسال شد");
+        return true;
+    }
+
     // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه صاحب بات /start بزنه، باید
     // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست). دستور
     // ادمین جداگانه‌ی /help هست.
     if ($text === '/help') {
-        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/tickets - تیکت‌های پشتیبانی باز\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مشتری‌ها و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما (و ادمین‌های اضافه‌ای که تعریف کرده‌اید) ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
+        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/tickets - تیکت‌های پشتیبانی باز\n/stats - آمار سریع\n/broadcast متن - ارسال پیام همگانی برای همه‌ی مشتریان (فقط صاحب بات)\n\nسفارش‌های خرید/تمدید مشتری‌ها و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما (و ادمین‌های اضافه‌ای که تعریف کرده‌اید) ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
         return true;
     }
 
@@ -1219,10 +1255,23 @@ function tg_handle_admin_message($chatId, array $msg): bool {
         return true;
     }
 
+    // فقط ادمین واقعی پنل (نه ادمین‌های اضافه‌ی bot_admins) - چون این دستور
+    // برای *همه‌ی* مشتریان بات اصلی پیام می‌فرسته.
+    if ($text === '/broadcast' || str_starts_with($text, '/broadcast ')) {
+        if (!$isRealAdmin) { tg_sendMessage($chatId, '⛔️ این قابلیت فقط برای ادمین اصلی پنل در دسترسه.'); return true; }
+        $body = trim(substr($text, strlen('/broadcast')));
+        if ($body === '') { tg_sendMessage($chatId, 'فرمت درست: <code>/broadcast متن پیام</code>'); return true; }
+        tg_sendMessage($chatId, '⏳ در حال ارسال...');
+        [$sent, $failed] = tg_do_broadcast(0, $body);
+        tg_sendMessage($chatId, "✅ پیام همگانی ارسال شد.\nموفق: {$sent} | ناموفق: {$failed}");
+        logActivity('admin', tg_admin_id_by_chat($chatId) ?? 0, 'broadcast_message', "پیام همگانی از تلگرام برای {$sent} مشتری ارسال شد");
+        return true;
+    }
+
     // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه ادمین /start بزنه، باید
     // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست).
     if ($text === '/help') {
-        $extra = $isRealAdmin ? "/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n" : '';
+        $extra = $isRealAdmin ? "/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n/broadcast متن - ارسال پیام همگانی برای همه‌ی مشتریان\n" : '';
         tg_sendMessage($chatId, "👋 پنل کنترلی ادمین در تلگرام\n\n{$extra}/pending - تعداد موارد در انتظار تأیید\n/tickets - تیکت‌های پشتیبانی باز\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مستقیم و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
         return true;
     }

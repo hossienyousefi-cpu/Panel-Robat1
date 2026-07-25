@@ -154,10 +154,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ext = strtolower(pathinfo($_FILES['ovpn_file']['name'], PATHINFO_EXTENSION));
             $safeName = 'ovpn_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . ($ext ?: 'ovpn');
             if (move_uploaded_file($_FILES['ovpn_file']['tmp_name'], $dir . $safeName)) {
-                $pdo->prepare("INSERT INTO ovpn_files (reseller_id, title, file_path) VALUES (?,?,?)")
-                    ->execute([$rid, $title, 'uploads/ovpn/' . $safeName]);
-                logActivity('reseller', $rid, 'upload_ovpn', "فایل OpenVPN «{$title}» آپلود شد");
-                $success = 'فایل آپلود شد.';
+                try {
+                    $pdo->prepare("INSERT INTO ovpn_files (reseller_id, title, file_path) VALUES (?,?,?)")
+                        ->execute([$rid, $title, 'uploads/ovpn/' . $safeName]);
+                    logActivity('reseller', $rid, 'upload_ovpn', "فایل OpenVPN «{$title}» آپلود شد");
+                    $success = 'فایل آپلود شد.';
+                } catch (Throwable $e) {
+                    @unlink($dir . $safeName);
+                    $error = 'فایلی با همین عنوان قبلاً ثبت شده - یا عنوان دیگری بذارید یا اول همون رو از لیست پایین حذف کنید.';
+                }
             } else {
                 $error = 'ذخیره فایل روی سرور ناموفق بود.';
             }

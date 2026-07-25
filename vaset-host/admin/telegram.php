@@ -4,6 +4,8 @@ require_once '../includes/telegram_api.php';
 require_once '../includes/db_backup.php';
 require_once '../includes/bot_admins.php';
 require_once '../includes/payment_accounts.php';
+require_once '../includes/ibsng_api.php';
+require_once '../telegram/bot.php';
 requireAdmin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
     http_response_code(403);
@@ -281,10 +283,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ext = strtolower(pathinfo($_FILES['ovpn_file']['name'], PATHINFO_EXTENSION));
             $safeName = 'ovpn_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . ($ext ?: 'ovpn');
             if (move_uploaded_file($_FILES['ovpn_file']['tmp_name'], $dir . $safeName)) {
-                $pdo->prepare("INSERT INTO ovpn_files (reseller_id, title, file_path) VALUES (0,?,?)")
-                    ->execute([$title, 'uploads/ovpn/' . $safeName]);
-                logActivity('admin', $_SESSION['admin_id'], 'upload_ovpn', "فایل OpenVPN «{$title}» آپلود شد");
-                $message = 'فایل آپلود شد.';
+                try {
+                    $pdo->prepare("INSERT INTO ovpn_files (reseller_id, title, file_path) VALUES (0,?,?)")
+                        ->execute([$title, 'uploads/ovpn/' . $safeName]);
+                    logActivity('admin', $_SESSION['admin_id'], 'upload_ovpn', "فایل OpenVPN «{$title}» آپلود شد");
+                    $message = 'فایل آپلود شد.';
+                } catch (Throwable $e) {
+                    @unlink($dir . $safeName);
+                    $error = 'فایلی با همین عنوان قبلاً ثبت شده - یا عنوان دیگری بذارید یا اول همون رو از لیست پایین حذف کنید.';
+                }
             } else {
                 $error = 'ذخیره فایل روی سرور ناموفق بود.';
             }
@@ -309,14 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($text === '') {
             $error = 'متن پیام را وارد کنید.';
         } else {
-            set_time_limit(0);
-            $chats = $pdo->query("SELECT chat_id FROM telegram_customers WHERE reseller_id=0 AND is_blocked=0")->fetchAll(PDO::FETCH_COLUMN);
-            $sent = 0; $failed = 0;
-            foreach ($chats as $chatId) {
-                $r = tg_sendMessage($chatId, $text);
-                if ($r['ok'] ?? false) $sent++; else $failed++;
-                usleep(50000); // برای رعایت محدودیت نرخ ارسال تلگرام (حدود ۲۰ پیام در ثانیه)
-            }
+            [$sent, $failed] = tg_do_broadcast(0, $text);
             logActivity('admin', $_SESSION['admin_id'], 'broadcast_message', "پیام همگانی برای {$sent} مشتری ارسال شد ({$failed} ناموفق)");
             $message = "پیام همگانی ارسال شد. موفق: {$sent} | ناموفق: {$failed}";
         }
@@ -731,7 +731,7 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
         <div class="section-icon">📢</div>
         <div>
           <div class="section-title">ارسال پیام همگانی</div>
-          <div class="section-desc">این پیام برای همه‌ی مشتریانی که از بات اصلی خرید کرده‌اند (نه بات اختصاصی ریسلرها) ارسال می‌شود.</div>
+          <div class="section-desc">این پیام برای همه‌ی مشتریانی که از بات اصلی خرید کرده‌اند (نه بات اختصاصی ریسلرها) ارسال می‌شود. اگه به پنل دسترسی ندارید، همین کار رو با دستور <code>/broadcast متن پیام</code> مستقیم توی خودِ بات هم می‌شه انجام داد.</div>
         </div>
       </div>
       <div class="section-body">
