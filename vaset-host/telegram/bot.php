@@ -21,12 +21,10 @@ function tg_handle_update(array $update, int $resellerId = 0) {
 }
 
 // ───────────────────────────── کمکی‌های مشترک ─────────────────────────────
-function tg_admin_chat_ids(): array {
-    global $pdo;
-    return $pdo->query("SELECT telegram_chat_id FROM admins WHERE telegram_chat_id IS NOT NULL AND telegram_chat_id <> ''")
-        ->fetchAll(PDO::FETCH_COLUMN);
-}
-
+// ba_is_admin_chat/ba_is_owner_chat/ba_all_admin_chat_ids (از includes/bot_admins.php)
+// جای این تشخیص‌ها رو گرفته‌ن (چند ادمین به‌ازای هر بات)؛ فقط تشخیص «ادمین
+// واقعی پنل» (نه ادمین اضافه‌ی bot_admins) هنوز لازمه - برای ستون FK
+// reviewed_by و دستورهای حساس /export و /import.
 function tg_admin_id_by_chat($chatId): ?int {
     global $pdo;
     $stmt = $pdo->prepare("SELECT id FROM admins WHERE telegram_chat_id = ?");
@@ -35,32 +33,19 @@ function tg_admin_id_by_chat($chatId): ?int {
     return $id !== false ? (int)$id : null;
 }
 
-// ─── همتای بالا برای بات اختصاصی یک ریسلر: خودِ ریسلر «ادمین» بات خودشه ───
-function tg_reseller_chat_id(int $resellerId): ?string {
-    global $pdo;
-    $stmt = $pdo->prepare("SELECT telegram_chat_id FROM resellers WHERE id=?");
-    $stmt->execute([$resellerId]);
-    $v = $stmt->fetchColumn();
-    return ($v !== false && $v !== null && $v !== '') ? (string)$v : null;
-}
-
-function tg_is_reseller_owner_chat(int $resellerId, $chatId): bool {
-    $own = tg_reseller_chat_id($resellerId);
-    return $own !== null && $own === (string)$chatId;
-}
-
 // تلگرام رنگ واقعی به دکمه‌ها نمی‌ده (نه Reply Keyboard نه Inline)، پس برای
 // حس «دکمه‌ی رنگی» از یک دایره‌ی رنگی به‌عنوان پیشوند هر دکمه استفاده می‌کنیم -
-// ترفند رایج بات‌های تلگرامی برای متمایز کردن بصریِ گزینه‌ها.
-function tg_main_keyboard(): array {
-    return [
-        'keyboard' => [
-            ['🟢 خرید سرویس جدید', '🔵 تمدید سرویس'],
-            ['🟣 سرویس‌های من', '🟡 اطلاعات پرداخت'],
-            ['🔴 پشتیبانی'],
-        ],
-        'resize_keyboard' => true,
+// ترفند رایج بات‌های تلگرامی برای متمایز کردن بصریِ گزینه‌ها. دکمه‌ی دانلود
+// کانفیگ OpenVPN فقط وقتی نشون داده می‌شه که حداقل یک فایل برای این بات
+// (یا برای بات اصلی) آپلود شده باشه.
+function tg_main_keyboard(int $resellerId = 0): array {
+    $rows = [
+        ['🟢 خرید سرویس جدید', '🔵 تمدید سرویس'],
+        ['🟣 سرویس‌های من', '🟡 اطلاعات پرداخت'],
+        ['🔴 پشتیبانی'],
     ];
+    if (tg_list_ovpn_files($resellerId)) $rows[] = ['🟠 دانلود کانفیگ OpenVPN'];
+    return ['keyboard' => $rows, 'resize_keyboard' => true];
 }
 
 // ─── دایره‌های رنگی که به‌ترتیب برای شماره‌گذاری بصری پکیج‌ها/سرویس‌ها توی
@@ -191,17 +176,22 @@ function tg_get_state_data(array $customer): array {
 // گروه/قیمتی که ریسلر توی پنل وب برای ساخت کاربر تنظیم کرده - نیازی به تعریف
 // جدا برای بات نیست، isp هم isp اختصاصی خودِ ریسلره). قیمت ۰ یعنی «قیمت
 // پیش‌فرض سیستم» (دقیقاً مثل ساخت دستی کاربر توی reseller/users.php). ───
+// ─── 'price' یعنی همیشه چیزی که به مشتریِ بات نشون داده/ازش گرفته می‌شه
+// (customer_price اگه ریسلر تنظیم کرده باشه، وگرنه همون قیمت پایه)؛ 'cost_price'
+// یعنی هزینه‌ی واقعی خودِ ریسلر که فقط برای کسر از موجودی/تراکنش‌های داخلی
+// استفاده می‌شه، هیچ‌وقت به مشتری نشون داده نمی‌شه - مابه‌التفاوتشون سود ریسلره ───
 function tg_list_packages(int $resellerId = 0): array {
     global $pdo;
     if ($resellerId > 0) {
-        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, r.isp_name FROM reseller_groups rg
+        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, rg.customer_price, r.isp_name FROM reseller_groups rg
             JOIN resellers r ON r.id = rg.reseller_id WHERE rg.reseller_id=? ORDER BY rg.group_name");
         $stmt->execute([$resellerId]);
         $out = [];
         foreach ($stmt->fetchAll() as $row) {
-            $price = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+            $cost = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+            $customerPrice = (float)($row['customer_price'] ?? 0) > 0 ? (float)$row['customer_price'] : $cost;
             $out[] = ['id' => (int)$row['id'], 'group_name' => $row['group_name'], 'title' => $row['group_name'],
-                'price' => $price, 'isp_name' => $row['isp_name'], 'is_active' => 1];
+                'price' => $customerPrice, 'cost_price' => $cost, 'isp_name' => $row['isp_name'], 'is_active' => 1];
         }
         return $out;
     }
@@ -211,14 +201,15 @@ function tg_list_packages(int $resellerId = 0): array {
 function tg_get_package(int $id, int $resellerId = 0): ?array {
     global $pdo;
     if ($resellerId > 0) {
-        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, r.isp_name FROM reseller_groups rg
+        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, rg.customer_price, r.isp_name FROM reseller_groups rg
             JOIN resellers r ON r.id = rg.reseller_id WHERE rg.id=? AND rg.reseller_id=?");
         $stmt->execute([$id, $resellerId]);
         $row = $stmt->fetch();
         if (!$row) return null;
-        $price = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+        $cost = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+        $customerPrice = (float)($row['customer_price'] ?? 0) > 0 ? (float)$row['customer_price'] : $cost;
         return ['id' => (int)$row['id'], 'group_name' => $row['group_name'], 'title' => $row['group_name'],
-            'price' => $price, 'isp_name' => $row['isp_name'], 'is_active' => 1];
+            'price' => $customerPrice, 'cost_price' => $cost, 'isp_name' => $row['isp_name'], 'is_active' => 1];
     }
     $stmt = $pdo->prepare("SELECT * FROM direct_packages WHERE id=?");
     $stmt->execute([$id]);
@@ -229,14 +220,15 @@ function tg_get_package(int $id, int $resellerId = 0): ?array {
 function tg_get_package_by_group(string $groupName, int $resellerId = 0): ?array {
     global $pdo;
     if ($resellerId > 0) {
-        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, r.isp_name FROM reseller_groups rg
+        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, rg.customer_price, r.isp_name FROM reseller_groups rg
             JOIN resellers r ON r.id = rg.reseller_id WHERE rg.reseller_id=? AND rg.group_name=?");
         $stmt->execute([$resellerId, $groupName]);
         $row = $stmt->fetch();
         if (!$row) return null;
-        $price = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+        $cost = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+        $customerPrice = (float)($row['customer_price'] ?? 0) > 0 ? (float)$row['customer_price'] : $cost;
         return ['id' => (int)$row['id'], 'group_name' => $row['group_name'], 'title' => $row['group_name'],
-            'price' => $price, 'isp_name' => $row['isp_name'], 'is_active' => 1];
+            'price' => $customerPrice, 'cost_price' => $cost, 'isp_name' => $row['isp_name'], 'is_active' => 1];
     }
     $stmt = $pdo->prepare("SELECT * FROM direct_packages WHERE group_name=?");
     $stmt->execute([$groupName]);
@@ -244,9 +236,13 @@ function tg_get_package_by_group(string $groupName, int $resellerId = 0): ?array
     return $r ?: null;
 }
 
-// ─── متن‌های کارت پرداخت/پشتیبانی: برای هر بات ریسلر جدا (توی reseller_bots)،
-// برای بات اصلی از همون settings سراسری قبلی ───
+// ─── متن کارت پرداخت: اول حساب‌های ساختاریافته‌ی payment_accounts (اگه یکی
+// «فعال» باشه) در اولویته، وگرنه به متن آزاد قدیمی (reseller_bots برای بات
+// ریسلر، settings سراسری برای بات اصلی) برمی‌گرده - سازگار با تنظیمات قبلی ───
 function tg_payment_card_info(int $resellerId): string {
+    $active = pa_getActiveText($resellerId);
+    if ($active !== null) return $active;
+
     if ($resellerId > 0) {
         global $pdo;
         $stmt = $pdo->prepare("SELECT payment_card_info FROM reseller_bots WHERE reseller_id=?");
@@ -280,6 +276,39 @@ function tg_extract_receipt_file_id(array $msg): ?string {
     return null;
 }
 
+// ───────────────────────────── دانلود کانفیگ OpenVPN ─────────────────────────────
+function tg_list_ovpn_files(int $resellerId): array {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM ovpn_files WHERE reseller_id=? ORDER BY sort_order, id");
+    $stmt->execute([$resellerId]);
+    return $stmt->fetchAll();
+}
+
+function tg_show_ovpn_list(array $customer, int $resellerId): void {
+    $chatId = $customer['chat_id'];
+    $files = tg_list_ovpn_files($resellerId);
+    if (!$files) { tg_sendMessage($chatId, 'در حال حاضر فایل کانفیگی برای دانلود ثبت نشده.'); return; }
+    if (count($files) === 1) { tg_send_ovpn_file($chatId, (int)$files[0]['id'], null, $resellerId); return; }
+    $buttons = [];
+    foreach ($files as $i => $f) {
+        $dot = tg_color_dot($i);
+        $buttons[] = [['text' => "{$dot} " . $f['title'], 'callback_data' => 'ovpn_' . $f['id']]];
+    }
+    tg_sendMessage($chatId, '🔧 <b>کدام سرور را می‌خواهید؟</b>', ['inline_keyboard' => $buttons]);
+}
+
+function tg_send_ovpn_file($chatId, int $fileId, ?string $cqId, int $resellerId): void {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM ovpn_files WHERE id=? AND reseller_id=?");
+    $stmt->execute([$fileId, $resellerId]);
+    $f = $stmt->fetch();
+    if ($cqId !== null) tg_answerCallbackQuery($cqId);
+    if (!$f) { tg_sendMessage($chatId, 'این فایل دیگر در دسترس نیست.'); return; }
+    $path = dirname(__DIR__) . '/' . $f['file_path'];
+    if (!is_file($path)) { tg_sendMessage($chatId, 'فایل روی سرور پیدا نشد. با پشتیبانی تماس بگیرید.'); return; }
+    tg_sendDocumentFile($chatId, $path, '🔧 ' . $f['title']);
+}
+
 // ───────────────────────────── پیام‌های عادی ─────────────────────────────
 function tg_handle_message(array $msg, int $resellerId = 0): void {
     $chatId = $msg['chat']['id'] ?? null;
@@ -296,17 +325,12 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
     // پیام واقعاً یک دستور شناخته‌شده‌ی ادمین (یا Reply به پیام یک مشتری) باشه
     // همینجا مدیریت و return می‌شه؛ در غیر این صورت (مثلاً /start یا دکمه‌های
     // منو) اجازه می‌دیم جریان عادی مشتری پایین همین تابع ادامه پیدا کنه.
-    if ($resellerId === 0) {
-        $adminId = tg_admin_id_by_chat($chatId);
-        if ($adminId !== null) {
-            if (tg_try_relay_owner_reply($resellerId, $chatId, $msg)) return;
-            if (tg_handle_admin_message($adminId, $chatId, $msg)) return;
-        }
-    } else {
-        if (tg_is_reseller_owner_chat($resellerId, $chatId)) {
-            if (tg_try_relay_owner_reply($resellerId, $chatId, $msg)) return;
-            if (tg_handle_reseller_owner_message($resellerId, $chatId, $msg)) return;
-        }
+    if (ba_is_admin_chat($resellerId, $chatId)) {
+        if (tg_try_relay_owner_reply($resellerId, $chatId, $msg)) return;
+        $handled = $resellerId === 0
+            ? tg_handle_admin_message($chatId, $msg)
+            : tg_handle_reseller_owner_message($resellerId, $chatId, $msg);
+        if ($handled) return;
     }
 
     $customer = tg_get_or_create_customer($chatId, $tgUsername, $fullName, $resellerId);
@@ -317,7 +341,7 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
     if ($text === '/start') {
         tg_set_state((int)$customer['id'], null, null);
         $name = $fullName ?: 'دوست عزیز';
-        tg_sendMessage($chatId, tg_welcome_message($resellerId, $name), tg_main_keyboard());
+        tg_sendMessage($chatId, tg_welcome_message($resellerId, $name), tg_main_keyboard($resellerId));
         return;
     }
 
@@ -330,6 +354,7 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
         tg_sendMessage($chatId, "🆘 <b>پشتیبانی</b>\n\n" . htmlspecialchars(tg_support_message($resellerId), ENT_QUOTES, 'UTF-8') . "\n\n💬 پیام خودتون رو همینجا بنویسید، به زودی پاسخ داده می‌شه:");
         return;
     }
+    if ($text === '🟠 دانلود کانفیگ OpenVPN') { tg_show_ovpn_list($customer, $resellerId); return; }
 
     $state = $customer['state'];
 
@@ -350,7 +375,7 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
         return;
     }
 
-    tg_sendMessage($chatId, 'از دکمه‌های زیر استفاده کنید:', tg_main_keyboard());
+    tg_sendMessage($chatId, 'از دکمه‌های زیر استفاده کنید:', tg_main_keyboard($resellerId));
 }
 
 // ───────────────────────────── خرید سرویس جدید ─────────────────────────────
@@ -517,24 +542,16 @@ function tg_receive_receipt(array $customer, string $fileId, int $resellerId = 0
         ['text' => '✅ تأیید', 'callback_data' => "ord_approve_{$orderId}"],
         ['text' => '❌ رد', 'callback_data' => "ord_reject_{$orderId}"],
     ]]];
-    if ($resellerId > 0) {
-        // اگه ریسلر Chat ID خودش رو توی تنظیمات بات ثبت کرده باشه، همون‌جا کارت
-        // تأیید/رد رو می‌گیره؛ در غیر این صورت سفارش توی صف می‌مونه و از صفحه‌ی
-        // «سفارش‌های مستقیم» توی پنل وب خودش قابل بررسیه.
-        $ownerChat = tg_reseller_chat_id($resellerId);
-        if ($ownerChat !== null) {
-            $r = tg_sendPhotoByFileId($ownerChat, $fileId, $summary, $kb);
-            if (!($r['ok'] ?? false)) error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: ارسال کارت سفارش به Chat ID ریسلر ناموفق بود: " . ($r['description'] ?? json_encode($r)));
-        } else {
-            error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: این ریسلر Chat ID ثبت نکرده - کارت سفارش فقط توی «سفارش‌های مستقیم» پنل وب قابل بررسیه.");
-        }
-    } else {
-        $adminChats = tg_admin_chat_ids();
-        if (empty($adminChats)) error_log("[tg_receive_receipt] order#{$orderId}: هیچ ادمینی Chat ID ثبت نکرده.");
-        foreach ($adminChats as $adminChatId) {
-            $r = tg_sendPhotoByFileId($adminChatId, $fileId, $summary, $kb);
-            if (!($r['ok'] ?? false)) error_log("[tg_receive_receipt] order#{$orderId}: ارسال کارت سفارش به ادمین ({$adminChatId}) ناموفق بود: " . ($r['description'] ?? json_encode($r)));
-        }
+    // کارت تأیید/رد برای «همه‌ی ادمین‌های این بات» فرستاده می‌شه (صاحب بات +
+    // هر ادمین اضافه‌ای که از reseller/telegram.php یا admin/telegram.php
+    // تعریف شده) - هرکدوم اول تأیید/رد کنه کافیه.
+    $adminChats = ba_all_admin_chat_ids($resellerId);
+    if (empty($adminChats)) {
+        error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: هیچ ادمینی برای این بات Chat ID ثبت نکرده - سفارش فقط توی پنل وب قابل بررسیه.");
+    }
+    foreach ($adminChats as $adminChatId) {
+        $r = tg_sendPhotoByFileId($adminChatId, $fileId, $summary, $kb);
+        if (!($r['ok'] ?? false)) error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: ارسال کارت سفارش به ادمین ({$adminChatId}) ناموفق بود: " . ($r['description'] ?? json_encode($r)));
     }
 }
 
@@ -575,44 +592,150 @@ function tg_show_my_services(array $customer): void {
 // توی telegram_chat_relay ذخیره می‌شه تا وقتی صاحب بات روی همون پیام Reply
 // زد (تلگرام خودش reply_to_message.message_id رو توی آپدیت بعدی می‌فرسته)
 // بتونیم جواب رو دقیقاً برای همون مشتری برگردونیم.
+// ─── تیکت باز (open/claimed) فعلی مشتری رو برمی‌گردونه، یا اگه نداره یکی
+// می‌سازه. بستن تیکت خودکار باعث می‌شه پیام بعدی مشتری یک تیکت تازه بسازه ───
+function tg_open_or_get_ticket(int $resellerId, int $customerId): array {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM support_tickets WHERE reseller_id=? AND telegram_customer_id=? AND status IN ('open','claimed') ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$resellerId, $customerId]);
+    $t = $stmt->fetch();
+    if ($t) return $t;
+    $pdo->prepare("INSERT INTO support_tickets (reseller_id, telegram_customer_id, status) VALUES (?,?,'open')")
+        ->execute([$resellerId, $customerId]);
+    $stmt = $pdo->prepare("SELECT * FROM support_tickets WHERE id=?");
+    $stmt->execute([(int)$pdo->lastInsertId()]);
+    return $stmt->fetch();
+}
+
+// ─── پیام پشتیبانی مشتری: اگه تیکتش هنوز کسی نپذیرفته، به همه‌ی ادمین‌های بات
+// (صاحب + bot_admins) با دکمه‌ی «پذیرش تیکت» فرستاده می‌شه (اولین کسی که
+// پذیرفت ادامه‌ی چت رو می‌گیره)؛ اگه از قبل یک ادمین پذیرفته، پیام‌های بعدی
+// فقط برای همون یک نفر می‌ره - نه بقیه (تا قاطی نشه کی داره جواب می‌ده). ───
 function tg_relay_customer_message(array $customer, string $text, int $resellerId): void {
     global $pdo;
-    $who = htmlspecialchars($customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $customer['chat_id']), ENT_QUOTES, 'UTF-8');
+    $chatId = $customer['chat_id'];
+    $who = htmlspecialchars($customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId), ENT_QUOTES, 'UTF-8');
     $textSafe = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-    $body = "💬 <b>پیام پشتیبانی از {$who}</b>\n\n{$textSafe}\n\n<i>برای پاسخ، روی همین پیام Reply بزنید.</i>";
 
-    $targets = $resellerId > 0
-        ? (($own = tg_reseller_chat_id($resellerId)) !== null ? [$own] : [])
-        : tg_admin_chat_ids();
+    $ticket = tg_open_or_get_ticket($resellerId, (int)$customer['id']);
 
-    if (empty($targets)) {
-        error_log("[tg_relay_customer_message] reseller_id={$resellerId} customer_id={$customer['id']}: هیچ مقصدی برای ارسال پیام پشتیبانی وجود نداره (Chat ID ریسلر/ادمین ثبت نشده).");
-        tg_sendMessage($customer['chat_id'], '⚠️ در حال حاضر امکان ارسال پیام پشتیبانی وجود نداره. لطفاً بعداً امتحان کنید.');
+    if ($ticket['status'] === 'claimed' && $ticket['claimed_by_chat_id']) {
+        $body = "💬 <b>{$who}</b>:\n\n{$textSafe}\n\n<i>برای پاسخ، روی همین پیام Reply بزنید.</i>";
+        $res = tg_sendMessage($ticket['claimed_by_chat_id'], $body);
+        if ($res['ok'] ?? false) {
+            $mid = $res['result']['message_id'] ?? null;
+            if ($mid) {
+                try {
+                    $pdo->prepare("INSERT INTO telegram_chat_relay (reseller_id, customer_id, owner_message_id) VALUES (?,?,?)")
+                        ->execute([$resellerId, $customer['id'], $mid]);
+                } catch (Throwable $e) {
+                    error_log("[tg_relay_customer_message] reseller_id={$resellerId} ticket={$ticket['id']}: ثبت نگاشت telegram_chat_relay ناموفق بود: " . $e->getMessage());
+                }
+            }
+            tg_sendMessage($chatId, '✅ پیام شما ارسال شد.');
+        } else {
+            error_log("[tg_relay_customer_message] reseller_id={$resellerId} ticket={$ticket['id']}: ارسال به ادمین پذیرنده ناموفق بود: " . ($res['description'] ?? json_encode($res, JSON_UNESCAPED_UNICODE)));
+            tg_sendMessage($chatId, '⚠️ ارسال پیام با خطا مواجه شد. لطفاً بعداً دوباره امتحان کنید.');
+        }
         return;
     }
-    $anySent = false;
-    foreach ($targets as $ownerChatId) {
-        $res = tg_sendMessage($ownerChatId, $body);
-        $msgId = $res['result']['message_id'] ?? null;
-        if (!($res['ok'] ?? false)) {
-            error_log("[tg_relay_customer_message] reseller_id={$resellerId} customer_id={$customer['id']}: ارسال پیام پشتیبانی به Chat ID ({$ownerChatId}) ناموفق بود: " . ($res['description'] ?? json_encode($res, JSON_UNESCAPED_UNICODE)));
-            continue;
+
+    $targets = ba_all_admin_chat_ids($resellerId);
+    if (empty($targets)) {
+        error_log("[tg_relay_customer_message] reseller_id={$resellerId} ticket={$ticket['id']}: هیچ ادمینی برای این بات ثبت نشده.");
+        tg_sendMessage($chatId, '⚠️ در حال حاضر امکان ارسال پیام پشتیبانی وجود نداره. لطفاً بعداً امتحان کنید.');
+        return;
+    }
+
+    $initialText = "🎫 <b>تیکت جدید #{$ticket['id']}</b>\nاز طرف: {$who}\n\n{$textSafe}";
+    $kb = ['inline_keyboard' => [[['text' => '✅ پذیرش تیکت', 'callback_data' => 'tkt_claim_' . $ticket['id']]]]];
+    $broadcast = [];
+    foreach ($targets as $adminChat) {
+        $r = tg_sendMessage($adminChat, $initialText, $kb);
+        if ($r['ok'] ?? false) {
+            $broadcast[$adminChat] = $r['result']['message_id'];
+        } else {
+            error_log("[tg_relay_customer_message] reseller_id={$resellerId} ticket={$ticket['id']}: ارسال تیکت به ادمین ({$adminChat}) ناموفق بود: " . ($r['description'] ?? json_encode($r, JSON_UNESCAPED_UNICODE)));
         }
-        $anySent = true;
-        if ($msgId) {
+    }
+    if ($broadcast) {
+        $pdo->prepare("UPDATE support_tickets SET initial_text=?, broadcast_json=? WHERE id=?")
+            ->execute([$initialText, json_encode($broadcast, JSON_UNESCAPED_UNICODE), $ticket['id']]);
+        tg_sendMessage($chatId, '✅ تیکت شما ثبت شد. به‌زودی یکی از پشتیبان‌ها پاسخ می‌ده ⏳');
+    } else {
+        tg_sendMessage($chatId, '⚠️ ارسال پیام پشتیبانی با خطا مواجه شد. لطفاً بعداً دوباره امتحان کنید.');
+    }
+}
+
+// ─── اولین ادمینی که «پذیرش تیکت» رو بزنه، ادامه‌ی گفتگو رو می‌گیره. با
+// UPDATE شرطی (status='open') از race condition (دو ادمین هم‌زمان بزنن)
+// جلوگیری می‌شه - فقط یکی موفق می‌شه. کارت بقیه‌ی ادمین‌ها هم ویرایش می‌شه
+// تا بدونن دیگه لازم نیست جواب بدن. ───
+function tg_handle_ticket_claim(int $resellerId, $chatId, $messageId, int $ticketId, string $cqId): void {
+    global $pdo;
+    if (!ba_is_admin_chat($resellerId, $chatId)) { tg_answerCallbackQuery($cqId, 'دسترسی ندارید', true); return; }
+
+    $name = ba_display_name($resellerId, $chatId);
+    $upd = $pdo->prepare("UPDATE support_tickets SET status='claimed', claimed_by_chat_id=?, claimed_by_name=?, claimed_at=NOW() WHERE id=? AND reseller_id=? AND status='open'");
+    $upd->execute([(string)$chatId, $name, $ticketId, $resellerId]);
+    if ($upd->rowCount() === 0) { tg_answerCallbackQuery($cqId, 'این تیکت قبلاً توسط شخص دیگری پذیرفته شده', true); return; }
+
+    tg_answerCallbackQuery($cqId, 'تیکت پذیرفته شد ✅');
+
+    $stmt = $pdo->prepare("SELECT * FROM support_tickets WHERE id=?");
+    $stmt->execute([$ticketId]);
+    $ticket = $stmt->fetch();
+    $baseText = $ticket['initial_text'] ?? "🎫 تیکت #{$ticketId}";
+    $nameSafe = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+
+    $broadcast = json_decode($ticket['broadcast_json'] ?? '[]', true) ?: [];
+    $closeKb = ['inline_keyboard' => [[['text' => '🔒 بستن تیکت', 'callback_data' => 'tkt_close_' . $ticketId]]]];
+    foreach ($broadcast as $adminChat => $mid) {
+        if ((string)$adminChat === (string)$chatId) {
+            tg_editMessageText($adminChat, $mid, $baseText . "\n\n✅ پذیرفته شد توسط شما.\n\nبرای پاسخ به مشتری، روی همین پیام Reply بزنید.", $closeKb);
             try {
                 $pdo->prepare("INSERT INTO telegram_chat_relay (reseller_id, customer_id, owner_message_id) VALUES (?,?,?)")
-                    ->execute([$resellerId, $customer['id'], $msgId]);
+                    ->execute([$resellerId, $ticket['telegram_customer_id'], $mid]);
             } catch (Throwable $e) {
-                error_log("[tg_relay_customer_message] reseller_id={$resellerId} customer_id={$customer['id']}: ثبت نگاشت telegram_chat_relay ناموفق بود (احتمالاً جدول ساخته نشده - migration 007 رو چک کنید): " . $e->getMessage());
+                error_log("[tg_handle_ticket_claim] reseller_id={$resellerId} ticket={$ticketId}: ثبت نگاشت relay ناموفق بود: " . $e->getMessage());
             }
+        } else {
+            tg_editMessageText($adminChat, $mid, $baseText . "\n\n✅ توسط «{$nameSafe}» پذیرفته شد.");
         }
     }
-    if ($anySent) {
-        tg_sendMessage($customer['chat_id'], '✅ پیام شما ارسال شد. منتظر پاسخ پشتیبانی باشید ⏳');
-    } else {
-        tg_sendMessage($customer['chat_id'], '⚠️ ارسال پیام پشتیبانی با خطا مواجه شد. لطفاً بعداً دوباره امتحان کنید.');
+
+    $custStmt = $pdo->prepare("SELECT chat_id FROM telegram_customers WHERE id=?");
+    $custStmt->execute([$ticket['telegram_customer_id']]);
+    $custChat = $custStmt->fetchColumn();
+    if ($custChat) tg_sendMessage($custChat, '👨‍💻 یکی از پشتیبان‌ها پیام شما رو دید، به‌زودی پاسخ می‌گیرید.');
+
+    logActivity($resellerId === 0 ? 'admin' : 'reseller', $resellerId, 'claim_support_ticket', "تیکت #{$ticketId} توسط {$name} پذیرفته شد");
+}
+
+// ─── بستن تیکت توسط هر ادمین این بات (نه فقط پذیرنده) - بعد از بسته شدن،
+// پیام بعدی همون مشتری خودکار یک تیکت تازه‌ی «open» می‌سازه ───
+function tg_handle_ticket_close(int $resellerId, $chatId, $messageId, int $ticketId, string $cqId): void {
+    global $pdo;
+    if (!ba_is_admin_chat($resellerId, $chatId)) { tg_answerCallbackQuery($cqId, 'دسترسی ندارید', true); return; }
+
+    $upd = $pdo->prepare("UPDATE support_tickets SET status='closed', closed_at=NOW() WHERE id=? AND reseller_id=? AND status<>'closed'");
+    $upd->execute([$ticketId, $resellerId]);
+    if ($upd->rowCount() === 0) { tg_answerCallbackQuery($cqId, 'این تیکت قبلاً بسته شده', true); return; }
+
+    tg_answerCallbackQuery($cqId, 'تیکت بسته شد 🔒');
+    if ($messageId) tg_editMessageReplyMarkup($chatId, $messageId, null);
+
+    $stmt = $pdo->prepare("SELECT telegram_customer_id FROM support_tickets WHERE id=?");
+    $stmt->execute([$ticketId]);
+    $custId = $stmt->fetchColumn();
+    if ($custId) {
+        $custStmt = $pdo->prepare("SELECT chat_id FROM telegram_customers WHERE id=?");
+        $custStmt->execute([$custId]);
+        $custChat = $custStmt->fetchColumn();
+        if ($custChat) tg_sendMessage($custChat, '🔒 گفتگوی پشتیبانی شما بسته شد. برای تیکت جدید دوباره پیام بدید.');
     }
+
+    logActivity($resellerId === 0 ? 'admin' : 'reseller', $resellerId, 'close_support_ticket', "تیکت #{$ticketId} بسته شد توسط " . ba_display_name($resellerId, $chatId));
 }
 
 // ─── وقتی صاحب بات (ادمین برای بات اصلی، خودِ ریسلر برای بات اختصاصی‌اش) با
@@ -656,14 +779,23 @@ function tg_handle_callback(array $cq, int $resellerId = 0): void {
     if ($chatId === null) return;
 
     if (str_starts_with($data, 'ord_')) {
-        if ($resellerId === 0) {
-            $adminId = tg_admin_id_by_chat($chatId);
-            if ($adminId === null) { tg_answerCallbackQuery($cqId, 'دسترسی ندارید', true); return; }
-            tg_handle_order_decision($adminId, 'admin', $chatId, $messageId, $data, $cqId, 0);
-        } else {
-            if (!tg_is_reseller_owner_chat($resellerId, $chatId)) { tg_answerCallbackQuery($cqId, 'دسترسی ندارید', true); return; }
-            tg_handle_order_decision($resellerId, 'reseller', $chatId, $messageId, $data, $cqId, $resellerId);
-        }
+        if (!ba_is_admin_chat($resellerId, $chatId)) { tg_answerCallbackQuery($cqId, 'دسترسی ندارید', true); return; }
+        tg_handle_order_decision($chatId, $messageId, $data, $cqId, $resellerId);
+        return;
+    }
+
+    if (str_starts_with($data, 'tkt_claim_')) {
+        tg_handle_ticket_claim($resellerId, $chatId, $messageId, (int)substr($data, 10), $cqId);
+        return;
+    }
+
+    if (str_starts_with($data, 'tkt_close_')) {
+        tg_handle_ticket_close($resellerId, $chatId, $messageId, (int)substr($data, 10), $cqId);
+        return;
+    }
+
+    if (str_starts_with($data, 'ovpn_')) {
+        tg_send_ovpn_file($chatId, (int)substr($data, 5), $cqId, $resellerId);
         return;
     }
 
@@ -680,12 +812,14 @@ function tg_handle_callback(array $cq, int $resellerId = 0): void {
     tg_answerCallbackQuery($cqId);
 }
 
-// $actorId/$actorType: چه‌کسی داره تأیید/رد می‌کنه (ادمین اصلی یا خودِ ریسلر
-// صاحب همین بات) - برای reviewed_by فقط admin_id واقعی ذخیره می‌شه (چون این
-// ستون FK به جدول admins هست)، برای ریسلر NULL می‌مونه ولی توی activity_logs
-// با actor_type='reseller' درست ثبت می‌شه. $resellerId برای provisioning
-// (کسر از موجودی همون ریسلر + قیمت/ISP اختصاصی خودش) لازمه.
-function tg_handle_order_decision(int $actorId, string $actorType, $chatId, $messageId, string $data, string $cqId, int $resellerId = 0): void {
+// چه‌کسی داره تأیید/رد می‌کنه: ممکنه ادمین اصلی، یک ادمین اضافه‌ی بی‌پنل
+// (bot_admins)، خودِ ریسلر صاحب بات، یا یک ادمین اضافه‌ی همون ریسلر باشه.
+// برای ستون reviewed_by (که FK به admins هست) فقط وقتی actorType==='admin'
+// و واقعاً یک ردیف admins با همین Chat ID پیدا بشه مقدار می‌گیره؛ در غیر این
+// صورت NULL می‌مونه ولی reviewed_by_name همیشه اسم واقعیِ همون شخص رو (چه
+// ادمین پنل چه ادمین فقط-تلگرامی) نگه می‌داره - دقیقاً برای اینکه بشه فهمید
+// «کدوم ادمین» تأیید/رد کرده، حتی وقتی چند ادمین روی یک بات کار می‌کنن.
+function tg_handle_order_decision($chatId, $messageId, string $data, string $cqId, int $resellerId = 0): void {
     global $pdo;
     $approve = str_starts_with($data, 'ord_approve_');
     $orderId = (int)substr($data, $approve ? 12 : 11);
@@ -699,14 +833,19 @@ function tg_handle_order_decision(int $actorId, string $actorType, $chatId, $mes
     $customerStmt->execute([$order['telegram_customer_id']]);
     $customer = $customerStmt->fetch();
 
-    $reviewedByAdminId = $actorType === 'admin' ? $actorId : null;
+    $actorType = $resellerId === 0 ? 'admin' : 'reseller';
+    $realAdminId = $resellerId === 0 ? tg_admin_id_by_chat($chatId) : null;
+    $actorId = $realAdminId ?? $resellerId;
+    $reviewedByAdminId = $realAdminId;
+    $reviewerName = ba_display_name($resellerId, $chatId) . ' (بات)';
 
     if (!$approve) {
-        $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_by=?, reviewed_at=NOW() WHERE id=?")->execute([$reviewedByAdminId, $orderId]);
+        $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_by=?, reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")
+            ->execute([$reviewedByAdminId, $reviewerName, $orderId]);
         tg_answerCallbackQuery($cqId, 'رد شد');
         if ($customer) tg_sendMessage($customer['chat_id'], '❌ متأسفانه رسید پرداخت شما تأیید نشد. برای پیگیری با پشتیبانی تماس بگیرید.');
         if ($messageId) tg_editMessageReplyMarkup($chatId, $messageId, null);
-        logActivity($actorType, $actorId, 'reject_direct_order', "سفارش تلگرام #$orderId رد شد");
+        logActivity($actorType, $actorId, 'reject_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} رد شد");
         return;
     }
 
@@ -719,11 +858,11 @@ function tg_handle_order_decision(int $actorId, string $actorType, $chatId, $mes
         return;
     }
 
-    $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_by=?, reviewed_at=NOW() WHERE id=?")
-        ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $reviewedByAdminId, $orderId]);
+    $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_by=?, reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")
+        ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $reviewedByAdminId, $reviewerName, $orderId]);
     tg_answerCallbackQuery($cqId, 'تأیید شد ✅');
     if ($messageId) tg_editMessageReplyMarkup($chatId, $messageId, null);
-    logActivity($actorType, $actorId, 'approve_direct_order', "سفارش تلگرام #$orderId تأیید شد");
+    logActivity($actorType, $actorId, 'approve_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} تأیید شد");
 }
 
 function tg_provision_new_order(array $order, ?array $customer, int $resellerId = 0): array {
@@ -735,7 +874,10 @@ function tg_provision_new_order(array $order, ?array $customer, int $resellerId 
     $chk = ibsng_call('user.doesUserExists', ['normal_username' => $username]);
     if ($chk['result'] ?? false) return ['ok' => false, 'error' => 'این نام کاربری در همین حین توسط شخص دیگری گرفته شده'];
 
-    $price = (float)$pkg['price'];
+    // برای کسر از موجودی/ثبت تراکنش ریسلر همیشه هزینه‌ی واقعی خودش (cost_price
+    // که ادمین تنظیم کرده) استفاده می‌شه، نه قیمتی که با سود خودش به مشتری
+    // نشون داده (pkg['price']) - مابه‌التفاوت سود خودِ ریسلره و کسر نمی‌شه.
+    $price = (float)($pkg['cost_price'] ?? $pkg['price']);
     if ($resellerId > 0 && $price > 0) {
         $rStmt = $pdo->prepare("SELECT balance FROM resellers WHERE id=?");
         $rStmt->execute([$resellerId]);
@@ -807,16 +949,24 @@ function tg_provision_renew_order(array $order, ?array $customer, int $resellerI
     }
     if (!$uid) return ['ok' => false, 'error' => 'کاربر در IBSng یافت نشد'];
 
+    $inf = ibsng_call('user.getUserInfo', ['user_id' => $uid]);
+    $basic = $inf['result'][$uid]['basic_info'] ?? [];
+    $gn = $basic['group_name'] ?? '';
+
+    // هزینه‌ی واقعی کسر از موجودی ریسلر همیشه هزینه‌ی پایه‌ی خودِ گروه (چیزی که
+    // ادمین تنظیم کرده) هست، نه order.amount که قیمتِ با-سودِ نمایش‌داده‌شده به
+    // مشتری در لحظه‌ی سفارشه - این دو ممکنه دیگه یکی نباشن.
     $price = (float)$order['amount'];
+    if ($resellerId > 0) {
+        $pkg = tg_get_package_by_group($gn, $resellerId);
+        if ($pkg) $price = (float)($pkg['cost_price'] ?? $pkg['price']);
+    }
     if ($resellerId > 0 && $price > 0) {
         $rStmt = $pdo->prepare("SELECT balance FROM resellers WHERE id=?");
         $rStmt->execute([$resellerId]);
         if ((float)$rStmt->fetchColumn() < $price) return ['ok' => false, 'error' => 'موجودی ریسلر کافی نیست'];
     }
 
-    $inf = ibsng_call('user.getUserInfo', ['user_id' => $uid]);
-    $basic = $inf['result'][$uid]['basic_info'] ?? [];
-    $gn = $basic['group_name'] ?? '';
     $gi = ibsng_call('group.getGroupInfo', ['group_name' => $gn]);
     $gc = $gi['result']['attrs']['group_credit'] ?? ($basic['credit'] ?? 100);
     $ga = $gi['result']['raw_attrs'] ?? [];
@@ -875,7 +1025,7 @@ function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg):
     // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست). دستور
     // ادمین جداگانه‌ی /help هست.
     if ($text === '/help') {
-        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مشتری‌های شما به‌صورت خودکار با دکمه تأیید/رد برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
+        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مشتری‌ها و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما (و ادمین‌های اضافه‌ای که تعریف کرده‌اید) ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
         return true;
     }
 
@@ -883,17 +1033,24 @@ function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg):
 }
 
 // ───────────────────────────── پنل کنترلی ادمین (دستورهای متنی) ─────────────────────────────
-function tg_handle_admin_message(int $adminId, $chatId, array $msg): bool {
+// $chatId ممکنه یک ادمین واقعی پنل (جدول admins) باشه یا یک ادمین اضافه‌ی
+// فقط-تلگرامی (bot_admins، بدون لاگین پنل) - تشخیصش با ba_is_owner_chat/
+// tg_admin_id_by_chat. دستورهای حساس (/export، /import که کل دیتابیس رو
+// می‌ده/جایگزین می‌کنه) فقط برای ادمین واقعی پنل مجازه.
+function tg_handle_admin_message($chatId, array $msg): bool {
     global $pdo;
     $text = trim($msg['text'] ?? '');
     $caption = trim($msg['caption'] ?? '');
+    $isRealAdmin = ba_is_owner_chat(0, $chatId);
 
     if (!empty($msg['document']) && strcasecmp($caption, '/import') === 0) {
+        if (!$isRealAdmin) { tg_sendMessage($chatId, '⛔️ این قابلیت فقط برای ادمین اصلی پنل در دسترسه.'); return true; }
         tg_admin_do_import($chatId, $msg['document']);
         return true;
     }
 
     if ($text === '/export') {
+        if (!$isRealAdmin) { tg_sendMessage($chatId, '⛔️ این قابلیت فقط برای ادمین اصلی پنل در دسترسه.'); return true; }
         tg_sendMessage($chatId, '⏳ در حال ساخت فایل Export...');
         $dir = dirname(__DIR__) . '/uploads/backups/';
         if (!is_dir($dir)) @mkdir($dir, 0755, true);
@@ -926,7 +1083,8 @@ function tg_handle_admin_message(int $adminId, $chatId, array $msg): bool {
     // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه ادمین /start بزنه، باید
     // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست).
     if ($text === '/help') {
-        tg_sendMessage($chatId, "👋 پنل کنترلی ادمین در تلگرام\n\n/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n/pending - تعداد موارد در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مستقیم به‌صورت خودکار با دکمه تأیید/رد برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
+        $extra = $isRealAdmin ? "/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n" : '';
+        tg_sendMessage($chatId, "👋 پنل کنترلی ادمین در تلگرام\n\n{$extra}/pending - تعداد موارد در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مستقیم و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
         return true;
     }
 

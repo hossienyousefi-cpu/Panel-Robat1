@@ -11,6 +11,8 @@ require_once '../includes/ibsng_api.php';
 require_once '../includes/telegram_api.php';
 require_once '../includes/db_backup.php';
 require_once '../includes/reseller_bot.php';
+require_once '../includes/bot_admins.php';
+require_once '../includes/payment_accounts.php';
 require_once 'bot.php';
 
 $resellerId = isset($_GET['r']) ? (int)$_GET['r'] : 0;

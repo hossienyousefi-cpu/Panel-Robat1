@@ -29,11 +29,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $customerStmt->execute([$order['telegram_customer_id']]);
             $customer = $customerStmt->fetch();
 
+            $reviewerName = 'ادمین پنل: ' . $_SESSION['admin_username'];
+
             if ($action === 'reject') {
-                $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_by=?, reviewed_at=NOW() WHERE id=?")
-                    ->execute([$_SESSION['admin_id'], $orderId]);
+                $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_by=?, reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")
+                    ->execute([$_SESSION['admin_id'], $reviewerName, $orderId]);
                 if ($customer) tg_sendMessage($customer['chat_id'], '❌ متأسفانه رسید پرداخت شما تأیید نشد. برای پیگیری با پشتیبانی تماس بگیرید.');
-                logActivity('admin', $_SESSION['admin_id'], 'reject_direct_order', "سفارش تلگرام #$orderId رد شد");
+                logActivity('admin', $_SESSION['admin_id'], 'reject_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} رد شد");
                 $success = 'سفارش رد شد ❌';
             } else {
                 $result = $order['order_type'] === 'new'
@@ -43,9 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$result['ok']) {
                     $error = 'خطا در : ' . $result['error'];
                 } else {
-                    $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_by=?, reviewed_at=NOW() WHERE id=?")
-                        ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $_SESSION['admin_id'], $orderId]);
-                    logActivity('admin', $_SESSION['admin_id'], 'approve_direct_order', "سفارش تلگرام #$orderId تأیید شد");
+                    $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_by=?, reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")
+                        ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $_SESSION['admin_id'], $reviewerName, $orderId]);
+                    logActivity('admin', $_SESSION['admin_id'], 'approve_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} تأیید شد");
                     $success = 'سفارش تأیید شد و روی  اعمال گردید ✅';
                 }
             }
@@ -283,7 +285,7 @@ $orders = $pdo->query("
             <?php endif; ?>
             <?php if ($o['status'] !== 'pending' && $o['reviewed_at']): ?>
             <div class="reviewed-info" style="margin-top:8px">
-              بررسی توسط <?= sanitize($o['reviewer_name'] ?? 'ادمین') ?> در <?= date('Y/m/d H:i', strtotime($o['reviewed_at'])) ?>
+              بررسی توسط <?= sanitize($o['reviewer_name'] ?? $o['reviewed_by_name'] ?? 'ادمین') ?> در <?= date('Y/m/d H:i', strtotime($o['reviewed_at'])) ?>
               <?php if ($o['status']==='approved' && $o['ibs_uid']): ?> · UID: <?= sanitize($o['ibs_uid']) ?><?php endif; ?>
             </div>
             <?php endif; ?>

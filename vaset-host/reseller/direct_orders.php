@@ -39,10 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $customerStmt->execute([$order['telegram_customer_id']]);
             $customer = $customerStmt->fetch();
 
+            $reviewerName = 'ریسلر (پنل وب): ' . $_SESSION['reseller_username'];
+
             if ($action === 'reject') {
-                $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_at=NOW() WHERE id=?")->execute([$orderId]);
+                $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")->execute([$reviewerName, $orderId]);
                 if ($customer) tg_sendMessage($customer['chat_id'], '❌ متأسفانه رسید پرداخت شما تأیید نشد. برای پیگیری با پشتیبانی تماس بگیرید.');
-                logActivity('reseller', $rid, 'reject_direct_order', "سفارش تلگرام #$orderId رد شد");
+                logActivity('reseller', $rid, 'reject_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} رد شد");
                 $success = 'سفارش رد شد ❌';
             } else {
                 $result = $order['order_type'] === 'new'
@@ -52,9 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$result['ok']) {
                     $error = 'خطا: ' . $result['error'];
                 } else {
-                    $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_at=NOW() WHERE id=?")
-                        ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $orderId]);
-                    logActivity('reseller', $rid, 'approve_direct_order', "سفارش تلگرام #$orderId تأیید شد");
+                    $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")
+                        ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $reviewerName, $orderId]);
+                    logActivity('reseller', $rid, 'approve_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} تأیید شد");
                     $success = 'سفارش تأیید شد و روی IBSng اعمال گردید ✅';
                 }
             }
@@ -290,7 +292,7 @@ $orders = $orders->fetchAll();
             <div style="font-size:13px;color:var(--text2);margin-bottom:6px">یوزرنیم: <strong style="color:var(--text)"><?= sanitize($o['target_username']) ?></strong></div>
             <?php if ($o['status'] !== 'pending' && $o['reviewed_at']): ?>
             <div class="reviewed-info" style="margin-top:8px">
-              بررسی‌شده در <?= date('Y/m/d H:i', strtotime($o['reviewed_at'])) ?>
+              بررسی توسط <?= sanitize($o['reviewed_by_name'] ?? 'نامشخص') ?> در <?= date('Y/m/d H:i', strtotime($o['reviewed_at'])) ?>
               <?php if ($o['status']==='approved' && $o['ibs_uid']): ?> · UID: <?= sanitize($o['ibs_uid']) ?><?php endif; ?>
             </div>
             <?php endif; ?>

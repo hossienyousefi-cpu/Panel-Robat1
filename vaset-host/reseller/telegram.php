@@ -2,6 +2,8 @@
 require_once '../includes/config.php';
 require_once '../includes/telegram_api.php';
 require_once '../includes/reseller_bot.php';
+require_once '../includes/bot_admins.php';
+require_once '../includes/payment_accounts.php';
 requireReseller();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
     http_response_code(403);
@@ -108,6 +110,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+
+    if ($action === 'add_bot_admin') {
+        $err = ba_add($rid, $_POST['chat_id'] ?? '', $_POST['display_name'] ?? '');
+        if ($err !== '') {
+            $error = $err;
+        } else {
+            logActivity('reseller', $rid, 'add_bot_admin', 'ادمین اضافه‌ی بات ثبت شد');
+            $success = 'ادمین اضافه شد.';
+        }
+    }
+
+    if ($action === 'remove_bot_admin') {
+        ba_remove($rid, (int)($_POST['admin_id'] ?? 0));
+        $success = 'ادمین حذف شد.';
+    }
+
+    if ($action === 'add_payment_account') {
+        pa_add($rid, $_POST['bank_name'] ?? '', $_POST['card_number'] ?? '', $_POST['account_holder'] ?? '', $_POST['extra_note'] ?? '');
+        logActivity('reseller', $rid, 'add_payment_account', 'حساب دریافت وجه اضافه شد');
+        $success = 'حساب اضافه شد.';
+    }
+
+    if ($action === 'set_active_payment_account') {
+        pa_setActive($rid, (int)($_POST['account_id'] ?? 0));
+        $success = 'حساب فعال تغییر کرد.';
+    }
+
+    if ($action === 'delete_payment_account') {
+        pa_delete($rid, (int)($_POST['account_id'] ?? 0));
+        $success = 'حساب حذف شد.';
+    }
+
+    if ($action === 'upload_ovpn') {
+        $title = trim($_POST['ovpn_title'] ?? '');
+        if ($title === '') {
+            $error = 'یک عنوان برای این فایل (مثلاً نام سرور) وارد کنید.';
+        } elseif (empty($_FILES['ovpn_file']['tmp_name']) || $_FILES['ovpn_file']['error'] !== UPLOAD_ERR_OK) {
+            $error = 'فایل انتخاب نشده یا در آپلود خطا رخ داد.';
+        } else {
+            $dir = dirname(__DIR__) . '/uploads/ovpn/';
+            if (!is_dir($dir)) @mkdir($dir, 0755, true);
+            $ext = strtolower(pathinfo($_FILES['ovpn_file']['name'], PATHINFO_EXTENSION));
+            $safeName = 'ovpn_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . ($ext ?: 'ovpn');
+            if (move_uploaded_file($_FILES['ovpn_file']['tmp_name'], $dir . $safeName)) {
+                $pdo->prepare("INSERT INTO ovpn_files (reseller_id, title, file_path) VALUES (?,?,?)")
+                    ->execute([$rid, $title, 'uploads/ovpn/' . $safeName]);
+                logActivity('reseller', $rid, 'upload_ovpn', "فایل OpenVPN «{$title}» آپلود شد");
+                $success = 'فایل آپلود شد.';
+            } else {
+                $error = 'ذخیره فایل روی سرور ناموفق بود.';
+            }
+        }
+    }
+
+    if ($action === 'delete_ovpn') {
+        $fid = (int)($_POST['ovpn_id'] ?? 0);
+        $stmt = $pdo->prepare("SELECT file_path FROM ovpn_files WHERE id=? AND reseller_id=?");
+        $stmt->execute([$fid, $rid]);
+        $path = $stmt->fetchColumn();
+        if ($path) {
+            $full = dirname(__DIR__) . '/' . $path;
+            if (is_file($full)) @unlink($full);
+            $pdo->prepare("DELETE FROM ovpn_files WHERE id=? AND reseller_id=?")->execute([$fid, $rid]);
+            $success = 'فایل حذف شد.';
+        }
+    }
+
+    if ($action === 'save_customer_prices') {
+        $prices = $_POST['customer_price'] ?? [];
+        foreach ($prices as $groupId => $val) {
+            $groupId = (int)$groupId;
+            $val = trim((string)$val);
+            $price = $val === '' ? null : max(0, parseMoney($val));
+            $pdo->prepare("UPDATE reseller_groups SET customer_price=? WHERE id=? AND reseller_id=?")->execute([$price, $groupId, $rid]);
+        }
+        logActivity('reseller', $rid, 'save_customer_prices', 'قیمت نمایش به مشتری در بات به‌روز شد');
+        $success = 'قیمت‌ها ذخیره شد.';
+    }
 }
 
 $bot = rb_getBot($rid);
@@ -119,6 +199,14 @@ if ($bot) {
 $grpStmt = $pdo->prepare("SELECT COUNT(*) FROM reseller_groups WHERE reseller_id=?");
 $grpStmt->execute([$rid]);
 $groupCount = (int)$grpStmt->fetchColumn();
+$botAdmins = ba_list($rid);
+$paymentAccounts = pa_list($rid);
+$ovpnStmt = $pdo->prepare("SELECT * FROM ovpn_files WHERE reseller_id=? ORDER BY sort_order, id");
+$ovpnStmt->execute([$rid]);
+$ovpnFiles = $ovpnStmt->fetchAll();
+$myGroups = $pdo->prepare("SELECT id, group_name, CAST(price AS DECIMAL(10,2)) AS price, customer_price FROM reseller_groups WHERE reseller_id=? ORDER BY group_name");
+$myGroups->execute([$rid]);
+$myGroups = $myGroups->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -383,6 +471,152 @@ $groupCount = (int)$grpStmt->fetchColumn();
         </form>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div style="font-size:20px">👮</div>
+        <div>
+          <div class="card-title">ادمین‌های اضافه‌ی بات</div>
+          <div class="card-desc">علاوه بر خودتون (که بالاتر Chat ID‌تون رو ثبت کردید)، می‌تونید به کارمند/همکارتون هم اجازه‌ی تأیید سفارش و پاسخ به تیکت پشتیبانی رو از توی بات بدید - حتی بدون اینکه لاگین پنل وب داشته باشه.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <?php if ($botAdmins): ?>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+          <?php foreach ($botAdmins as $ba): ?>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px"><?= sanitize($ba['display_name'] ?: '—') ?></td>
+            <td style="padding:8px 4px;font-family:monospace"><?= sanitize($ba['telegram_chat_id']) ?></td>
+            <td style="padding:8px 4px;text-align:left">
+              <form method="POST" style="display:inline"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+                <input type="hidden" name="action" value="remove_bot_admin">
+                <input type="hidden" name="admin_id" value="<?=$ba['id']?>">
+                <button type="submit" class="btn btn-danger" style="padding:6px 12px;font-size:12px">حذف</button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </table>
+        <?php endif; ?>
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="add_bot_admin">
+          <div class="form-group"><label>Chat ID</label><input type="text" name="chat_id" placeholder="مثلاً 123456789" required></div>
+          <div class="form-group"><label>اسم (اختیاری)</label><input type="text" name="display_name" placeholder="مثلاً: علی - پشتیبانی"></div>
+          <button type="submit" class="btn btn-primary">➕ افزودن ادمین</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div style="font-size:20px">💳</div>
+        <div>
+          <div class="card-title">حساب‌های دریافت وجه</div>
+          <div class="card-desc">چند حساب/کارت اضافه کنید، هرکدوم رو خواستید «فعال» کنید تا همون به مشتری‌های بات شما نمایش داده بشه.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <?php if ($paymentAccounts): ?>
+        <?php foreach ($paymentAccounts as $pa): ?>
+        <div style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;<?= $pa['is_active'] ? 'border-color:var(--success)' : '' ?>">
+          <div style="flex:1">
+            <div style="font-weight:700"><?= sanitize($pa['bank_name'] ?: '') ?> <?= $pa['is_active'] ? '<span class="badge badge-success">فعال</span>' : '' ?></div>
+            <div style="font-size:13px;color:var(--text2);font-family:monospace"><?= sanitize($pa['card_number'] ?: '') ?></div>
+            <div style="font-size:12px;color:var(--muted)"><?= sanitize($pa['account_holder'] ?: '') ?> <?= $pa['extra_note'] ? '· ' . sanitize($pa['extra_note']) : '' ?></div>
+          </div>
+          <?php if (!$pa['is_active']): ?>
+          <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+            <input type="hidden" name="action" value="set_active_payment_account">
+            <input type="hidden" name="account_id" value="<?=$pa['id']?>">
+            <button type="submit" class="btn btn-primary" style="padding:8px 14px;font-size:12px">فعال کن</button>
+          </form>
+          <?php endif; ?>
+          <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+            <input type="hidden" name="action" value="delete_payment_account">
+            <input type="hidden" name="account_id" value="<?=$pa['id']?>">
+            <button type="submit" class="btn btn-danger" style="padding:8px 14px;font-size:12px">حذف</button>
+          </form>
+        </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
+        <form method="POST" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="add_payment_account">
+          <div class="form-group"><label>نام بانک</label><input type="text" name="bank_name" placeholder="مثلاً: ملت"></div>
+          <div class="form-group"><label>شماره کارت</label><input type="text" name="card_number" placeholder="XXXX-XXXX-XXXX-XXXX"></div>
+          <div class="form-group"><label>به نام</label><input type="text" name="account_holder" placeholder="نام صاحب حساب"></div>
+          <div class="form-group"><label>توضیح اضافه (اختیاری)</label><input type="text" name="extra_note" placeholder="مثلاً: فقط شبا"></div>
+          <button type="submit" class="btn btn-primary">➕ افزودن حساب</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div style="font-size:20px">🔧</div>
+        <div>
+          <div class="card-title">فایل‌های کانفیگ OpenVPN</div>
+          <div class="card-desc">فایل‌های .ovpn سرورهای مختلف رو اینجا آپلود کنید - مشتری از توی بات با دکمه‌ی «دانلود کانفیگ OpenVPN» می‌تونه دانلودشون کنه.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <?php if ($ovpnFiles): ?>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+          <?php foreach ($ovpnFiles as $of): ?>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 4px"><?= sanitize($of['title']) ?></td>
+            <td style="padding:8px 4px;text-align:left">
+              <form method="POST" style="display:inline"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+                <input type="hidden" name="action" value="delete_ovpn">
+                <input type="hidden" name="ovpn_id" value="<?=$of['id']?>">
+                <button type="submit" class="btn btn-danger" style="padding:6px 12px;font-size:12px">حذف</button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </table>
+        <?php endif; ?>
+        <form method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="upload_ovpn">
+          <div class="form-group"><label>عنوان (مثلاً: سرور آلمان)</label><input type="text" name="ovpn_title" required></div>
+          <div class="form-group"><label>فایل .ovpn</label><input type="file" name="ovpn_file" accept=".ovpn,.conf" required></div>
+          <button type="submit" class="btn btn-primary">📤 آپلود</button>
+        </form>
+      </div>
+    </div>
+
+    <?php if ($myGroups): ?>
+    <div class="card">
+      <div class="card-header">
+        <div style="font-size:20px">💰</div>
+        <div>
+          <div class="card-title">قیمت نمایش به مشتری در بات</div>
+          <div class="card-desc">قیمتی که ادمین برای شما تنظیم کرده، هزینه‌ی واقعی خودتونه. اینجا می‌تونید برای هرکدوم یک قیمت جدا (با سود خودتون) برای نمایش/دریافت از مشتری‌های بات تنظیم کنید. خالی بذارید تا همون قیمت پایه نمایش داده بشه.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="save_customer_prices">
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">
+              <td style="padding:6px 4px">گروه</td>
+              <td style="padding:6px 4px">قیمت پایه شما</td>
+              <td style="padding:6px 4px">قیمت نمایش به مشتری</td>
+            </tr>
+            <?php foreach ($myGroups as $g): ?>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 4px"><?= sanitize($g['group_name']) ?></td>
+              <td style="padding:8px 4px;color:var(--text2)"><?= money((float)$g['price']) ?> تومان</td>
+              <td style="padding:8px 4px">
+                <input type="text" inputmode="numeric" name="customer_price[<?=$g['id']?>]" placeholder="مثلاً <?= (int)$g['price'] ?>" value="<?= $g['customer_price'] !== null ? sanitize((string)(int)$g['customer_price']) : '' ?>">
+              </td>
+            </tr>
+            <?php endforeach; ?>
+          </table>
+          <button type="submit" class="btn btn-primary" style="margin-top:16px">💾 ذخیره قیمت‌ها</button>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
     <?php endif; ?>
 
   </div>
