@@ -522,10 +522,18 @@ function tg_receive_receipt(array $customer, string $fileId, int $resellerId = 0
         // تأیید/رد رو می‌گیره؛ در غیر این صورت سفارش توی صف می‌مونه و از صفحه‌ی
         // «سفارش‌های مستقیم» توی پنل وب خودش قابل بررسیه.
         $ownerChat = tg_reseller_chat_id($resellerId);
-        if ($ownerChat !== null) tg_sendPhotoByFileId($ownerChat, $fileId, $summary, $kb);
+        if ($ownerChat !== null) {
+            $r = tg_sendPhotoByFileId($ownerChat, $fileId, $summary, $kb);
+            if (!($r['ok'] ?? false)) error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: ارسال کارت سفارش به Chat ID ریسلر ناموفق بود: " . ($r['description'] ?? json_encode($r)));
+        } else {
+            error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: این ریسلر Chat ID ثبت نکرده - کارت سفارش فقط توی «سفارش‌های مستقیم» پنل وب قابل بررسیه.");
+        }
     } else {
-        foreach (tg_admin_chat_ids() as $adminChatId) {
-            tg_sendPhotoByFileId($adminChatId, $fileId, $summary, $kb);
+        $adminChats = tg_admin_chat_ids();
+        if (empty($adminChats)) error_log("[tg_receive_receipt] order#{$orderId}: هیچ ادمینی Chat ID ثبت نکرده.");
+        foreach ($adminChats as $adminChatId) {
+            $r = tg_sendPhotoByFileId($adminChatId, $fileId, $summary, $kb);
+            if (!($r['ok'] ?? false)) error_log("[tg_receive_receipt] order#{$orderId}: ارسال کارت سفارش به ادمین ({$adminChatId}) ناموفق بود: " . ($r['description'] ?? json_encode($r)));
         }
     }
 }
@@ -543,16 +551,20 @@ function tg_show_my_services(array $customer): void {
     foreach ($links as $l) {
         $exp = '-';
         $status = '-';
+        $password = null;
         if ($l['ibs_uid']) {
             $inf = ibsng_call('user.getUserInfo', ['user_id' => $l['ibs_uid']]);
             $basic = $inf['result'][$l['ibs_uid']]['basic_info'] ?? [];
+            $attrs = $inf['result'][$l['ibs_uid']]['attrs'] ?? [];
             $exp = !empty($basic['nearest_exp_date']) ? substr($basic['nearest_exp_date'], 0, 10) : '∞';
             $status = $basic['status'] ?? '-';
+            $password = $attrs['normal_password'] ?? null;
         }
         $statusDot = $status === 'Recharged' ? '🟢' : ($status === 'Disable' ? '🔴' : '⚪️');
         $unSafe = htmlspecialchars($l['ibs_username'], ENT_QUOTES, 'UTF-8');
         $grpSafe = htmlspecialchars($l['group_name'], ENT_QUOTES, 'UTF-8');
-        $lines[] = "👤 <b>{$unSafe}</b> ({$grpSafe})\n{$statusDot} وضعیت: {$status} | 📅 انقضا: {$exp}";
+        $pwLine = $password ? "\n🔑 رمز: <code>" . htmlspecialchars($password, ENT_QUOTES, 'UTF-8') . '</code>' : '';
+        $lines[] = "👤 <b>{$unSafe}</b> ({$grpSafe}){$pwLine}\n{$statusDot} وضعیت: {$status} | 📅 انقضا: {$exp}";
     }
     tg_sendMessage($chatId, implode("\n\n", $lines));
 }
