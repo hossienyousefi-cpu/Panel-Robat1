@@ -138,10 +138,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_texts') {
         $support = $_POST['support_contact_message'] ?? '';
         $card = $_POST['payment_card_info'] ?? '';
+        $guide = $_POST['connection_guide'] ?? '';
         $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('support_contact_message', ?)
                        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$support]);
         $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('payment_card_info', ?)
                        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$card]);
+        $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('connection_guide', ?)
+                       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")->execute([$guide]);
         $message = 'متن‌ها ذخیره شد.';
     }
 
@@ -309,6 +312,7 @@ $telegramBridgeUrl = getSetting('telegram_bridge_url', '');
 $directIsp = getSetting('direct_isp_name', '');
 $supportMsg = getSetting('support_contact_message', '');
 $cardInfo = getSetting('payment_card_info', '');
+$connectionGuide = getSetting('connection_guide', '');
 $myChatId = $pdo->prepare("SELECT telegram_chat_id FROM admins WHERE id=?");
 $myChatId->execute([$_SESSION['admin_id']]);
 $myChatId = $myChatId->fetchColumn();
@@ -694,6 +698,10 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
           <div class="form-group">
             <label>اطلاعات کارت پرداخت</label>
             <textarea name="payment_card_info"><?= sanitize($cardInfo) ?></textarea>
+          </div>
+          <div class="form-group">
+            <label>راهنمای اتصال <span style="font-size:11px;color:var(--muted);font-weight:400">(نمایش داده می‌شه وقتی مشتری روی «📖 راهنمای اتصال» بزنه، همراه با فایل‌های کانفیگ - خالی بذارید تا یک متن پیش‌فرض نشون داده بشه)</span></label>
+            <textarea name="connection_guide"><?= sanitize($connectionGuide) ?></textarea>
           </div>
           <button type="submit" class="btn btn-primary">💾 ذخیره</button>
         </form>

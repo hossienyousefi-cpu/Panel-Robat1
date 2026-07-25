@@ -41,10 +41,9 @@ function tg_admin_id_by_chat($chatId): ?int {
 function tg_main_keyboard(int $resellerId = 0): array {
     $rows = [
         ['🟢 خرید سرویس جدید', '🔵 تمدید سرویس'],
-        ['🟣 سرویس‌های من', '🟡 اطلاعات پرداخت'],
-        ['🔴 پشتیبانی'],
+        ['🟣 سرویس‌های من', '🔴 پشتیبانی'],
     ];
-    if (tg_list_ovpn_files($resellerId)) $rows[] = ['🟠 دانلود کانفیگ OpenVPN'];
+    if (tg_list_ovpn_files($resellerId)) $rows[] = ['📖 راهنمای اتصال'];
     return ['keyboard' => $rows, 'resize_keyboard' => true];
 }
 
@@ -284,17 +283,36 @@ function tg_list_ovpn_files(int $resellerId): array {
     return $stmt->fetchAll();
 }
 
-function tg_show_ovpn_list(array $customer, int $resellerId): void {
+// ─── متن راهنمای اتصال: برای هر بات ریسلر جدا (توی reseller_bots)، برای
+// بات اصلی از settings سراسری ───
+function tg_connection_guide(int $resellerId): string {
+    if ($resellerId > 0) {
+        global $pdo;
+        $stmt = $pdo->prepare("SELECT connection_guide FROM reseller_bots WHERE reseller_id=?");
+        $stmt->execute([$resellerId]);
+        $v = $stmt->fetchColumn();
+        if ($v !== false && $v !== null && $v !== '') return $v;
+    } else {
+        $v = getSetting('connection_guide', '');
+        if ($v !== '') return $v;
+    }
+    return "۱. اپلیکیشن OpenVPN Connect رو نصب کنید.\n۲. فایل کانفیگ زیر رو دانلود کنید.\n۳. فایل رو توی اپلیکیشن ایمپورت کنید و وصل بشید.";
+}
+
+function tg_show_connection_guide(array $customer, int $resellerId): void {
     $chatId = $customer['chat_id'];
+    $guide = htmlspecialchars(tg_connection_guide($resellerId), ENT_QUOTES, 'UTF-8');
+    tg_sendMessage($chatId, "📖 <b>راهنمای اتصال</b>\n\n{$guide}");
+
     $files = tg_list_ovpn_files($resellerId);
-    if (!$files) { tg_sendMessage($chatId, 'در حال حاضر فایل کانفیگی برای دانلود ثبت نشده.'); return; }
+    if (!$files) return;
     if (count($files) === 1) { tg_send_ovpn_file($chatId, (int)$files[0]['id'], null, $resellerId); return; }
     $buttons = [];
     foreach ($files as $i => $f) {
         $dot = tg_color_dot($i);
         $buttons[] = [['text' => "{$dot} " . $f['title'], 'callback_data' => 'ovpn_' . $f['id']]];
     }
-    tg_sendMessage($chatId, '🔧 <b>کدام سرور را می‌خواهید؟</b>', ['inline_keyboard' => $buttons]);
+    tg_sendMessage($chatId, '📥 <b>کدام سرور را می‌خواهید؟</b>', ['inline_keyboard' => $buttons]);
 }
 
 function tg_send_ovpn_file($chatId, int $fileId, ?string $cqId, int $resellerId): void {
@@ -348,13 +366,16 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
     if ($text === '🟢 خرید سرویس جدید') { tg_start_new_purchase($customer, $resellerId); return; }
     if ($text === '🔵 تمدید سرویس') { tg_start_renew($customer, $resellerId); return; }
     if ($text === '🟣 سرویس‌های من') { tg_show_my_services($customer); return; }
-    if ($text === '🟡 اطلاعات پرداخت') { tg_sendMessage($chatId, "💳 <b>اطلاعات پرداخت</b>\n\n" . htmlspecialchars(tg_payment_card_info($resellerId), ENT_QUOTES, 'UTF-8')); return; }
     if ($text === '🔴 پشتیبانی') {
         tg_set_state((int)$customer['id'], 'support_chat', null);
-        tg_sendMessage($chatId, "🆘 <b>پشتیبانی</b>\n\n" . htmlspecialchars(tg_support_message($resellerId), ENT_QUOTES, 'UTF-8') . "\n\n💬 پیام خودتون رو همینجا بنویسید، به زودی پاسخ داده می‌شه:");
+        $custom = tg_support_message($resellerId);
+        $body = "🆘 <b>پشتیبانی</b>\n\n";
+        if ($custom !== '' && $custom !== 'هنوز تنظیم نشده.') $body .= htmlspecialchars($custom, ENT_QUOTES, 'UTF-8') . "\n\n";
+        $body .= '✍️ پیام‌تون رو بنویسید و ارسال کنید.';
+        tg_sendMessage($chatId, $body);
         return;
     }
-    if ($text === '🟠 دانلود کانفیگ OpenVPN') { tg_show_ovpn_list($customer, $resellerId); return; }
+    if ($text === '📖 راهنمای اتصال') { tg_show_connection_guide($customer, $resellerId); return; }
 
     $state = $customer['state'];
 
@@ -544,14 +565,25 @@ function tg_receive_receipt(array $customer, string $fileId, int $resellerId = 0
     ]]];
     // کارت تأیید/رد برای «همه‌ی ادمین‌های این بات» فرستاده می‌شه (صاحب بات +
     // هر ادمین اضافه‌ای که از reseller/telegram.php یا admin/telegram.php
-    // تعریف شده) - هرکدوم اول تأیید/رد کنه کافیه.
+    // تعریف شده) - هرکدوم اول تأیید/رد کنه کافیه. message_id هر نسخه ذخیره
+    // می‌شه تا بعد از تصمیم، خلاصه‌ی «کی تأیید/رد کرد» روی همه‌ی نسخه‌ها
+    // (نه فقط نسخه‌ی همون ادمین) ویرایش بشه.
     $adminChats = ba_all_admin_chat_ids($resellerId);
     if (empty($adminChats)) {
         error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: هیچ ادمینی برای این بات Chat ID ثبت نکرده - سفارش فقط توی پنل وب قابل بررسیه.");
     }
+    $broadcast = [];
     foreach ($adminChats as $adminChatId) {
         $r = tg_sendPhotoByFileId($adminChatId, $fileId, $summary, $kb);
-        if (!($r['ok'] ?? false)) error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: ارسال کارت سفارش به ادمین ({$adminChatId}) ناموفق بود: " . ($r['description'] ?? json_encode($r)));
+        if ($r['ok'] ?? false) {
+            $broadcast[$adminChatId] = $r['result']['message_id'];
+        } else {
+            error_log("[tg_receive_receipt] reseller_id={$resellerId} order#{$orderId}: ارسال کارت سفارش به ادمین ({$adminChatId}) ناموفق بود: " . ($r['description'] ?? json_encode($r)));
+        }
+    }
+    if ($broadcast) {
+        $pdo->prepare("UPDATE telegram_orders SET broadcast_json=? WHERE id=?")
+            ->execute([json_encode($broadcast, JSON_UNESCAPED_UNICODE), $orderId]);
     }
 }
 
@@ -844,7 +876,7 @@ function tg_handle_order_decision($chatId, $messageId, string $data, string $cqI
             ->execute([$reviewedByAdminId, $reviewerName, $orderId]);
         tg_answerCallbackQuery($cqId, 'رد شد');
         if ($customer) tg_sendMessage($customer['chat_id'], '❌ متأسفانه رسید پرداخت شما تأیید نشد. برای پیگیری با پشتیبانی تماس بگیرید.');
-        if ($messageId) tg_editMessageReplyMarkup($chatId, $messageId, null);
+        tg_broadcast_order_decision_captions($order, false, $reviewerName, $chatId, $messageId);
         logActivity($actorType, $actorId, 'reject_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} رد شد");
         return;
     }
@@ -861,8 +893,49 @@ function tg_handle_order_decision($chatId, $messageId, string $data, string $cqI
     $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_by=?, reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")
         ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $reviewedByAdminId, $reviewerName, $orderId]);
     tg_answerCallbackQuery($cqId, 'تأیید شد ✅');
-    if ($messageId) tg_editMessageReplyMarkup($chatId, $messageId, null);
+    tg_broadcast_order_decision_captions($order, true, $reviewerName, $chatId, $messageId);
     logActivity($actorType, $actorId, 'approve_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} تأیید شد");
+}
+
+// ─── بازسازی متن خلاصه‌ی یک سفارش از روی خودِ ردیف telegram_orders (بدون
+// نیاز به نگه‌داشتن متن اصلی) - برای ویرایش کپشن کارت‌های ادمین بعد از تصمیم ───
+function tg_order_summary_text(array $order): string {
+    global $pdo;
+    $custStmt = $pdo->prepare("SELECT tg_username, full_name, chat_id FROM telegram_customers WHERE id=?");
+    $custStmt->execute([$order['telegram_customer_id']]);
+    $customer = $custStmt->fetch();
+    $who = htmlspecialchars($customer ? ($customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $customer['chat_id'])) : 'نامشخص', ENT_QUOTES, 'UTF-8');
+    $unSafe = htmlspecialchars($order['target_username'], ENT_QUOTES, 'UTF-8');
+    if ($order['order_type'] === 'new') {
+        $pkg = tg_get_package((int)$order['package_id'], (int)$order['reseller_id']);
+        $titleSafe = htmlspecialchars($pkg['title'] ?? '-', ENT_QUOTES, 'UTF-8');
+        return "🛒 <b>سفارش جدید #{$order['id']}</b>\n👤 مشتری: {$who}\n📦 بسته: {$titleSafe}\n✏️ یوزرنیم درخواستی: <b>{$unSafe}</b>\n💰 مبلغ: <b>" . money((float)$order['amount']) . '</b> تومان';
+    }
+    return "🔁 <b>سفارش تمدید #{$order['id']}</b>\n👤 مشتری: {$who}\n✏️ یوزرنیم: <b>{$unSafe}</b>\n💰 مبلغ: <b>" . money((float)$order['amount']) . '</b> تومان';
+}
+
+// ─── بعد از تأیید/رد یک سفارش، خلاصه‌ی «کی و کِی تأیید/رد کرد» روی کپشن
+// همه‌ی نسخه‌هایی که برای ادمین‌های مختلف این بات فرستاده شده بود ویرایش
+// می‌شه (نه فقط نسخه‌ی همون ادمینی که الان زده) - تا بقیه‌ی ادمین‌ها هم
+// بلافاصله بفهمن این سفارش دیگه نیاز به بررسی نداره و توسط کی انجام شده. ───
+function tg_broadcast_order_decision_captions(array $order, bool $approved, string $reviewerName, $actingChatId, $actingMessageId): void {
+    $broadcast = json_decode($order['broadcast_json'] ?? '[]', true) ?: [];
+    if (!$broadcast) {
+        // سفارش‌های قدیمی‌تر (قبل از این فیچر) broadcast_json ندارن - حداقل
+        // دکمه‌های همون ادمینی که الان زده رو پاک کن.
+        if ($actingMessageId) tg_editMessageReplyMarkup($actingChatId, $actingMessageId, null);
+        return;
+    }
+    $statusLine = $approved ? '✅ <b>تأیید شد</b>' : '❌ <b>رد شد</b>';
+    $nameSafe = htmlspecialchars($reviewerName, ENT_QUOTES, 'UTF-8');
+    $caption = tg_order_summary_text($order) . "\n\n{$statusLine}\n👮 توسط: <b>{$nameSafe}</b>\n🕒 " . date('Y/m/d H:i');
+    foreach ($broadcast as $adminChat => $mid) {
+        $r = tg_editMessageCaption($adminChat, $mid, $caption, ['inline_keyboard' => []]);
+        if (!($r['ok'] ?? false)) {
+            // اگه ویرایش کپشن ناموفق بود (مثلاً پیام حذف شده)، حداقل دکمه‌ها رو پاک کن
+            tg_editMessageReplyMarkup($adminChat, $mid, null);
+        }
+    }
 }
 
 function tg_provision_new_order(array $order, ?array $customer, int $resellerId = 0): array {

@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'reject') {
                 $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")->execute([$reviewerName, $orderId]);
                 if ($customer) tg_sendMessage($customer['chat_id'], '❌ متأسفانه رسید پرداخت شما تأیید نشد. برای پیگیری با پشتیبانی تماس بگیرید.');
+                tg_broadcast_order_decision_captions($order, false, $reviewerName, null, null);
                 logActivity('reseller', $rid, 'reject_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} رد شد");
                 $success = 'سفارش رد شد ❌';
             } else {
@@ -56,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_by_name=?, reviewed_at=NOW() WHERE id=?")
                         ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $reviewerName, $orderId]);
+                    tg_broadcast_order_decision_captions($order, true, $reviewerName, null, null);
                     logActivity('reseller', $rid, 'approve_direct_order', "سفارش تلگرام #$orderId توسط {$reviewerName} تأیید شد");
                     $success = 'سفارش تأیید شد و روی IBSng اعمال گردید ✅';
                 }

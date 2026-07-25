@@ -111,6 +111,15 @@ function tg_editMessageText($chatId, $messageId, $text, $replyMarkup = null, $pa
     return tg_api('editMessageText', $params);
 }
 
+// ─── ویرایش کپشن یک پیامِ عکس (کارت‌های سفارش که با tg_sendPhotoByFileId
+// فرستاده شدن با editMessageText قابل ویرایش نیستن - فقط کپشن‌شون) ───
+function tg_editMessageCaption($chatId, $messageId, $caption, $replyMarkup = null, $parseMode = 'HTML') {
+    $params = ['chat_id' => $chatId, 'message_id' => $messageId, 'caption' => $caption];
+    if ($parseMode !== null) $params['parse_mode'] = $parseMode;
+    if ($replyMarkup !== null) $params['reply_markup'] = json_encode($replyMarkup);
+    return tg_api('editMessageCaption', $params);
+}
+
 function tg_editMessageReplyMarkup($chatId, $messageId, $replyMarkup = null) {
     return tg_api('editMessageReplyMarkup', [
         'chat_id'      => $chatId,

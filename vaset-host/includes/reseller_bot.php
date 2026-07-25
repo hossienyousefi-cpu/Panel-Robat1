@@ -36,10 +36,10 @@ function rb_saveBotToken(int $resellerId, string $token): array {
     return rb_getBot($resellerId);
 }
 
-function rb_saveTexts(int $resellerId, string $paymentCardInfo, string $supportMessage): void {
+function rb_saveTexts(int $resellerId, string $paymentCardInfo, string $supportMessage, string $connectionGuide = ''): void {
     global $pdo;
-    $pdo->prepare("UPDATE reseller_bots SET payment_card_info=?, support_message=? WHERE reseller_id=?")
-        ->execute([$paymentCardInfo, $supportMessage, $resellerId]);
+    $pdo->prepare("UPDATE reseller_bots SET payment_card_info=?, support_message=?, connection_guide=? WHERE reseller_id=?")
+        ->execute([$paymentCardInfo, $supportMessage, $connectionGuide !== '' ? $connectionGuide : null, $resellerId]);
 }
 
 // ─── برندینگ بات: اسم فروشگاه (توی پیام خوش‌آمد و همه‌جای بات نشون داده

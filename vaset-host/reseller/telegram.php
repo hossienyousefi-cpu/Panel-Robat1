@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'save_texts') {
-        rb_saveTexts($rid, $_POST['payment_card_info'] ?? '', $_POST['support_message'] ?? '');
+        rb_saveTexts($rid, $_POST['payment_card_info'] ?? '', $_POST['support_message'] ?? '', $_POST['connection_guide'] ?? '');
         $success = 'متن‌ها ذخیره شد.';
     }
 
@@ -466,6 +466,10 @@ $myGroups = $myGroups->fetchAll();
           <div class="form-group">
             <label>اطلاعات کارت پرداخت</label>
             <textarea name="payment_card_info"><?= sanitize($bot['payment_card_info'] ?? '') ?></textarea>
+          </div>
+          <div class="form-group">
+            <label>راهنمای اتصال <span style="font-size:11px;color:var(--text2);font-weight:400">(نمایش داده می‌شه وقتی مشتری روی «📖 راهنمای اتصال» بزنه، همراه با فایل‌های کانفیگ - خالی بذارید تا یک متن پیش‌فرض نشون داده بشه)</span></label>
+            <textarea name="connection_guide"><?= sanitize($bot['connection_guide'] ?? '') ?></textarea>
           </div>
           <button type="submit" class="btn btn-primary">💾 ذخیره</button>
         </form>
