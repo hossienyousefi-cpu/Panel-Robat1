@@ -535,6 +535,7 @@ input:focus,select:focus{border-color:var(--acc)}
       <div style="padding:10px 14px;border-bottom:1px solid var(--bor);font-weight:700;font-size:13px;display:flex;align-items:center;gap:10px">
         📋 <?=count($bulkResult)?> کاربر ساخته شد
         <button onclick="copyBulk()" class="btn bg bsm" title="کپی نتایج ساخت گروهی">📋 کپی همه</button>
+        <button onclick="downloadBulk()" class="btn bp bsm" title="دانلود فایل اکسل (CSV)">⬇️ دانلود</button>
       </div>
       <div style="overflow-x:auto;max-height:260px;overflow-y:auto">
         <table class="bulk-tbl">
@@ -790,6 +791,27 @@ function copyBulk(){
   var rows=[].slice.call(document.querySelectorAll('#bulkTB tr'));
   var txt=rows.map(function(r){var c=[].slice.call(r.querySelectorAll('td'));return (c[1]?c[1].textContent.trim():'')+'\\t'+(c[2]?c[2].textContent.trim():'');}).join('\\n');
   navigator.clipboard.writeText(txt).then(function(){alert('کپی شد!');});
+}
+
+function downloadBulk(){
+  var rows=[].slice.call(document.querySelectorAll('#bulkTB tr'));
+  var lines=['Internet Username,Internet Password'];
+  rows.forEach(function(r){
+    var c=[].slice.call(r.querySelectorAll('td'));
+    var u=(c[1]?c[1].textContent.trim():'').replace(/"/g,'""');
+    var p=(c[2]?c[2].textContent.trim():'').replace(/"/g,'""');
+    lines.push('"'+u+'","'+p+'"');
+  });
+  var csv='﻿'+lines.join('\r\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;
+  a.download='users_'+(new Date().toISOString().slice(0,10))+'.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 let srchT=null;
