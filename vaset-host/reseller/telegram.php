@@ -460,7 +460,7 @@ $myGroups = $myGroups->fetchAll();
         <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="save_texts">
           <div class="form-group">
-            <label>پیام پشتیبانی</label>
+            <label>پیام پشتیبانی <span style="font-size:11px;color:var(--text2);font-weight:400">(دقیقاً همینی که مشتری با زدن دکمه‌ی «🔴 پشتیبانی» می‌بینه - خالی بذارید تا متن پیش‌فرض نشون داده بشه)</span></label>
             <textarea name="support_message"><?= sanitize($bot['support_message'] ?? '') ?></textarea>
           </div>
           <div class="form-group">

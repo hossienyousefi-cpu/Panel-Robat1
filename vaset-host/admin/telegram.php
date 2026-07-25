@@ -303,6 +303,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'فایل حذف شد.';
         }
     }
+
+    if ($action === 'broadcast_message') {
+        $text = trim($_POST['broadcast_text'] ?? '');
+        if ($text === '') {
+            $error = 'متن پیام را وارد کنید.';
+        } else {
+            set_time_limit(0);
+            $chats = $pdo->query("SELECT chat_id FROM telegram_customers WHERE reseller_id=0 AND is_blocked=0")->fetchAll(PDO::FETCH_COLUMN);
+            $sent = 0; $failed = 0;
+            foreach ($chats as $chatId) {
+                $r = tg_sendMessage($chatId, $text);
+                if ($r['ok'] ?? false) $sent++; else $failed++;
+                usleep(50000); // برای رعایت محدودیت نرخ ارسال تلگرام (حدود ۲۰ پیام در ثانیه)
+            }
+            logActivity('admin', $_SESSION['admin_id'], 'broadcast_message', "پیام همگانی برای {$sent} مشتری ارسال شد ({$failed} ناموفق)");
+            $message = "پیام همگانی ارسال شد. موفق: {$sent} | ناموفق: {$failed}";
+        }
+    }
 }
 
 $botToken = getSetting('telegram_bot_token', '');
@@ -692,7 +710,7 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
         <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="save_texts">
           <div class="form-group">
-            <label>پیام پشتیبانی</label>
+            <label>پیام پشتیبانی <span style="font-size:11px;color:var(--muted);font-weight:400">(دقیقاً همینی که مشتری با زدن دکمه‌ی «🔴 پشتیبانی» می‌بینه - خالی بذارید تا متن پیش‌فرض نشون داده بشه)</span></label>
             <textarea name="support_contact_message"><?= sanitize($supportMsg) ?></textarea>
           </div>
           <div class="form-group">
@@ -704,6 +722,26 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <textarea name="connection_guide"><?= sanitize($connectionGuide) ?></textarea>
           </div>
           <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="section-header">
+        <div class="section-icon">📢</div>
+        <div>
+          <div class="section-title">ارسال پیام همگانی</div>
+          <div class="section-desc">این پیام برای همه‌ی مشتریانی که از بات اصلی خرید کرده‌اند (نه بات اختصاصی ریسلرها) ارسال می‌شود.</div>
+        </div>
+      </div>
+      <div class="section-body">
+        <form method="POST" onsubmit="return confirm('پیام برای همه‌ی مشتریان بات اصلی ارسال می‌شود. مطمئنید؟')"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
+          <input type="hidden" name="action" value="broadcast_message">
+          <div class="form-group">
+            <label>متن پیام</label>
+            <textarea name="broadcast_text" placeholder="متن پیام همگانی..." required></textarea>
+          </div>
+          <button type="submit" class="btn btn-purple">📢 ارسال برای همه</button>
         </form>
       </div>
     </div>

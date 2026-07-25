@@ -253,14 +253,15 @@ function tg_payment_card_info(int $resellerId): string {
 }
 
 function tg_support_message(int $resellerId): string {
+    $default = 'پیام‌تون رو بنویسید و ارسال کنید.';
     if ($resellerId > 0) {
         global $pdo;
         $stmt = $pdo->prepare("SELECT support_message FROM reseller_bots WHERE reseller_id=?");
         $stmt->execute([$resellerId]);
         $v = $stmt->fetchColumn();
-        return ($v !== false && $v !== null && $v !== '') ? $v : 'هنوز تنظیم نشده.';
+        return ($v !== false && $v !== null && $v !== '') ? $v : $default;
     }
-    return getSetting('support_contact_message', 'هنوز تنظیم نشده.');
+    return getSetting('support_contact_message', $default);
 }
 
 function tg_extract_receipt_file_id(array $msg): ?string {
@@ -368,11 +369,7 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
     if ($text === '🟣 سرویس‌های من') { tg_show_my_services($customer); return; }
     if ($text === '🔴 پشتیبانی') {
         tg_set_state((int)$customer['id'], 'support_chat', null);
-        $custom = tg_support_message($resellerId);
-        $body = "🆘 <b>پشتیبانی</b>\n\n";
-        if ($custom !== '' && $custom !== 'هنوز تنظیم نشده.') $body .= htmlspecialchars($custom, ENT_QUOTES, 'UTF-8') . "\n\n";
-        $body .= '✍️ پیام‌تون رو بنویسید و ارسال کنید.';
-        tg_sendMessage($chatId, $body);
+        tg_sendMessage($chatId, "🆘 <b>پشتیبانی</b>\n\n" . htmlspecialchars(tg_support_message($resellerId), ENT_QUOTES, 'UTF-8'));
         return;
     }
     if ($text === '📖 راهنمای اتصال') { tg_show_connection_guide($customer, $resellerId); return; }
@@ -632,11 +629,21 @@ function tg_open_or_get_ticket(int $resellerId, int $customerId): array {
     $stmt->execute([$resellerId, $customerId]);
     $t = $stmt->fetch();
     if ($t) return $t;
-    $pdo->prepare("INSERT INTO support_tickets (reseller_id, telegram_customer_id, status) VALUES (?,?,'open')")
-        ->execute([$resellerId, $customerId]);
-    $stmt = $pdo->prepare("SELECT * FROM support_tickets WHERE id=?");
-    $stmt->execute([(int)$pdo->lastInsertId()]);
-    return $stmt->fetch();
+    try {
+        $pdo->prepare("INSERT INTO support_tickets (reseller_id, telegram_customer_id, status) VALUES (?,?,'open')")
+            ->execute([$resellerId, $customerId]);
+        $byId = $pdo->prepare("SELECT * FROM support_tickets WHERE id=?");
+        $byId->execute([(int)$pdo->lastInsertId()]);
+        return $byId->fetch();
+    } catch (Throwable $e) {
+        // دو پیام تقریباً هم‌زمان از همین مشتری رسیدن و هر دو همزمان تلاش کردن
+        // تیکت بسازن - قید UNIQUE (uniq_open_ticket، migration 010) یکی رو رد
+        // کرده؛ پس همون تیکتی که رقیب موفق ساخته رو برمی‌گردونیم.
+        $stmt->execute([$resellerId, $customerId]);
+        $t = $stmt->fetch();
+        if ($t) return $t;
+        throw $e;
+    }
 }
 
 // ─── پیام پشتیبانی مشتری: اگه تیکتش هنوز کسی نپذیرفته، به همه‌ی ادمین‌های بات
@@ -669,6 +676,27 @@ function tg_relay_customer_message(array $customer, string $text, int $resellerI
             error_log("[tg_relay_customer_message] reseller_id={$resellerId} ticket={$ticket['id']}: ارسال به ادمین پذیرنده ناموفق بود: " . ($res['description'] ?? json_encode($res, JSON_UNESCAPED_UNICODE)));
             tg_sendMessage($chatId, '⚠️ ارسال پیام با خطا مواجه شد. لطفاً بعداً دوباره امتحان کنید.');
         }
+        return;
+    }
+
+    // اگه این تیکت قبلاً (برای پیام اول) یک‌بار به همه‌ی ادمین‌ها فرستاده شده و
+    // هنوز کسی نپذیرفته، به‌جای اسپم کردنِ یک پیامِ کاملاً جدید به‌ازای هر پیامِ
+    // بعدیِ مشتری (که هم دکمه‌های تکراری می‌ساخت هم چت ادمین رو شلوغ می‌کرد)،
+    // همون کارت‌های قبلی رو ویرایش و پیام جدید رو بهشون اضافه می‌کنیم.
+    if (!empty($ticket['broadcast_json'])) {
+        $broadcast = json_decode($ticket['broadcast_json'], true) ?: [];
+        $combinedText = rtrim((string)$ticket['initial_text']) . "\n\n💬 {$who}: {$textSafe}";
+        if (mb_strlen(strip_tags($combinedText)) > 3500) {
+            $combinedText = "🎫 <b>تیکت #{$ticket['id']}</b>\n<i>(پیام‌های قبلی‌تر بالاتر بود)</i>\n\n💬 {$who}: {$textSafe}";
+        }
+        $kb = ['inline_keyboard' => [[['text' => '✅ پذیرش تیکت', 'callback_data' => 'tkt_claim_' . $ticket['id']]]]];
+        $anyOk = false;
+        foreach ($broadcast as $adminChat => $mid) {
+            $r = tg_editMessageText($adminChat, $mid, $combinedText, $kb);
+            if ($r['ok'] ?? false) $anyOk = true;
+        }
+        $pdo->prepare("UPDATE support_tickets SET initial_text=? WHERE id=?")->execute([$combinedText, $ticket['id']]);
+        tg_sendMessage($chatId, $anyOk ? '✅ پیام شما اضافه شد.' : '⚠️ ارسال پیام با خطا مواجه شد. لطفاً بعداً دوباره امتحان کنید.');
         return;
     }
 
@@ -768,6 +796,34 @@ function tg_handle_ticket_close(int $resellerId, $chatId, $messageId, int $ticke
     }
 
     logActivity($resellerId === 0 ? 'admin' : 'reseller', $resellerId, 'close_support_ticket', "تیکت #{$ticketId} بسته شد توسط " . ba_display_name($resellerId, $chatId));
+}
+
+// ─── فرمان /tickets: لیست تیکت‌های باز/در-حال-بررسیِ همین بات، هرکدوم با
+// دکمه‌ی پذیرش (اگه هنوز باز باشه) و بستن - برای اینکه ادمین بدون نیاز به
+// پنل وب بتونه ببینه چه تیکتی مونده و مستقیم از توی بات رسیدگی کنه. ───
+function tg_send_tickets_overview($chatId, int $resellerId): void {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT t.*, c.tg_username, c.full_name, c.chat_id AS cust_chat FROM support_tickets t
+        JOIN telegram_customers c ON c.id = t.telegram_customer_id
+        WHERE t.reseller_id=? AND t.status IN ('open','claimed')
+        ORDER BY t.created_at DESC LIMIT 20");
+    $stmt->execute([$resellerId]);
+    $tickets = $stmt->fetchAll();
+    if (!$tickets) { tg_sendMessage($chatId, '📭 در حال حاضر تیکت باز/در حال بررسی‌ای وجود نداره.'); return; }
+
+    tg_sendMessage($chatId, '🎫 <b>تیکت‌های باز</b> (' . count($tickets) . ')');
+    foreach ($tickets as $t) {
+        $who = htmlspecialchars($t['tg_username'] ? '@' . $t['tg_username'] : ($t['full_name'] ?: $t['cust_chat']), ENT_QUOTES, 'UTF-8');
+        $statusLabel = $t['status'] === 'claimed'
+            ? ('👤 در حال پاسخ توسط ' . htmlspecialchars($t['claimed_by_name'] ?? '؟', ENT_QUOTES, 'UTF-8'))
+            : '🟡 هنوز پذیرفته نشده';
+        $snippet = mb_substr(strip_tags((string)$t['initial_text']), 0, 300);
+        $body = "🎫 <b>تیکت #{$t['id']}</b>\n👤 {$who}\n{$statusLabel}\n🕒 " . date('Y/m/d H:i', strtotime($t['created_at'])) . "\n\n" . htmlspecialchars($snippet, ENT_QUOTES, 'UTF-8');
+        $buttons = [];
+        if ($t['status'] === 'open') $buttons[] = ['text' => '✅ پذیرش', 'callback_data' => 'tkt_claim_' . $t['id']];
+        $buttons[] = ['text' => '🔒 بستن', 'callback_data' => 'tkt_close_' . $t['id']];
+        tg_sendMessage($chatId, $body, ['inline_keyboard' => [$buttons]]);
+    }
 }
 
 // ─── وقتی صاحب بات (ادمین برای بات اصلی، خودِ ریسلر برای بات اختصاصی‌اش) با
@@ -1094,11 +1150,16 @@ function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg):
         return true;
     }
 
+    if ($text === '/tickets') {
+        tg_send_tickets_overview($chatId, $resellerId);
+        return true;
+    }
+
     // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه صاحب بات /start بزنه، باید
     // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست). دستور
     // ادمین جداگانه‌ی /help هست.
     if ($text === '/help') {
-        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مشتری‌ها و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما (و ادمین‌های اضافه‌ای که تعریف کرده‌اید) ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
+        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/tickets - تیکت‌های پشتیبانی باز\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مشتری‌ها و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما (و ادمین‌های اضافه‌ای که تعریف کرده‌اید) ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
         return true;
     }
 
@@ -1153,11 +1214,16 @@ function tg_handle_admin_message($chatId, array $msg): bool {
         return true;
     }
 
+    if ($text === '/tickets') {
+        tg_send_tickets_overview($chatId, 0);
+        return true;
+    }
+
     // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه ادمین /start بزنه، باید
     // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست).
     if ($text === '/help') {
         $extra = $isRealAdmin ? "/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n" : '';
-        tg_sendMessage($chatId, "👋 پنل کنترلی ادمین در تلگرام\n\n{$extra}/pending - تعداد موارد در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مستقیم و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
+        tg_sendMessage($chatId, "👋 پنل کنترلی ادمین در تلگرام\n\n{$extra}/pending - تعداد موارد در انتظار تأیید\n/tickets - تیکت‌های پشتیبانی باز\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مستقیم و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
         return true;
     }
 
