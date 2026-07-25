@@ -222,6 +222,9 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
     <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
     <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
     <a href="payments.php" class="ni">🧾 ارسال فیش</a>
+    <div class="ns">فروش مستقیم تلگرام</div>
+    <a href="direct_orders.php" class="ni">🛒 سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="ni">🤖 بات تلگرام من</a>
   </nav>
   <div class="sf">
     <div class="ai">

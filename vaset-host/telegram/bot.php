@@ -5,13 +5,17 @@
 // telegram_api.php + db_backup.php (همه قبل از این فایل require شده‌اند).
 
 // ───────────────────────────── ورودی اصلی ─────────────────────────────
-function tg_handle_update(array $update) {
+// $resellerId=0 یعنی بات اصلی/سراسری پنل (مثل قبل)؛ >0 یعنی بات اختصاصی همون
+// ریسلر (telegram/webhook.php این عدد رو از پارامتر ?r= آدرس وبهوک تشخیص
+// می‌ده و از همینجا به همه‌ی توابع پایین‌دستی پاس می‌ده تا مشتری/سفارش/پکیج/
+// موجودی هرکدوم کاملاً جدا از بقیه بمونه).
+function tg_handle_update(array $update, int $resellerId = 0) {
     if (isset($update['callback_query'])) {
-        tg_handle_callback($update['callback_query']);
+        tg_handle_callback($update['callback_query'], $resellerId);
         return;
     }
     if (isset($update['message'])) {
-        tg_handle_message($update['message']);
+        tg_handle_message($update['message'], $resellerId);
         return;
     }
 }
@@ -29,6 +33,20 @@ function tg_admin_id_by_chat($chatId): ?int {
     $stmt->execute([(string)$chatId]);
     $id = $stmt->fetchColumn();
     return $id !== false ? (int)$id : null;
+}
+
+// ─── همتای بالا برای بات اختصاصی یک ریسلر: خودِ ریسلر «ادمین» بات خودشه ───
+function tg_reseller_chat_id(int $resellerId): ?string {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT telegram_chat_id FROM resellers WHERE id=?");
+    $stmt->execute([$resellerId]);
+    $v = $stmt->fetchColumn();
+    return ($v !== false && $v !== null && $v !== '') ? (string)$v : null;
+}
+
+function tg_is_reseller_owner_chat(int $resellerId, $chatId): bool {
+    $own = tg_reseller_chat_id($resellerId);
+    return $own !== null && $own === (string)$chatId;
 }
 
 function tg_main_keyboard(): array {
@@ -49,11 +67,15 @@ function tg_generate_password(int $len = 6): string {
     return $pw;
 }
 
-function tg_get_or_create_customer($chatId, ?string $tgUsername, ?string $fullName): array {
+// چون chat_id تلگرام همون آیدی عددی کاربره (نه چیزی مخصوص یک بات)، اگه یک نفر
+// هم با بات اصلی هم با بات یک ریسلر حرف بزنه، توی هر دو یک chat_id یکسان
+// داره - برای همین رکورد مشتری باید جدا-جدا به‌ازای هر ریسلر (reseller_id=0
+// یعنی بات اصلی) نگه‌داری بشه، وگرنه state/سرویس‌های دو بات با هم قاطی می‌شد.
+function tg_get_or_create_customer($chatId, ?string $tgUsername, ?string $fullName, int $resellerId = 0): array {
     global $pdo;
     $chatId = (string)$chatId;
-    $stmt = $pdo->prepare("SELECT * FROM telegram_customers WHERE chat_id=?");
-    $stmt->execute([$chatId]);
+    $stmt = $pdo->prepare("SELECT * FROM telegram_customers WHERE chat_id=? AND reseller_id=?");
+    $stmt->execute([$chatId, $resellerId]);
     $c = $stmt->fetch();
     if ($c) {
         $pdo->prepare("UPDATE telegram_customers SET tg_username=?, full_name=? WHERE id=?")
@@ -62,9 +84,9 @@ function tg_get_or_create_customer($chatId, ?string $tgUsername, ?string $fullNa
         $c['full_name'] = $fullName;
         return $c;
     }
-    $pdo->prepare("INSERT INTO telegram_customers (chat_id, tg_username, full_name) VALUES (?,?,?)")
-        ->execute([$chatId, $tgUsername, $fullName]);
-    $stmt->execute([$chatId]);
+    $pdo->prepare("INSERT INTO telegram_customers (chat_id, reseller_id, tg_username, full_name) VALUES (?,?,?,?)")
+        ->execute([$chatId, $resellerId, $tgUsername, $fullName]);
+    $stmt->execute([$chatId, $resellerId]);
     return $stmt->fetch();
 }
 
@@ -80,12 +102,86 @@ function tg_get_state_data(array $customer): array {
     return is_array($decoded) ? $decoded : [];
 }
 
-function tg_get_package(int $id): ?array {
+// ─── منبع پکیج‌ها: برای بات اصلی (reseller_id=0) همون جدول سراسری
+// direct_packages، برای بات یک ریسلر مستقیم از خودِ reseller_groups (همون
+// گروه/قیمتی که ریسلر توی پنل وب برای ساخت کاربر تنظیم کرده - نیازی به تعریف
+// جدا برای بات نیست، isp هم isp اختصاصی خودِ ریسلره). قیمت ۰ یعنی «قیمت
+// پیش‌فرض سیستم» (دقیقاً مثل ساخت دستی کاربر توی reseller/users.php). ───
+function tg_list_packages(int $resellerId = 0): array {
     global $pdo;
+    if ($resellerId > 0) {
+        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, r.isp_name FROM reseller_groups rg
+            JOIN resellers r ON r.id = rg.reseller_id WHERE rg.reseller_id=? ORDER BY rg.group_name");
+        $stmt->execute([$resellerId]);
+        $out = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $price = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+            $out[] = ['id' => (int)$row['id'], 'group_name' => $row['group_name'], 'title' => $row['group_name'],
+                'price' => $price, 'isp_name' => $row['isp_name'], 'is_active' => 1];
+        }
+        return $out;
+    }
+    return $pdo->query("SELECT * FROM direct_packages WHERE is_active=1 ORDER BY sort_order, id")->fetchAll();
+}
+
+function tg_get_package(int $id, int $resellerId = 0): ?array {
+    global $pdo;
+    if ($resellerId > 0) {
+        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, r.isp_name FROM reseller_groups rg
+            JOIN resellers r ON r.id = rg.reseller_id WHERE rg.id=? AND rg.reseller_id=?");
+        $stmt->execute([$id, $resellerId]);
+        $row = $stmt->fetch();
+        if (!$row) return null;
+        $price = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+        return ['id' => (int)$row['id'], 'group_name' => $row['group_name'], 'title' => $row['group_name'],
+            'price' => $price, 'isp_name' => $row['isp_name'], 'is_active' => 1];
+    }
     $stmt = $pdo->prepare("SELECT * FROM direct_packages WHERE id=?");
     $stmt->execute([$id]);
     $r = $stmt->fetch();
     return $r ?: null;
+}
+
+function tg_get_package_by_group(string $groupName, int $resellerId = 0): ?array {
+    global $pdo;
+    if ($resellerId > 0) {
+        $stmt = $pdo->prepare("SELECT rg.id, rg.group_name, rg.price, r.isp_name FROM reseller_groups rg
+            JOIN resellers r ON r.id = rg.reseller_id WHERE rg.reseller_id=? AND rg.group_name=?");
+        $stmt->execute([$resellerId, $groupName]);
+        $row = $stmt->fetch();
+        if (!$row) return null;
+        $price = (float)$row['price'] > 0 ? (float)$row['price'] : (float)getSetting('user_create_price', 5000);
+        return ['id' => (int)$row['id'], 'group_name' => $row['group_name'], 'title' => $row['group_name'],
+            'price' => $price, 'isp_name' => $row['isp_name'], 'is_active' => 1];
+    }
+    $stmt = $pdo->prepare("SELECT * FROM direct_packages WHERE group_name=?");
+    $stmt->execute([$groupName]);
+    $r = $stmt->fetch();
+    return $r ?: null;
+}
+
+// ─── متن‌های کارت پرداخت/پشتیبانی: برای هر بات ریسلر جدا (توی reseller_bots)،
+// برای بات اصلی از همون settings سراسری قبلی ───
+function tg_payment_card_info(int $resellerId): string {
+    if ($resellerId > 0) {
+        global $pdo;
+        $stmt = $pdo->prepare("SELECT payment_card_info FROM reseller_bots WHERE reseller_id=?");
+        $stmt->execute([$resellerId]);
+        $v = $stmt->fetchColumn();
+        return ($v !== false && $v !== null && $v !== '') ? $v : 'هنوز تنظیم نشده.';
+    }
+    return getSetting('payment_card_info', 'هنوز تنظیم نشده.');
+}
+
+function tg_support_message(int $resellerId): string {
+    if ($resellerId > 0) {
+        global $pdo;
+        $stmt = $pdo->prepare("SELECT support_message FROM reseller_bots WHERE reseller_id=?");
+        $stmt->execute([$resellerId]);
+        $v = $stmt->fetchColumn();
+        return ($v !== false && $v !== null && $v !== '') ? $v : 'هنوز تنظیم نشده.';
+    }
+    return getSetting('support_contact_message', 'هنوز تنظیم نشده.');
 }
 
 function tg_extract_receipt_file_id(array $msg): ?string {
@@ -101,22 +197,31 @@ function tg_extract_receipt_file_id(array $msg): ?string {
 }
 
 // ───────────────────────────── پیام‌های عادی ─────────────────────────────
-function tg_handle_message(array $msg): void {
+function tg_handle_message(array $msg, int $resellerId = 0): void {
     $chatId = $msg['chat']['id'] ?? null;
     if ($chatId === null) return;
     $from = $msg['from'] ?? [];
     $tgUsername = $from['username'] ?? null;
     $fullName = trim(($from['first_name'] ?? '') . ' ' . ($from['last_name'] ?? '')) ?: null;
 
-    $adminId = tg_admin_id_by_chat($chatId);
-    if ($adminId !== null) {
-        if (!tg_handle_admin_message($adminId, $chatId, $msg)) {
-            tg_sendMessage($chatId, "دستور ناشناخته.\n\n/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql) بازگردانی دیتابیس\n/pending - موارد در انتظار تأیید\n/stats - آمار سریع");
+    if ($resellerId === 0) {
+        $adminId = tg_admin_id_by_chat($chatId);
+        if ($adminId !== null) {
+            if (!tg_handle_admin_message($adminId, $chatId, $msg)) {
+                tg_sendMessage($chatId, "دستور ناشناخته.\n\n/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql) بازگردانی دیتابیس\n/pending - موارد در انتظار تأیید\n/stats - آمار سریع");
+            }
+            return;
         }
-        return;
+    } else {
+        if (tg_is_reseller_owner_chat($resellerId, $chatId)) {
+            if (!tg_handle_reseller_owner_message($resellerId, $chatId, $msg)) {
+                tg_sendMessage($chatId, "دستور ناشناخته.\n\n/pending - سفارش‌های در انتظار تأیید\n/stats - آمار سریع");
+            }
+            return;
+        }
     }
 
-    $customer = tg_get_or_create_customer($chatId, $tgUsername, $fullName);
+    $customer = tg_get_or_create_customer($chatId, $tgUsername, $fullName, $resellerId);
     if (!empty($customer['is_blocked'])) return;
 
     $text = trim($msg['text'] ?? '');
@@ -128,22 +233,22 @@ function tg_handle_message(array $msg): void {
         return;
     }
 
-    if ($text === '🛒 خرید سرویس جدید') { tg_start_new_purchase($customer); return; }
-    if ($text === '🔄 تمدید سرویس') { tg_start_renew($customer); return; }
+    if ($text === '🛒 خرید سرویس جدید') { tg_start_new_purchase($customer, $resellerId); return; }
+    if ($text === '🔄 تمدید سرویس') { tg_start_renew($customer, $resellerId); return; }
     if ($text === '📋 سرویس‌های من') { tg_show_my_services($customer); return; }
-    if ($text === '💳 اطلاعات پرداخت') { tg_sendMessage($chatId, getSetting('payment_card_info', 'هنوز تنظیم نشده.')); return; }
-    if ($text === '💬 پشتیبانی') { tg_sendMessage($chatId, getSetting('support_contact_message', 'هنوز تنظیم نشده.')); return; }
+    if ($text === '💳 اطلاعات پرداخت') { tg_sendMessage($chatId, tg_payment_card_info($resellerId)); return; }
+    if ($text === '💬 پشتیبانی') { tg_sendMessage($chatId, tg_support_message($resellerId)); return; }
 
     $state = $customer['state'];
 
     if ($state === 'awaiting_new_username' && $text !== '') {
-        tg_receive_new_username($customer, $text);
+        tg_receive_new_username($customer, $text, $resellerId);
         return;
     }
 
     if (in_array($state, ['awaiting_new_receipt', 'awaiting_renew_receipt'], true)) {
         $fileId = tg_extract_receipt_file_id($msg);
-        if ($fileId !== null) { tg_receive_receipt($customer, $fileId); return; }
+        if ($fileId !== null) { tg_receive_receipt($customer, $fileId, $resellerId); return; }
         tg_sendMessage($chatId, 'لطفاً تصویر یا فایل رسید پرداخت را ارسال کنید.');
         return;
     }
@@ -152,10 +257,9 @@ function tg_handle_message(array $msg): void {
 }
 
 // ───────────────────────────── خرید سرویس جدید ─────────────────────────────
-function tg_start_new_purchase(array $customer): void {
-    global $pdo;
+function tg_start_new_purchase(array $customer, int $resellerId = 0): void {
     $chatId = $customer['chat_id'];
-    $packages = $pdo->query("SELECT * FROM direct_packages WHERE is_active=1 ORDER BY sort_order, id")->fetchAll();
+    $packages = tg_list_packages($resellerId);
     if (!$packages) {
         tg_sendMessage($chatId, 'در حال حاضر بسته‌ای برای فروش تعریف نشده. لطفاً با پشتیبانی تماس بگیرید.');
         return;
@@ -168,14 +272,14 @@ function tg_start_new_purchase(array $customer): void {
     tg_sendMessage($chatId, '📦 یکی از بسته‌های زیر را انتخاب کنید:', ['inline_keyboard' => $buttons]);
 }
 
-function tg_customer_pick_package($chatId, int $pkgId, string $cqId): void {
+function tg_customer_pick_package($chatId, int $pkgId, string $cqId, int $resellerId = 0): void {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT * FROM telegram_customers WHERE chat_id=?");
-    $stmt->execute([(string)$chatId]);
+    $stmt = $pdo->prepare("SELECT * FROM telegram_customers WHERE chat_id=? AND reseller_id=?");
+    $stmt->execute([(string)$chatId, $resellerId]);
     $customer = $stmt->fetch();
     if (!$customer) { tg_answerCallbackQuery($cqId); return; }
 
-    $pkg = tg_get_package($pkgId);
+    $pkg = tg_get_package($pkgId, $resellerId);
     if (!$pkg || !$pkg['is_active']) { tg_answerCallbackQuery($cqId, 'این بسته دیگر در دسترس نیست', true); return; }
 
     tg_set_state((int)$customer['id'], 'awaiting_new_username', ['package_id' => (int)$pkg['id']]);
@@ -183,7 +287,7 @@ function tg_customer_pick_package($chatId, int $pkgId, string $cqId): void {
     tg_sendMessage($chatId, "بسته انتخابی: {$pkg['title']}\n\nیک نام کاربری انگلیسی برای سرویس خود انتخاب کنید (فقط حروف/عدد/آندرلاین، ۳ تا ۲۰ کاراکتر):");
 }
 
-function tg_receive_new_username(array $customer, string $username): void {
+function tg_receive_new_username(array $customer, string $username, int $resellerId = 0): void {
     $chatId = $customer['chat_id'];
     $username = trim($username);
     if (!preg_match('/^[a-zA-Z0-9_]{3,20}$/', $username)) {
@@ -200,14 +304,14 @@ function tg_receive_new_username(array $customer, string $username): void {
     $data['username'] = $username;
     tg_set_state((int)$customer['id'], 'awaiting_new_receipt', $data);
 
-    $pkg = tg_get_package((int)($data['package_id'] ?? 0));
+    $pkg = tg_get_package((int)($data['package_id'] ?? 0), $resellerId);
     $amount = $pkg ? (float)$pkg['price'] : 0;
-    $card = getSetting('payment_card_info', '—');
+    $card = tg_payment_card_info($resellerId);
     tg_sendMessage($chatId, "نام کاربری: {$username}\nمبلغ قابل پرداخت: " . money($amount) . " تومان\n\n{$card}\n\nبعد از پرداخت، تصویر رسید را همین‌جا ارسال کنید 📸");
 }
 
 // ───────────────────────────── تمدید سرویس ─────────────────────────────
-function tg_start_renew(array $customer): void {
+function tg_start_renew(array $customer, int $resellerId = 0): void {
     global $pdo;
     $chatId = $customer['chat_id'];
     $links = $pdo->prepare("SELECT * FROM telegram_user_links WHERE telegram_customer_id=? ORDER BY id DESC");
@@ -222,10 +326,10 @@ function tg_start_renew(array $customer): void {
     tg_sendMessage($chatId, '🔄 کدام سرویس را می‌خواهید تمدید کنید؟', ['inline_keyboard' => $buttons]);
 }
 
-function tg_customer_pick_renew($chatId, int $linkId, string $cqId): void {
+function tg_customer_pick_renew($chatId, int $linkId, string $cqId, int $resellerId = 0): void {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT * FROM telegram_customers WHERE chat_id=?");
-    $stmt->execute([(string)$chatId]);
+    $stmt = $pdo->prepare("SELECT * FROM telegram_customers WHERE chat_id=? AND reseller_id=?");
+    $stmt->execute([(string)$chatId, $resellerId]);
     $customer = $stmt->fetch();
     if (!$customer) { tg_answerCallbackQuery($cqId); return; }
 
@@ -234,9 +338,7 @@ function tg_customer_pick_renew($chatId, int $linkId, string $cqId): void {
     $link = $link->fetch();
     if (!$link) { tg_answerCallbackQuery($cqId, 'یافت نشد', true); return; }
 
-    $pkg = $pdo->prepare("SELECT * FROM direct_packages WHERE group_name=?");
-    $pkg->execute([$link['group_name']]);
-    $pkg = $pkg->fetch();
+    $pkg = tg_get_package_by_group($link['group_name'], $resellerId);
     if (!$pkg) {
         tg_answerCallbackQuery($cqId);
         tg_sendMessage($chatId, 'قیمت تمدید برای این گروه هنوز تعریف نشده. لطفاً با پشتیبانی تماس بگیرید.');
@@ -249,12 +351,12 @@ function tg_customer_pick_renew($chatId, int $linkId, string $cqId): void {
         'link_id'  => (int)$link['id'],
     ]);
     tg_answerCallbackQuery($cqId);
-    $card = getSetting('payment_card_info', '—');
+    $card = tg_payment_card_info($resellerId);
     tg_sendMessage($chatId, "تمدید سرویس: {$link['ibs_username']}\nمبلغ: " . money((float)$pkg['price']) . " تومان\n\n{$card}\n\nبعد از پرداخت، تصویر رسید را ارسال کنید 📸");
 }
 
 // ───────────────────────────── دریافت رسید (مشترک بین خرید و تمدید) ─────────────────────────────
-function tg_receive_receipt(array $customer, string $fileId): void {
+function tg_receive_receipt(array $customer, string $fileId, int $resellerId = 0): void {
     global $pdo;
     $chatId = $customer['chat_id'];
     $file = tg_getFile($fileId);
@@ -271,16 +373,16 @@ function tg_receive_receipt(array $customer, string $fileId): void {
     $summary = '';
 
     if ($customer['state'] === 'awaiting_new_receipt') {
-        $pkg = tg_get_package((int)($data['package_id'] ?? 0));
+        $pkg = tg_get_package((int)($data['package_id'] ?? 0), $resellerId);
         if (!$pkg) { tg_sendMessage($chatId, 'خطا: بسته یافت نشد. دوباره از منو شروع کنید.'); tg_set_state((int)$customer['id'], null, null); return; }
-        $stmt = $pdo->prepare("INSERT INTO telegram_orders (telegram_customer_id, order_type, package_id, target_username, amount, receipt_file, status) VALUES (?,?,?,?,?,?,'pending')");
-        $stmt->execute([$customer['id'], 'new', $pkg['id'], $data['username'], $pkg['price'], $localName]);
+        $stmt = $pdo->prepare("INSERT INTO telegram_orders (telegram_customer_id, reseller_id, order_type, package_id, target_username, amount, receipt_file, status) VALUES (?,?,?,?,?,?,?,'pending')");
+        $stmt->execute([$customer['id'], $resellerId, 'new', $pkg['id'], $data['username'], $pkg['price'], $localName]);
         $orderId = (int)$pdo->lastInsertId();
         $who = $customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId);
         $summary = "🛒 سفارش جدید #{$orderId}\nمشتری: {$who}\nبسته: {$pkg['title']}\nیوزرنیم درخواستی: {$data['username']}\nمبلغ: " . money((float)$pkg['price']) . ' تومان';
     } elseif ($customer['state'] === 'awaiting_renew_receipt') {
-        $stmt = $pdo->prepare("INSERT INTO telegram_orders (telegram_customer_id, order_type, target_username, amount, receipt_file, status) VALUES (?,?,?,?,?,'pending')");
-        $stmt->execute([$customer['id'], 'renew', $data['username'], $data['amount'], $localName]);
+        $stmt = $pdo->prepare("INSERT INTO telegram_orders (telegram_customer_id, reseller_id, order_type, target_username, amount, receipt_file, status) VALUES (?,?,?,?,?,?,'pending')");
+        $stmt->execute([$customer['id'], $resellerId, 'renew', $data['username'], $data['amount'], $localName]);
         $orderId = (int)$pdo->lastInsertId();
         $who = $customer['tg_username'] ? '@' . $customer['tg_username'] : ($customer['full_name'] ?: $chatId);
         $summary = "🔄 سفارش تمدید #{$orderId}\nمشتری: {$who}\nیوزرنیم: {$data['username']}\nمبلغ: " . money((float)$data['amount']) . ' تومان';
@@ -289,14 +391,22 @@ function tg_receive_receipt(array $customer, string $fileId): void {
     }
 
     tg_set_state((int)$customer['id'], null, null);
-    tg_sendMessage($chatId, '✅ رسید شما ثبت شد. پس از بررسی ادمین نتیجه اطلاع‌رسانی می‌شود.', tg_main_keyboard());
+    tg_sendMessage($chatId, '✅ رسید شما ثبت شد. پس از بررسی نتیجه اطلاع‌رسانی می‌شود.', tg_main_keyboard());
 
     $kb = ['inline_keyboard' => [[
         ['text' => '✅ تأیید', 'callback_data' => "ord_approve_{$orderId}"],
         ['text' => '❌ رد', 'callback_data' => "ord_reject_{$orderId}"],
     ]]];
-    foreach (tg_admin_chat_ids() as $adminChatId) {
-        tg_sendPhotoByFileId($adminChatId, $fileId, $summary, $kb);
+    if ($resellerId > 0) {
+        // اگه ریسلر Chat ID خودش رو توی تنظیمات بات ثبت کرده باشه، همون‌جا کارت
+        // تأیید/رد رو می‌گیره؛ در غیر این صورت سفارش توی صف می‌مونه و از صفحه‌ی
+        // «سفارش‌های مستقیم» توی پنل وب خودش قابل بررسیه.
+        $ownerChat = tg_reseller_chat_id($resellerId);
+        if ($ownerChat !== null) tg_sendPhotoByFileId($ownerChat, $fileId, $summary, $kb);
+    } else {
+        foreach (tg_admin_chat_ids() as $adminChatId) {
+            tg_sendPhotoByFileId($adminChatId, $fileId, $summary, $kb);
+        }
     }
 }
 
@@ -325,7 +435,7 @@ function tg_show_my_services(array $customer): void {
 }
 
 // ───────────────────────────── callback ها ─────────────────────────────
-function tg_handle_callback(array $cq): void {
+function tg_handle_callback(array $cq, int $resellerId = 0): void {
     $chatId = $cq['message']['chat']['id'] ?? null;
     $messageId = $cq['message']['message_id'] ?? null;
     $data = $cq['data'] ?? '';
@@ -333,26 +443,36 @@ function tg_handle_callback(array $cq): void {
     if ($chatId === null) return;
 
     if (str_starts_with($data, 'ord_')) {
-        $adminId = tg_admin_id_by_chat($chatId);
-        if ($adminId === null) { tg_answerCallbackQuery($cqId, 'دسترسی ندارید', true); return; }
-        tg_handle_order_decision($adminId, $chatId, $messageId, $data, $cqId);
+        if ($resellerId === 0) {
+            $adminId = tg_admin_id_by_chat($chatId);
+            if ($adminId === null) { tg_answerCallbackQuery($cqId, 'دسترسی ندارید', true); return; }
+            tg_handle_order_decision($adminId, 'admin', $chatId, $messageId, $data, $cqId, 0);
+        } else {
+            if (!tg_is_reseller_owner_chat($resellerId, $chatId)) { tg_answerCallbackQuery($cqId, 'دسترسی ندارید', true); return; }
+            tg_handle_order_decision($resellerId, 'reseller', $chatId, $messageId, $data, $cqId, $resellerId);
+        }
         return;
     }
 
     if (str_starts_with($data, 'pkg_')) {
-        tg_customer_pick_package($chatId, (int)substr($data, 4), $cqId);
+        tg_customer_pick_package($chatId, (int)substr($data, 4), $cqId, $resellerId);
         return;
     }
 
     if (str_starts_with($data, 'renew_')) {
-        tg_customer_pick_renew($chatId, (int)substr($data, 6), $cqId);
+        tg_customer_pick_renew($chatId, (int)substr($data, 6), $cqId, $resellerId);
         return;
     }
 
     tg_answerCallbackQuery($cqId);
 }
 
-function tg_handle_order_decision(int $adminId, $chatId, $messageId, string $data, string $cqId): void {
+// $actorId/$actorType: چه‌کسی داره تأیید/رد می‌کنه (ادمین اصلی یا خودِ ریسلر
+// صاحب همین بات) - برای reviewed_by فقط admin_id واقعی ذخیره می‌شه (چون این
+// ستون FK به جدول admins هست)، برای ریسلر NULL می‌مونه ولی توی activity_logs
+// با actor_type='reseller' درست ثبت می‌شه. $resellerId برای provisioning
+// (کسر از موجودی همون ریسلر + قیمت/ISP اختصاصی خودش) لازمه.
+function tg_handle_order_decision(int $actorId, string $actorType, $chatId, $messageId, string $data, string $cqId, int $resellerId = 0): void {
     global $pdo;
     $approve = str_starts_with($data, 'ord_approve_');
     $orderId = (int)substr($data, $approve ? 12 : 11);
@@ -366,18 +486,20 @@ function tg_handle_order_decision(int $adminId, $chatId, $messageId, string $dat
     $customerStmt->execute([$order['telegram_customer_id']]);
     $customer = $customerStmt->fetch();
 
+    $reviewedByAdminId = $actorType === 'admin' ? $actorId : null;
+
     if (!$approve) {
-        $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_by=?, reviewed_at=NOW() WHERE id=?")->execute([$adminId, $orderId]);
+        $pdo->prepare("UPDATE telegram_orders SET status='rejected', reviewed_by=?, reviewed_at=NOW() WHERE id=?")->execute([$reviewedByAdminId, $orderId]);
         tg_answerCallbackQuery($cqId, 'رد شد');
         if ($customer) tg_sendMessage($customer['chat_id'], '❌ متأسفانه رسید پرداخت شما تأیید نشد. برای پیگیری با پشتیبانی تماس بگیرید.');
         if ($messageId) tg_editMessageReplyMarkup($chatId, $messageId, null);
-        logActivity('admin', $adminId, 'reject_direct_order', "سفارش تلگرام #$orderId رد شد");
+        logActivity($actorType, $actorId, 'reject_direct_order', "سفارش تلگرام #$orderId رد شد");
         return;
     }
 
     $result = $order['order_type'] === 'new'
-        ? tg_provision_new_order($order, $customer)
-        : tg_provision_renew_order($order, $customer);
+        ? tg_provision_new_order($order, $customer, $resellerId)
+        : tg_provision_renew_order($order, $customer, $resellerId);
 
     if (!$result['ok']) {
         tg_answerCallbackQuery($cqId, 'خطا: ' . $result['error'], true);
@@ -385,29 +507,37 @@ function tg_handle_order_decision(int $adminId, $chatId, $messageId, string $dat
     }
 
     $pdo->prepare("UPDATE telegram_orders SET status='approved', ibs_uid=?, reviewed_by=?, reviewed_at=NOW() WHERE id=?")
-        ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $adminId, $orderId]);
+        ->execute([$result['ibs_uid'] ?? $order['ibs_uid'], $reviewedByAdminId, $orderId]);
     tg_answerCallbackQuery($cqId, 'تأیید شد ✅');
     if ($messageId) tg_editMessageReplyMarkup($chatId, $messageId, null);
-    logActivity('admin', $adminId, 'approve_direct_order', "سفارش تلگرام #$orderId تأیید شد");
+    logActivity($actorType, $actorId, 'approve_direct_order', "سفارش تلگرام #$orderId تأیید شد");
 }
 
-function tg_provision_new_order(array $order, ?array $customer): array {
+function tg_provision_new_order(array $order, ?array $customer, int $resellerId = 0): array {
     global $pdo;
-    $pkg = tg_get_package((int)$order['package_id']);
+    $pkg = tg_get_package((int)$order['package_id'], $resellerId);
     if (!$pkg) return ['ok' => false, 'error' => 'بسته یافت نشد'];
 
     $username = $order['target_username'];
     $chk = ibsng_call('user.doesUserExists', ['normal_username' => $username]);
     if ($chk['result'] ?? false) return ['ok' => false, 'error' => 'این نام کاربری در همین حین توسط شخص دیگری گرفته شده'];
 
+    $price = (float)$pkg['price'];
+    if ($resellerId > 0 && $price > 0) {
+        $rStmt = $pdo->prepare("SELECT balance FROM resellers WHERE id=?");
+        $rStmt->execute([$resellerId]);
+        if ((float)$rStmt->fetchColumn() < $price) return ['ok' => false, 'error' => 'موجودی ریسلر کافی نیست'];
+    }
+
     $password = tg_generate_password();
     $gi = ibsng_call('group.getGroupInfo', ['group_name' => $pkg['group_name']]);
     $gc = $gi['result']['attrs']['group_credit'] ?? 100;
+    $ga = $gi['result']['raw_attrs'] ?? [];
 
     $cr = ibsng_call('user.addNewUsers', [
         'count' => 1, 'credit' => ['1' => (float)$gc],
         'isp_name' => $pkg['isp_name'], 'group_name' => $pkg['group_name'],
-        'credit_comment' => 'خرید مستقیم تلگرام',
+        'credit_comment' => $resellerId > 0 ? 'خرید مستقیم تلگرام (ریسلر)' : 'خرید مستقیم تلگرام',
     ]);
     if ($cr['error'] ?? null) return ['ok' => false, 'error' => $cr['error']];
     $newUID = $cr['result'][0];
@@ -427,6 +557,19 @@ function tg_provision_new_order(array $order, ?array $customer): array {
 
     ibsng_cacheUpsertUser($pdo, $newUID, $pkg['isp_name']);
 
+    if ($resellerId > 0) {
+        // دقیقاً مثل ساخت دستی کاربر از reseller/users.php: کسر از موجودی خودِ
+        // ریسلر + ثبت تراکنش + ثبت توی جدول users برای گزارش‌های خودش.
+        if ($price > 0) {
+            $pdo->prepare("UPDATE resellers SET balance=GREATEST(0,balance-?) WHERE id=?")->execute([$price, $resellerId]);
+            $pdo->prepare("INSERT INTO transactions (reseller_id,type,amount,description) VALUES (?,?,?,?)")
+                ->execute([$resellerId, 'user_create', $price, "خرید تلگرام - $username"]);
+        }
+        $expD = date('Y-m-d', time() + (int)($ga['rel_exp_date'] ?? 2592000));
+        $pdo->prepare("INSERT INTO users (reseller_id,username,password,ibs_username,package_name,isp_name,price,start_date,expire_date) VALUES (?,?,?,?,?,?,?,?,?)")
+            ->execute([$resellerId, $username, $password, $username, $pkg['group_name'], $pkg['isp_name'], $price, date('Y-m-d'), $expD]);
+    }
+
     if ($customer) {
         tg_sendMessage($customer['chat_id'], "✅ سرویس شما فعال شد!\n\nنام کاربری: {$username}\nرمز عبور: {$password}\n\nاین اطلاعات را نزد خود نگه دارید.");
     }
@@ -434,7 +577,7 @@ function tg_provision_new_order(array $order, ?array $customer): array {
     return ['ok' => true, 'ibs_uid' => $newUID];
 }
 
-function tg_provision_renew_order(array $order, ?array $customer): array {
+function tg_provision_renew_order(array $order, ?array $customer, int $resellerId = 0): array {
     global $pdo;
     $username = $order['target_username'];
 
@@ -447,7 +590,14 @@ function tg_provision_renew_order(array $order, ?array $customer): array {
         $srch = ibsng_call('user.searchUser', ['conds' => ['normal_username' => $username], 'from' => 0, 'to' => 1, 'order_by' => 'user_id', 'desc' => false]);
         $uid = $srch['result'][2][0] ?? null;
     }
-    if (!$uid) return ['ok' => false, 'error' => 'کاربر در  یافت نشد'];
+    if (!$uid) return ['ok' => false, 'error' => 'کاربر در IBSng یافت نشد'];
+
+    $price = (float)$order['amount'];
+    if ($resellerId > 0 && $price > 0) {
+        $rStmt = $pdo->prepare("SELECT balance FROM resellers WHERE id=?");
+        $rStmt->execute([$resellerId]);
+        if ((float)$rStmt->fetchColumn() < $price) return ['ok' => false, 'error' => 'موجودی ریسلر کافی نیست'];
+    }
 
     $inf = ibsng_call('user.getUserInfo', ['user_id' => $uid]);
     $basic = $inf['result'][$uid]['basic_info'] ?? [];
@@ -466,16 +616,51 @@ function tg_provision_renew_order(array $order, ?array $customer): array {
     }
     ibsng_call('user.changeStatus', ['user_id' => $uid, 'status' => 'Recharged']);
 
-    $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by) VALUES (?,?,?,?,?)")
-        ->execute([$username, $basic['isp_name'] ?? '', $gn, (float)$order['amount'], 'telegram']);
+    $pdo->prepare("INSERT INTO renewal_logs (ibs_username,isp_name,group_name,price,renewed_by,reseller_id) VALUES (?,?,?,?,?,?)")
+        ->execute([$username, $basic['isp_name'] ?? '', $gn, $price, 'telegram', $resellerId > 0 ? $resellerId : null]);
 
     ibsng_cacheUpsertUser($pdo, $uid, $basic['isp_name'] ?? '');
+
+    if ($resellerId > 0 && $price > 0) {
+        $pdo->prepare("UPDATE resellers SET balance=GREATEST(0,balance-?) WHERE id=?")->execute([$price, $resellerId]);
+        $pdo->prepare("INSERT INTO transactions (reseller_id,type,amount,description) VALUES (?,?,?,?)")
+            ->execute([$resellerId, 'user_renew', $price, "تمدید تلگرام - $username"]);
+    }
 
     if ($customer) {
         tg_sendMessage($customer['chat_id'], "✅ سرویس «{$username}» با موفقیت تمدید شد.");
     }
 
     return ['ok' => true, 'ibs_uid' => $uid];
+}
+
+// ───────────────────────────── پنل کنترلی خودِ ریسلر توی بات اختصاصی‌اش ─────────────────────────────
+function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg): bool {
+    global $pdo;
+    $text = trim($msg['text'] ?? '');
+
+    if ($text === '/pending') {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM telegram_orders WHERE status='pending' AND reseller_id=?");
+        $stmt->execute([$resellerId]);
+        tg_sendMessage($chatId, "🛒 سفارش‌های در انتظار بررسی: " . (int)$stmt->fetchColumn());
+        return true;
+    }
+
+    if ($text === '/stats') {
+        $stmt = $pdo->prepare("SELECT balance, isp_name FROM resellers WHERE id=?");
+        $stmt->execute([$resellerId]);
+        $r = $stmt->fetch();
+        $userCount = !empty($r['isp_name']) ? ibsng_getIspUserCount($r['isp_name']) : 0;
+        tg_sendMessage($chatId, "💰 موجودی: " . money((float)($r['balance'] ?? 0)) . " تومان\n👥 تعداد کاربران: {$userCount}");
+        return true;
+    }
+
+    if ($text === '/start' || $text === '/help') {
+        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مشتری‌های شما به‌صورت خودکار با دکمه تأیید/رد برای شما ارسال می‌شوند.");
+        return true;
+    }
+
+    return false;
 }
 
 // ───────────────────────────── پنل کنترلی ادمین (دستورهای متنی) ─────────────────────────────

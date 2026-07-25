@@ -171,6 +171,9 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
     <a href="transactions.php" class="nav-item">💳 تراکنش‌های من</a>
     <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
     <a href="payments.php" class="nav-item active">🧾 ارسال فیش پرداخت</a>
+    <div class="nav-section-label">فروش مستقیم تلگرام</div>
+    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item">🤖 بات تلگرام من</a>
   </nav>
   <div class="sidebar-footer">
     <div class="reseller-info">

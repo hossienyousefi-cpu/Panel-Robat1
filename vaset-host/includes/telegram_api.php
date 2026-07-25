@@ -3,7 +3,17 @@
 // admin/telegram.php قابل تنظیم است)، پس این فایل باید بعد از includes/config.php
 // require شود.
 
+// ─── سوییچ بات فعال برای همین درخواست: هر webhook دقیقاً یک بات رو مدیریت
+// می‌کنه (بات اصلی پنل یا بات اختصاصی یک ریسلر)، پس telegram/webhook.php قبل
+// از هر کاری این تابع رو صدا می‌زنه تا بقیه‌ی توابع این فایل (بدون تغییر
+// امضا) خودکار روی توکن درست کار کنن. پراکسی/بریج (زیرساخت دور زدن فیلترینگ)
+// بین همه‌ی بات‌ها مشترکه، فقط توکن فرق می‌کنه.
+function tg_setActiveBotToken(?string $token) {
+    $GLOBALS['TG_ACTIVE_BOT_TOKEN'] = $token;
+}
+
 function tg_token() {
+    if (!empty($GLOBALS['TG_ACTIVE_BOT_TOKEN'])) return $GLOBALS['TG_ACTIVE_BOT_TOKEN'];
     return getSetting('telegram_bot_token', '');
 }
 

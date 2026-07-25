@@ -18,8 +18,12 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to))   $to   = date('Y-m-d');
 $page    = max(0, (int)($_GET['page'] ?? 0));
 $perPage = 50;
 
-$conds = ['renewed_by = ?', 'reseller_id = ?', 'created_at >= ?', 'created_at < ?'];
-$params = ['reseller', $rid, $from . ' 00:00:00', date('Y-m-d', strtotime($to . ' +1 day')) . ' 00:00:00'];
+// renewed_by IN ('reseller','telegram') چون تمدیدهایی که از طریق بات تلگرام
+// اختصاصی همین ریسلر انجام می‌شن هم با renewed_by='telegram' ثبت می‌شن (تا
+// کانال دقیق مشخص بمونه) ولی reseller_id همون ریسلر رو داره - باید توی
+// گزارش خودش هم دیده بشن.
+$conds = ["renewed_by IN ('reseller','telegram')", 'reseller_id = ?', 'created_at >= ?', 'created_at < ?'];
+$params = [$rid, $from . ' 00:00:00', date('Y-m-d', strtotime($to . ' +1 day')) . ' 00:00:00'];
 if ($search !== '') { $conds[] = 'ibs_username LIKE ?'; $params[] = '%' . $search . '%'; }
 $where = implode(' AND ', $conds);
 
@@ -125,6 +129,9 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
     <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
     <a href="renewals.php" class="ni active">🔄 کاربران تمدیدشده</a>
     <a href="payments.php" class="ni">🧾 ارسال فیش</a>
+    <div class="ns">فروش مستقیم تلگرام</div>
+    <a href="direct_orders.php" class="ni">🛒 سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="ni">🤖 بات تلگرام من</a>
   </nav>
   <div class="sf">
     <div class="ai">
