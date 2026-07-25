@@ -2,6 +2,7 @@
 require_once '../includes/config.php';
 require_once '../includes/ibsng_api.php';
 require_once '../includes/telegram_api.php';
+require_once '../includes/reseller_bot.php';
 require_once '../telegram/bot.php';
 requireReseller();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
@@ -11,6 +12,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ??
 
 $rid = (int)$_SESSION['reseller_id'];
 $success = ''; $error = '';
+
+// بدون این، پیام‌های موفقیت/رد (که از همین‌جا برای مشتری فرستاده می‌شن) با
+// توکن بات پیش‌فرض/سراسری پنل ارسال می‌شدن (نه بات اختصاصی خودِ همین
+// ریسلر) - یعنی یا اصلاً به دست مشتری نمی‌رسیدن یا (بدتر) توی یک بات دیگه
+// (مثلاً بات اصلی ادمین) ظاهر می‌شدن.
+$myBot = rb_getBot($rid);
+if ($myBot) tg_setActiveBotToken($myBot['bot_token']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $orderId = (int)($_POST['order_id'] ?? 0);

@@ -288,22 +288,24 @@ function tg_handle_message(array $msg, int $resellerId = 0): void {
     $tgUsername = $from['username'] ?? null;
     $fullName = trim(($from['first_name'] ?? '') . ' ' . ($from['last_name'] ?? '')) ?: null;
 
+    // نکته‌ی مهم: صاحب بات (ادمین/ریسلر) با همون chat_id شخصی‌اش ممکنه بخواد
+    // تجربه‌ی مشتری (دکمه‌ها، خرید، چت پشتیبانی) رو هم با همون اکانت تلگرام
+    // خودش تست کنه. قبلاً اینجا هر پیامی از این chat_id بی‌قیدوشرط جذب می‌شد
+    // و دیگه هیچ‌وقت به جریان مشتری (پایین همین تابع) نمی‌رسید - یعنی صاحب بات
+    // اصلاً نمی‌تونست /start بزنه و منوی مشتری رو ببینه. برای همین فقط وقتی
+    // پیام واقعاً یک دستور شناخته‌شده‌ی ادمین (یا Reply به پیام یک مشتری) باشه
+    // همینجا مدیریت و return می‌شه؛ در غیر این صورت (مثلاً /start یا دکمه‌های
+    // منو) اجازه می‌دیم جریان عادی مشتری پایین همین تابع ادامه پیدا کنه.
     if ($resellerId === 0) {
         $adminId = tg_admin_id_by_chat($chatId);
         if ($adminId !== null) {
             if (tg_try_relay_owner_reply($resellerId, $chatId, $msg)) return;
-            if (!tg_handle_admin_message($adminId, $chatId, $msg)) {
-                tg_sendMessage($chatId, "دستور ناشناخته.\n\n/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql) بازگردانی دیتابیس\n/pending - موارد در انتظار تأیید\n/stats - آمار سریع");
-            }
-            return;
+            if (tg_handle_admin_message($adminId, $chatId, $msg)) return;
         }
     } else {
         if (tg_is_reseller_owner_chat($resellerId, $chatId)) {
             if (tg_try_relay_owner_reply($resellerId, $chatId, $msg)) return;
-            if (!tg_handle_reseller_owner_message($resellerId, $chatId, $msg)) {
-                tg_sendMessage($chatId, "دستور ناشناخته.\n\n/pending - سفارش‌های در انتظار تأیید\n/stats - آمار سریع");
-            }
-            return;
+            if (tg_handle_reseller_owner_message($resellerId, $chatId, $msg)) return;
         }
     }
 
@@ -837,8 +839,11 @@ function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg):
         return true;
     }
 
-    if ($text === '/start' || $text === '/help') {
-        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مشتری‌های شما به‌صورت خودکار با دکمه تأیید/رد برای شما ارسال می‌شوند.");
+    // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه صاحب بات /start بزنه، باید
+    // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست). دستور
+    // ادمین جداگانه‌ی /help هست.
+    if ($text === '/help') {
+        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مشتری‌های شما به‌صورت خودکار با دکمه تأیید/رد برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
         return true;
     }
 
@@ -886,8 +891,10 @@ function tg_handle_admin_message(int $adminId, $chatId, array $msg): bool {
         return true;
     }
 
-    if ($text === '/start' || $text === '/help') {
-        tg_sendMessage($chatId, "👋 پنل کنترلی ادمین در تلگرام\n\n/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n/pending - تعداد موارد در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مستقیم به‌صورت خودکار با دکمه تأیید/رد برای شما ارسال می‌شوند.");
+    // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه ادمین /start بزنه، باید
+    // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست).
+    if ($text === '/help') {
+        tg_sendMessage($chatId, "👋 پنل کنترلی ادمین در تلگرام\n\n/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n/pending - تعداد موارد در انتظار تأیید\n/stats - آمار سریع\n\nسفارش‌های خرید/تمدید مستقیم به‌صورت خودکار با دکمه تأیید/رد برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
         return true;
     }
 
