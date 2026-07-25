@@ -46,6 +46,16 @@ foreach ($isps as $ispName) {
     // $throttled=true: دسته‌دسته + retry به‌جای فرستادن ده‌ها تماس هم‌زمان -
     // برای کرون که فشار کم روی IBSng از سرعت مهم‌تره.
     $uids = ibsng_getAllUidsForIsp($conds, true);
+    if (empty($uids)) {
+        // isp_id این ISP گاهی (مخصوصاً برای ISPهای تازه‌ساز/تازه‌تغییریافته) درست
+        // resolve نمی‌شه؛ قبل از رد شدن کامل از این ISP، یک‌بار مستقیم با اسم ISP
+        // (نه شماره‌ی حدسی) از طریق نشست HTML امتحان می‌کنیم.
+        $nativeUids = ibsng_getIspUidsNative($ispName);
+        if (is_array($nativeUids) && !empty($nativeUids)) {
+            $uids = $nativeUids;
+            error_log("[sync_ibsng_users] {$ispName}: روش isp_id صفر کاربر داد، با روش جایگزین (نشست HTML) " . count($uids) . " کاربر پیدا شد.");
+        }
+    }
     if (empty($uids)) continue;
 
     $infos = ibsng_getUserInfoBulk($uids, true);

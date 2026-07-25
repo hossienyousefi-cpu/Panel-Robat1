@@ -324,7 +324,14 @@ function ibsng_getIspUserCount($ispName) {
         'order_by' => 'user_id',
         'desc'     => false,
     ], 600);
-    return (int)($r['result'][0] ?? 0);
+    $count = (int)($r['result'][0] ?? 0);
+    if ($count === 0) {
+        // isp_id این ISP گاهی (مخصوصاً برای ISPهای تازه‌ساز) درست resolve نمی‌شه؛
+        // قبل از نمایش «۰ کاربر» کاذب، یک‌بار مستقیم با اسم ISP امتحان می‌کنیم.
+        $nativeUids = ibsng_getIspUidsNative($ispName);
+        if (is_array($nativeUids) && !empty($nativeUids)) $count = count($nativeUids);
+    }
+    return $count;
 }
 
 // ─── دریافت اطلاعات یک کاربر با کش 2 دقیقه ───
@@ -664,6 +671,40 @@ function ibsng_getIspUsersPage($ispName, $groupFilter, $search, $sortBy, $sortDi
     $rCount = ibsng_call('user.searchUser', ['conds'=>$conds,'from'=>0,'to'=>1,'order_by'=>'user_id','desc'=>true]);
     $totalIsp = (int)($rCount['result'][0] ?? 0);
 
+    // isp_id این ISP گاهی (مخصوصاً برای ISPهای تازه‌ساز/تازه‌تغییریافته) درست
+    // resolve نمی‌شه و نتیجه‌اش صفر کاربر کاذبه. وقتی صفره، یک‌بار مستقیم با اسم
+    // ISP (نه شماره‌ی حدسی) از طریق نشست HTML امتحان می‌کنیم - کندتره ولی همیشه
+    // درسته چون به isp_id عددی نیازی نداره.
+    if ($totalIsp === 0) {
+        $nativeUids = ibsng_getIspUidsNative($ispName);
+        if (is_array($nativeUids) && !empty($nativeUids)) {
+            $onlineSet = ibsng_getOnlineUsernameSet($ispName);
+            $inf = ibsng_getUserInfoBulk($nativeUids);
+            $allRows = [];
+            foreach ($nativeUids as $uid) {
+                $u = $inf[(string)$uid] ?? $inf[$uid] ?? null;
+                if (!$u) continue;
+                $row = ibsng_uidToRow($uid, $u, $ispName, $onlineSet);
+                if (!$row) continue;
+                if ($groupFilter !== '' && $row['group'] !== $groupFilter) continue;
+                if ($search !== '' && stripos($row['username'], $search) === false) continue;
+                $allRows[] = $row;
+            }
+            $totalIspNative = count($nativeUids);
+            $totalNative = count($allRows);
+            if (!empty($allRows) && in_array($sortBy, ['username','group','isp','ras','exp','status'])) {
+                usort($allRows, function($a, $b) use ($sortBy, $sortDir) {
+                    $va = $sortBy==='exp' ? ($a['exp_ts']??0) : strtolower($a[$sortBy]??'');
+                    $vb = $sortBy==='exp' ? ($b['exp_ts']??0) : strtolower($b[$sortBy]??'');
+                    $cmp = is_numeric($va) ? ($va<=>$vb) : strcmp($va,$vb);
+                    return $sortDir==='asc' ? $cmp : -$cmp;
+                });
+            }
+            @file_put_contents($cKey, json_encode($allRows));
+            return ['total'=>$totalNative,'total_isp'=>$totalIspNative,'rows'=>array_slice($allRows,$page*$perPage,$perPage),'cached'=>false];
+        }
+    }
+
     // اگه search داریم: اول یک جستجوی سریع مستقیم (LIKE روی همین ISP) امتحان کن -
     // فقط یک/چند  request کوچیکه. اگه جواب نداد (جستجوی جزئی/partial)، به اسکن
     // کامل کاربرهای ISP برمی‌گردیم که برای ISPهای بزرگ (۹۰۰۰+ کاربر) خیلی کندتره
@@ -928,6 +969,54 @@ function ibsng_getOnlineNative() {
         }
     }
     return ['error' => null, 'data' => $out];
+}
+
+// ─── لیست همه‌ی uid های یک ISP، مستقیم با اسم ISP (نه isp_id عددی) از طریق
+// همون فرم Search User (تب ISP) که پنل اصلی خودش استفاده می‌کنه. فیلتر isp_id
+// عددی روی user.searchUser وابسته به یک نگاشت اسم→عدد بود که با اسکن حدسی
+// ساخته می‌شد (ibsng_getIspIdMap) و برای ISPهای تازه‌ساز/تازه‌تغییریافته
+// می‌تونست غلط یا ناپایدار باشه (دو اسکن جدا از هم دو عدد متفاوت پیدا کردن).
+// این تابع کاملاً بدون نیاز به اون عدد، مستقیم با خودِ رشته‌ی اسم ISP فیلتر
+// می‌کنه - چون IBSng هیچ endpoint API ای برای فیلتر isp_name نداره (تست‌شده،
+// conds['isp_name'] نادیده گرفته می‌شه)، تنها راه مطمئن همین نشست HTML پنل
+// اصلیه (دقیقاً مثل ibsng_getOnlineNative). فقط وقتی صدا زده می‌شه که روش
+// عددی صفر کاربر برگردونده - برای ISPهای قدیمی/جاافتاده که آدرس عددی‌شون
+// درست کار می‌کنه، این تابع اصلاً اجرا نمی‌شه.
+function ibsng_getIspUidsNative($ispName) {
+    if (!ibsng_nativeLogin()) return null;
+    $cookieFile = ibsng_nativeCookieFile();
+    $base = rtrim(IBS_URL, '/');
+    $searchUrl = $base . '/user/search_user.php';
+
+    $postFields = [
+        'search'       => '1',
+        'show_reports' => '1',
+        'submit_form'  => '1',
+        'page'         => '1',
+        'isp_name_1'   => $ispName,
+        'order_by'     => 'user_id',
+        'desc'         => 'on',
+        'rpp'          => '5000',
+        'view_options' => '2',
+        'User_ID'      => 'show__basic_user_id',
+    ];
+    $headers = ['Referer: ' . $searchUrl . '?tab1_selected=ISP'];
+    $res  = ibsng_nativeHttpEx($searchUrl, $cookieFile, $postFields, $headers);
+    $body = $res['body'];
+
+    if ($body === false || !ibsng_nativeIsLoggedIn($body)) {
+        if (ibsng_nativeLogin()) {
+            $res  = ibsng_nativeHttpEx($searchUrl, $cookieFile, $postFields, $headers);
+            $body = $res['body'];
+        }
+        if ($body === false || !ibsng_nativeIsLoggedIn($body)) return null;
+    }
+
+    $uids = [];
+    if (preg_match_all('/onClick="window\.open\(\'[^\']*user_id=(\d+)\'/', $body, $m)) {
+        $uids = array_values(array_unique($m[1]));
+    }
+    return $uids;
 }
 
 // ─── کاربران آنلاین یک ISP خاص ───

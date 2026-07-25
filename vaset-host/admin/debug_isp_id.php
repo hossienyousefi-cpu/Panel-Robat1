@@ -33,17 +33,20 @@ $adminInfo = ibsng_call('admin.getAdminInfo', ['admin_username' => $ispParam]);
 echo "   زمان: " . round((microtime(true) - $t0) * 1000) . " ms\n";
 echo "   خروجی: " . json_encode($adminInfo, JSON_UNESCAPED_UNICODE) . "\n\n";
 
-echo "۵) اسکن تازه‌ی isp_id (بدون اعتماد به کش قدیمی، تا ۲۰۰ id):\n";
-$t1 = microtime(true);
-$freshMap = ibsng_getIspIdMap(200, true);
-echo "   زمان: " . round((microtime(true) - $t1) * 1000) . " ms\n";
-echo "   تعداد ISP پیدا شده: " . count($freshMap) . "\n";
-echo "   نقشه‌ی کامل: " . json_encode($freshMap, JSON_UNESCAPED_UNICODE) . "\n";
-echo "   مقدار برای این ISP: " . var_export($freshMap[$ispParam] ?? null, true) . "\n\n";
-
-echo "۶) نتیجه‌ی نهایی ibsng_getIspId():\n";
+echo "۶) نتیجه‌ی نهایی ibsng_getIspId() (روش عددی isp_id):\n";
 $finalId = ibsng_getIspId($ispParam);
 echo "   isp_id = " . var_export($finalId, true) . "\n\n";
+
+echo "۸) روش جدید: مستقیم با اسم ISP از طریق نشست HTML (بدون نیاز به isp_id):\n";
+$t2 = microtime(true);
+$nativeUids = ibsng_getIspUidsNative($ispParam);
+echo "   زمان: " . round((microtime(true) - $t2) * 1000) . " ms\n";
+if ($nativeUids === null) {
+    echo "   نتیجه: null (لاگین به پنل اصلی ناموفق بود)\n\n";
+} else {
+    echo "   تعداد uid پیدا شده: " . count($nativeUids) . "\n";
+    echo "   چند نمونه uid: " . implode(', ', array_slice($nativeUids, 0, 15)) . "\n\n";
+}
 
 echo "۷) اسم‌های واقعی ISP از دید خودِ IBSng (isp.getAllISPNames):\n";
 $allIsps = ibsng_getIsps();

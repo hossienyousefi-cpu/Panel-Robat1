@@ -70,6 +70,16 @@ if(isset($_GET['ajax'])&&$_GET['ajax']==='list'){
             $r=ibsng_call('user.searchUser',['conds'=>$conds,'from'=>$page*$perPage,'to'=>($page+1)*$perPage,'order_by'=>'user_id','desc'=>true]);
             $total=(int)($r['result'][0]??0);
             $uids=$r['result'][2]??[];
+            // isp_id این ISP گاهی (مخصوصاً برای ISPهای تازه‌ساز) درست resolve نمی‌شه
+            // و نتیجه‌اش صفر کاربر کاذبه. وقتی صفره، یک‌بار مستقیم با اسم ISP (نه
+            // شماره‌ی حدسی) از طریق نشست HTML امتحان می‌کنیم.
+            if($total===0){
+                $nativeUids=ibsng_getIspUidsNative($ispF);
+                if(is_array($nativeUids)&&!empty($nativeUids)){
+                    $total=count($nativeUids);
+                    $uids=array_slice($nativeUids,$page*$perPage,$perPage);
+                }
+            }
             $rows=[];
             if(!empty($uids)){
                 $inf=ibsng_call('user.getUserInfo',['user_id'=>implode(',',$uids)]);
