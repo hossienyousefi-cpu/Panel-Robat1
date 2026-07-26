@@ -1239,19 +1239,55 @@ function tg_handle_setprice_command($chatId, int $resellerId, string $args): voi
     tg_sendMessage($chatId, '✅ قیمت به‌روزرسانی شد.');
 }
 
+// ─── دکمه‌های ثابت پنل مدیریت (به‌جای اینکه ادمین مجبور باشه دستورها رو
+// تایپ کنه) - برای بات اصلی با isRealAdmin=true یک ردیف Export/Import اضافه
+// می‌شه، بقیه برای همه‌ی ادمین‌های هر بات یکسانه. ───
+function tg_admin_keyboard(int $resellerId, bool $isRealAdmin = false): array {
+    $rows = [
+        ['🛒 سفارش‌های در انتظار', '🎫 تیکت‌های باز'],
+        ['👥 مشتریان', '💰 قیمت‌ها'],
+        ['✏️ تغییر قیمت', '📢 پیام همگانی'],
+        ['📊 آمار', 'ℹ️ راهنمای کامل'],
+    ];
+    if ($resellerId === 0 && $isRealAdmin) $rows[] = ['📦 Export دیتابیس'];
+    return ['keyboard' => $rows, 'resize_keyboard' => true];
+}
+
 // ───────────────────────────── پنل کنترلی خودِ ریسلر توی بات اختصاصی‌اش ─────────────────────────────
 function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg): bool {
     global $pdo;
     $text = trim($msg['text'] ?? '');
 
-    if ($text === '/pending') {
+    // اگه منتظر ورودیِ یک دکمه‌ی قبلی هستیم (مثلاً «📢 پیام همگانی» زده و
+    // منتظر متن پیامه)، همین پیام به‌عنوان همون ورودی مصرف می‌شه.
+    $state = ba_get_state($resellerId, $chatId);
+    if ($state === 'awaiting_broadcast_text' && $text !== '') {
+        ba_set_state($resellerId, $chatId, null);
+        tg_sendMessage($chatId, '⏳ در حال ارسال...');
+        [$sent, $failed] = tg_do_broadcast($resellerId, $text);
+        tg_sendMessage($chatId, "✅ پیام همگانی ارسال شد.\nموفق: {$sent} | ناموفق: {$failed}", tg_admin_keyboard($resellerId));
+        logActivity('reseller', $resellerId, 'broadcast_message', "پیام همگانی از تلگرام توسط " . ba_display_name($resellerId, $chatId) . " برای {$sent} مشتری ارسال شد");
+        return true;
+    }
+    if ($state === 'awaiting_setprice' && $text !== '') {
+        ba_set_state($resellerId, $chatId, null);
+        tg_handle_setprice_command($chatId, $resellerId, $text);
+        return true;
+    }
+
+    if ($text === '🛡 پنل مدیریت' || $text === '/panel') {
+        tg_sendMessage($chatId, '🛡 <b>پنل مدیریت بات شما</b>\n\nاز دکمه‌های زیر استفاده کنید:', tg_admin_keyboard($resellerId));
+        return true;
+    }
+
+    if ($text === '/pending' || $text === '🛒 سفارش‌های در انتظار') {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM telegram_orders WHERE status='pending' AND reseller_id=?");
         $stmt->execute([$resellerId]);
         tg_sendMessage($chatId, "🛒 سفارش‌های در انتظار بررسی: " . (int)$stmt->fetchColumn());
         return true;
     }
 
-    if ($text === '/stats') {
+    if ($text === '/stats' || $text === '📊 آمار') {
         $stmt = $pdo->prepare("SELECT balance, isp_name FROM resellers WHERE id=?");
         $stmt->execute([$resellerId]);
         $r = $stmt->fetch();
@@ -1260,7 +1296,7 @@ function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg):
         return true;
     }
 
-    if ($text === '/tickets') {
+    if ($text === '/tickets' || $text === '🎫 تیکت‌های باز') {
         tg_send_tickets_overview($chatId, $resellerId);
         return true;
     }
@@ -1272,17 +1308,23 @@ function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg):
         if ($body === '') { tg_sendMessage($chatId, 'فرمت درست: <code>/broadcast متن پیام</code>'); return true; }
         tg_sendMessage($chatId, '⏳ در حال ارسال...');
         [$sent, $failed] = tg_do_broadcast($resellerId, $body);
-        tg_sendMessage($chatId, "✅ پیام همگانی ارسال شد.\nموفق: {$sent} | ناموفق: {$failed}");
+        tg_sendMessage($chatId, "✅ پیام همگانی ارسال شد.\nموفق: {$sent} | ناموفق: {$failed}", tg_admin_keyboard($resellerId));
         logActivity('reseller', $resellerId, 'broadcast_message', "پیام همگانی از تلگرام توسط " . ba_display_name($resellerId, $chatId) . " برای {$sent} مشتری ارسال شد");
         return true;
     }
 
-    if ($text === '/customers') {
+    if ($text === '📢 پیام همگانی') {
+        ba_set_state($resellerId, $chatId, 'awaiting_broadcast_text');
+        tg_sendMessage($chatId, '📢 متن پیامی که می‌خواید برای <b>همه‌ی مشتریان</b> این بات فرستاده بشه رو بنویسید و بفرستید:');
+        return true;
+    }
+
+    if ($text === '/customers' || $text === '👥 مشتریان') {
         tg_send_customers_overview($chatId, $resellerId);
         return true;
     }
 
-    if ($text === '/prices') {
+    if ($text === '/prices' || $text === '💰 قیمت‌ها') {
         tg_send_prices_overview($chatId, $resellerId);
         return true;
     }
@@ -1292,11 +1334,17 @@ function tg_handle_reseller_owner_message(int $resellerId, $chatId, array $msg):
         return true;
     }
 
+    if ($text === '✏️ تغییر قیمت') {
+        ba_set_state($resellerId, $chatId, 'awaiting_setprice');
+        tg_sendMessage($chatId, "✏️ اسم گروه و مبلغ جدید رو با فاصله بفرستید، مثلاً:\n<code>vip 85000</code>\n\n۰ بذارید یعنی برگرده به قیمت پایه. برای دیدن اسم دقیق گروه‌ها اول «💰 قیمت‌ها» رو بزنید.");
+        return true;
+    }
+
     // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه صاحب بات /start بزنه، باید
     // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست). دستور
     // ادمین جداگانه‌ی /help هست.
-    if ($text === '/help') {
-        tg_sendMessage($chatId, "👋 پنل کنترلی بات شما\n\n/pending - تعداد سفارش‌های در انتظار تأیید\n/tickets - تیکت‌های پشتیبانی باز\n/customers - لیست مشتریانی که خرید کرده‌اند\n/prices - قیمت‌های فعلی\n/setprice نام‌گروه مبلغ - تغییر قیمت یک گروه\n/stats - آمار سریع\n/broadcast متن - ارسال پیام همگانی برای همه‌ی مشتریان\n\nسفارش‌های خرید/تمدید مشتری‌ها و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما (و ادمین‌های اضافه‌ای که تعریف کرده‌اید) ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
+    if ($text === '/help' || $text === 'ℹ️ راهنمای کامل') {
+        tg_sendMessage($chatId, "👋 <b>پنل کنترلی بات شما</b>\n\n🛒 سفارش‌های در انتظار - تعداد سفارش‌های در انتظار تأیید\n🎫 تیکت‌های باز - تیکت‌های پشتیبانی باز\n👥 مشتریان - لیست مشتریانی که خرید کرده‌اند\n💰 قیمت‌ها - قیمت‌های فعلی\n✏️ تغییر قیمت - تغییر قیمت یک گروه\n📊 آمار - آمار سریع\n📢 پیام همگانی - ارسال پیام برای همه‌ی مشتریان\n\nسفارش‌های خرید/تمدید مشتری‌ها و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما (و ادمین‌های اضافه‌ای که تعریف کرده‌اید) ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.\n🛡 برای برگشت به همین منو، دستور /panel رو بزنید.", tg_admin_keyboard($resellerId));
         return true;
     }
 
@@ -1314,13 +1362,35 @@ function tg_handle_admin_message($chatId, array $msg): bool {
     $caption = trim($msg['caption'] ?? '');
     $isRealAdmin = ba_is_owner_chat(0, $chatId);
 
+    // اگه منتظر ورودیِ یک دکمه‌ی قبلی هستیم (مثلاً «📢 پیام همگانی» زده و
+    // منتظر متن پیامه)، همین پیام به‌عنوان همون ورودی مصرف می‌شه.
+    $state = ba_get_state(0, $chatId);
+    if ($state === 'awaiting_broadcast_text' && $text !== '') {
+        ba_set_state(0, $chatId, null);
+        tg_sendMessage($chatId, '⏳ در حال ارسال...');
+        [$sent, $failed] = tg_do_broadcast(0, $text);
+        tg_sendMessage($chatId, "✅ پیام همگانی ارسال شد.\nموفق: {$sent} | ناموفق: {$failed}", tg_admin_keyboard(0, $isRealAdmin));
+        logActivity('admin', tg_admin_id_by_chat($chatId) ?? 0, 'broadcast_message', "پیام همگانی از تلگرام توسط " . ba_display_name(0, $chatId) . " برای {$sent} مشتری ارسال شد");
+        return true;
+    }
+    if ($state === 'awaiting_setprice' && $text !== '') {
+        ba_set_state(0, $chatId, null);
+        tg_handle_setprice_command($chatId, 0, $text);
+        return true;
+    }
+
+    if ($text === '🛡 پنل مدیریت' || $text === '/panel') {
+        tg_sendMessage($chatId, '🛡 <b>پنل مدیریت ادمین</b>\n\nاز دکمه‌های زیر استفاده کنید:', tg_admin_keyboard(0, $isRealAdmin));
+        return true;
+    }
+
     if (!empty($msg['document']) && strcasecmp($caption, '/import') === 0) {
         if (!$isRealAdmin) { tg_sendMessage($chatId, '⛔️ این قابلیت فقط برای ادمین اصلی پنل در دسترسه.'); return true; }
         tg_admin_do_import($chatId, $msg['document']);
         return true;
     }
 
-    if ($text === '/export') {
+    if ($text === '/export' || $text === '📦 Export دیتابیس') {
         if (!$isRealAdmin) { tg_sendMessage($chatId, '⛔️ این قابلیت فقط برای ادمین اصلی پنل در دسترسه.'); return true; }
         tg_sendMessage($chatId, '⏳ در حال ساخت فایل Export...');
         $dir = dirname(__DIR__) . '/uploads/backups/';
@@ -1335,14 +1405,14 @@ function tg_handle_admin_message($chatId, array $msg): bool {
         return true;
     }
 
-    if ($text === '/pending') {
+    if ($text === '/pending' || $text === '🛒 سفارش‌های در انتظار') {
         $cnt = (int)$pdo->query("SELECT COUNT(*) FROM telegram_orders WHERE status='pending'")->fetchColumn();
         $cnt2 = (int)$pdo->query("SELECT COUNT(*) FROM payment_requests WHERE status='pending'")->fetchColumn();
         tg_sendMessage($chatId, "🛒 سفارش‌های مستقیم در انتظار: {$cnt}\n🧾 فیش‌های ریسلر در انتظار: {$cnt2}");
         return true;
     }
 
-    if ($text === '/stats') {
+    if ($text === '/stats' || $text === '📊 آمار') {
         $totalResellers = (int)$pdo->query("SELECT COUNT(*) FROM resellers")->fetchColumn();
         $totalDebt = (float)($pdo->query("SELECT SUM(debt) FROM resellers")->fetchColumn() ?: 0);
         $online = ibsng_call('report.getOnlineUsersCount', [], 30, 5);
@@ -1351,7 +1421,7 @@ function tg_handle_admin_message($chatId, array $msg): bool {
         return true;
     }
 
-    if ($text === '/tickets') {
+    if ($text === '/tickets' || $text === '🎫 تیکت‌های باز') {
         tg_send_tickets_overview($chatId, 0);
         return true;
     }
@@ -1363,17 +1433,23 @@ function tg_handle_admin_message($chatId, array $msg): bool {
         if ($body === '') { tg_sendMessage($chatId, 'فرمت درست: <code>/broadcast متن پیام</code>'); return true; }
         tg_sendMessage($chatId, '⏳ در حال ارسال...');
         [$sent, $failed] = tg_do_broadcast(0, $body);
-        tg_sendMessage($chatId, "✅ پیام همگانی ارسال شد.\nموفق: {$sent} | ناموفق: {$failed}");
+        tg_sendMessage($chatId, "✅ پیام همگانی ارسال شد.\nموفق: {$sent} | ناموفق: {$failed}", tg_admin_keyboard(0, $isRealAdmin));
         logActivity('admin', tg_admin_id_by_chat($chatId) ?? 0, 'broadcast_message', "پیام همگانی از تلگرام توسط " . ba_display_name(0, $chatId) . " برای {$sent} مشتری ارسال شد");
         return true;
     }
 
-    if ($text === '/customers') {
+    if ($text === '📢 پیام همگانی') {
+        ba_set_state(0, $chatId, 'awaiting_broadcast_text');
+        tg_sendMessage($chatId, '📢 متن پیامی که می‌خواید برای <b>همه‌ی مشتریان بات اصلی</b> فرستاده بشه رو بنویسید و بفرستید:');
+        return true;
+    }
+
+    if ($text === '/customers' || $text === '👥 مشتریان') {
         tg_send_customers_overview($chatId, 0);
         return true;
     }
 
-    if ($text === '/prices') {
+    if ($text === '/prices' || $text === '💰 قیمت‌ها') {
         tg_send_prices_overview($chatId, 0);
         return true;
     }
@@ -1383,11 +1459,17 @@ function tg_handle_admin_message($chatId, array $msg): bool {
         return true;
     }
 
+    if ($text === '✏️ تغییر قیمت') {
+        ba_set_state(0, $chatId, 'awaiting_setprice');
+        tg_sendMessage($chatId, "✏️ اسم گروه و مبلغ جدید رو با فاصله بفرستید، مثلاً:\n<code>vip 85000</code>\n\nبرای دیدن اسم دقیق گروه‌ها اول «💰 قیمت‌ها» رو بزنید.");
+        return true;
+    }
+
     // عمداً /start رو اینجا مدیریت نمی‌کنیم - اگه ادمین /start بزنه، باید
     // دقیقاً همون چیزی رو ببینه که یک مشتری واقعی می‌بینه (برای تست).
-    if ($text === '/help') {
-        $extra = $isRealAdmin ? "/export - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n/broadcast متن - ارسال پیام همگانی برای همه‌ی مشتریان\n" : '';
-        tg_sendMessage($chatId, "👋 پنل کنترلی ادمین در تلگرام\n\n{$extra}/pending - تعداد موارد در انتظار تأیید\n/tickets - تیکت‌های پشتیبانی باز\n/customers - لیست مشتریانی که خرید کرده‌اند\n/prices - قیمت‌های فعلی\n/setprice نام‌گروه مبلغ - تغییر قیمت یک بسته\n/stats - آمار سریع\n/broadcast متن - ارسال پیام همگانی برای همه‌ی مشتریان\n\nسفارش‌های خرید/تمدید مستقیم و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.");
+    if ($text === '/help' || $text === 'ℹ️ راهنمای کامل') {
+        $extra = $isRealAdmin ? "📦 Export دیتابیس - دریافت فایل Export دیتابیس\n/import - (به‌عنوان caption روی فایل .sql ارسالی) بازگردانی دیتابیس\n" : '';
+        tg_sendMessage($chatId, "👋 <b>پنل کنترلی ادمین در تلگرام</b>\n\n{$extra}🛒 سفارش‌های در انتظار - تعداد موارد در انتظار تأیید\n🎫 تیکت‌های باز - تیکت‌های پشتیبانی باز\n👥 مشتریان - لیست مشتریانی که خرید کرده‌اند\n💰 قیمت‌ها - قیمت‌های فعلی\n✏️ تغییر قیمت - تغییر قیمت یک بسته\n📊 آمار - آمار سریع\n📢 پیام همگانی - ارسال پیام برای همه‌ی مشتریان\n\nسفارش‌های خرید/تمدید مستقیم و تیکت‌های پشتیبانی به‌صورت خودکار با دکمه‌های تأیید/پذیرش برای شما ارسال می‌شوند.\n\n💡 برای دیدن منوی مشتری (تست) دستور /start رو بزنید.\n🛡 برای برگشت به همین منو، دستور /panel رو بزنید.", tg_admin_keyboard(0, $isRealAdmin));
         return true;
     }
 

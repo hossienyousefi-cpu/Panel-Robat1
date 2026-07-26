@@ -103,3 +103,22 @@ function ba_display_name(int $resellerId, $chatId): string {
     }
     return $chatId;
 }
+
+// ─── حالت مکالمه‌ی یک ادمین (مثلاً «منتظر متن پیام همگانی»/«منتظر نام‌گروه و
+// مبلغ») - همتای state ستون telegram_customers ولی برای ادمین‌ها، چون خودِ
+// ادمین‌ها ردیفی توی اون جدول ندارن. برای دکمه‌هایی که نیاز به یک پیام بعدی
+// دارن (مثلاً «📢 پیام همگانی») استفاده می‌شه. ───
+function ba_get_state(int $resellerId, $chatId): ?string {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT state FROM bot_admin_states WHERE reseller_id=? AND chat_id=?");
+    $stmt->execute([$resellerId, (string)$chatId]);
+    $v = $stmt->fetchColumn();
+    return ($v !== false && $v !== null && $v !== '') ? $v : null;
+}
+
+function ba_set_state(int $resellerId, $chatId, ?string $state): void {
+    global $pdo;
+    $pdo->prepare("INSERT INTO bot_admin_states (reseller_id, chat_id, state) VALUES (?,?,?)
+                   ON DUPLICATE KEY UPDATE state = VALUES(state)")
+        ->execute([$resellerId, (string)$chatId, $state]);
+}
