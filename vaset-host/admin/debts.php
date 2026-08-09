@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/ibsng_api.php';
 requireAdmin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
@@ -120,15 +121,15 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">مدیریت</div>
-    <a href="resellers.php" class="nav-item">👥 ریسلرها</a>
-    <a href="users.php" class="nav-item">🧑‍💻 کاربران</a>
+    <a href="resellers.php" class="nav-item"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('user')?> کاربران</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="nav-item active">💰 مدیریت موجودی</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="nav-item active"><?=svgIcon('wallet')?> مدیریت موجودی</a>
     <a href="payments.php" class="nav-item">
       🧾 فیش‌های پرداخت
       <?php if ($pendingCount > 0): ?>
@@ -136,25 +137,25 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
       <?php endif; ?>
     </a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="nav-item">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="nav-item"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="nav-section-label">سیستم</div>
-    <a href="logs.php" class="nav-item">📋 لاگ فعالیت‌ها</a>
-    <a href="settings.php" class="nav-item">⚙️ تنظیمات</a>
+    <a href="logs.php" class="nav-item"><?=svgIcon('list')?> لاگ فعالیت‌ها</a>
+    <a href="settings.php" class="nav-item"><?=svgIcon('gear')?> تنظیمات</a>
   </nav>
   <div class="sidebar-footer">
     <div class="admin-info">
-      <div class="admin-avatar">🛡️</div>
+      <div class="admin-avatar"><?=svgIcon('shield')?></div>
       <div><div class="admin-name"><?= $_SESSION['admin_username'] ?></div><div class="admin-role">مدیر اصلی</div></div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">💰 مدیریت موجودی ریسلرها</div>
+    <div class="page-title"><?=svgIcon('wallet')?> مدیریت موجودی ریسلرها</div>
   </div>
   <div class="content">
     <?php if ($message): ?><div class="alert alert-success">✅ <?= $message ?></div><?php endif; ?>
@@ -165,15 +166,15 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
         <div><div class="stat-value" style="color:#34d399"><?= money($totalBalance) ?></div><div class="stat-label">کل موجودی ریسلرها (تومان)</div></div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">💰</div>
+        <div class="stat-icon"><?=svgIcon('wallet')?></div>
         <div><div class="stat-value" style="color:#f87171"><?= money($totalDebt) ?></div><div class="stat-label">کل بدهی (تومان)</div></div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">⚠️</div>
+        <div class="stat-icon"><?=svgIcon('warning')?></div>
         <div><div class="stat-value" style="color:#fbbf24"><?= $debtors ?></div><div class="stat-label">ریسلر بدهکار</div></div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">👥</div>
+        <div class="stat-icon"><?=svgIcon('users')?></div>
         <div><div class="stat-value" style="color:#60a5fa"><?= count($resellers) ?></div><div class="stat-label">کل ریسلرها</div></div>
       </div>
     </div>
@@ -209,7 +210,7 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
               <td><span class="<?= $r['debt']>0?'debt-high':'debt-zero' ?>"><?= money($r['debt']) ?></span></td>
               <td><span style="color:<?= $r['status']==='active'?'var(--success)':'var(--danger)' ?>"><?= $r['status']==='active'?'✅ فعال':'❌ غیرفعال' ?></span></td>
               <td style="display:flex;gap:6px;flex-wrap:wrap">
-                <button class="btn btn-success" onclick="openModal(<?= $r['id'] ?>,'<?= sanitize($r['username']) ?>',<?= $balance ?>,<?= $r['debt'] ?>,'credit')">➕ شارژ</button>
+                <button class="btn btn-success" onclick="openModal(<?= $r['id'] ?>,'<?= sanitize($r['username']) ?>',<?= $balance ?>,<?= $r['debt'] ?>,'credit')"><?=svgIcon('plus')?> شارژ</button>
                 <button class="btn btn-danger" onclick="openModal(<?= $r['id'] ?>,'<?= sanitize($r['username']) ?>',<?= $balance ?>,<?= $r['debt'] ?>,'debit')">➖ کسر</button>
               </td>
             </tr>

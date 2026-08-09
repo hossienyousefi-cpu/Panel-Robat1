@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/ibsng_api.php';
 requireAdmin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
@@ -289,43 +290,43 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
   </div>
   <nav>
     <div class="ns">اصلی</div>
-    <a href="dashboard.php" class="ni">📊 داشبورد</a>
+    <a href="dashboard.php" class="ni"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="ns">مدیریت</div>
-    <a href="resellers.php" class="ni active">👥 ریسلرها</a>
-    <a href="users.php" class="ni">🧑‍💻 کاربران</a>
+    <a href="resellers.php" class="ni active"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="ni"><?=svgIcon('user')?> کاربران</a>
     <a href="online.php" class="ni">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
-    <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="ni">💰 مدیریت موجودی</a>
-    <a href="payments.php" class="ni">🧾 فیش پرداخت <?php if($pendingCount>0):?><span class="pb"><?=$pendingCount?></span><?php endif;?></a>
+    <a href="transactions.php" class="ni"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="ni"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="ni"><?=svgIcon('wallet')?> مدیریت موجودی</a>
+    <a href="payments.php" class="ni"><?=svgIcon('receipt')?> فیش پرداخت <?php if($pendingCount>0):?><span class="pb"><?=$pendingCount?></span><?php endif;?></a>
     <div class="ns">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="ni">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="ni">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="ni">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="ni"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="ni"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="ni"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="ns">سیستم</div>
-    <a href="settings.php" class="ni">⚙️ تنظیمات</a>
-    <a href="logs.php" class="ni">📋 لاگ‌ها</a>
+    <a href="settings.php" class="ni"><?=svgIcon('gear')?> تنظیمات</a>
+    <a href="logs.php" class="ni"><?=svgIcon('list')?> لاگ‌ها</a>
   </nav>
   <div class="sf">
     <div class="ai">
-      <div class="av">🛡️</div>
+      <div class="av"><?=svgIcon('shield')?></div>
       <div>
         <div style="font-size:13px;font-weight:600"><?=$_SESSION['admin_username']?></div>
         <div style="font-size:11px;color:var(--muted)">مدیر اصلی</div>
       </div>
     </div>
-    <a href="logout.php" class="ni logout">🚪 خروج</a>
+    <a href="logout.php" class="ni logout"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main>
   <div class="topbar">
-    <div class="pg-title">👥 مدیریت ریسلرها</div>
+    <div class="pg-title"><?=svgIcon('users')?> مدیریت ریسلرها</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
-      <button class="btn bc" onclick="openM('ispM')">🌐 کاربران ISP</button>
-      <button class="btn bc" onclick="openM('ispIdM')">🔧 شناسه ISP</button>
-      <button class="btn bp" onclick="openM('addM')">➕ ریسلر جدید</button>
+      <button class="btn bc" onclick="openM('ispM')"><?=svgIcon('globe')?> کاربران ISP</button>
+      <button class="btn bc" onclick="openM('ispIdM')"><?=svgIcon('wrench')?> شناسه ISP</button>
+      <button class="btn bp" onclick="openM('addM')"><?=svgIcon('plus')?> ریسلر جدید</button>
     </div>
   </div>
   <div class="content">
@@ -352,8 +353,8 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
               <?php if($r['full_name']):?><div style="font-size:11px;color:var(--muted)"><?=sanitize($r['full_name'])?></div><?php endif;?>
               <?php if($r['phone']):?><div style="font-size:11px;color:var(--muted)"><?=sanitize($r['phone'])?></div><?php endif;?>
             </td>
-            <td><?=$r['isp_name']?'<span class="badge bbl">'.sanitize($r['isp_name']).'</span>':'<span class="badge bwa">⚠️ نداره</span>'?></td>
-            <td><?=$r['gc']>0?'<span class="badge bpu2">'.$r['gc'].' گروه</span>':'<span class="badge bwa">⚠️ ندارد</span>'?></td>
+            <td><?=$r['isp_name']?'<span class="badge bbl">'.sanitize($r['isp_name']).'</span>':'<span class="badge bwa">'.svgIcon('warning').' نداره</span>'?></td>
+            <td><?=$r['gc']>0?'<span class="badge bpu2">'.$r['gc'].' گروه</span>':'<span class="badge bwa">'.svgIcon('warning').' ندارد</span>'?></td>
             <td style="font-weight:700;color:var(--txt)"><?=$r['uc']?></td>
             <td style="font-weight:700;color:#34d399"><?=money($r['balance']??0)?> ت</td>
             <td><?=$r['can_delete_users']?'<span class="badge bok">✅</span>':'<span class="badge ber">❌</span>'?></td>
@@ -361,8 +362,8 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
             <td><span class="badge <?=$r['status']==='active'?'bok':'ber'?>"><?=$r['status']==='active'?'فعال':'غیرفعال'?></span></td>
             <td>
               <div class="acts">
-                <button class="btn bpu bsm" onclick="openSet(<?=$r['id']?>)" title="تنظیمات ریسلر">⚙️</button>
-                <button class="btn bc bsm" onclick="openReport(<?=$r['id']?>,'<?=sanitize($r['username'])?>')" title="گزارش فروش">📊</button>
+                <button class="btn bpu bsm" onclick="openSet(<?=$r['id']?>)" title="تنظیمات ریسلر"><?=svgIcon('gear')?></button>
+                <button class="btn bc bsm" onclick="openReport(<?=$r['id']?>,'<?=sanitize($r['username'])?>')" title="گزارش فروش"><?=svgIcon('dashboard')?></button>
                 <form method="POST" style="display:inline"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
                   <input type="hidden" name="action" value="toggle_status">
                   <input type="hidden" name="reseller_id" value="<?=$r['id']?>">
@@ -386,7 +387,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <!-- افزودن ریسلر -->
 <div class="mbg" id="addM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">➕ ریسلر جدید</div><button class="mc" onclick="closeM('addM')" title="بستن">✕</button></div>
+    <div class="mh"><div class="mt"><?=svgIcon('plus')?> ریسلر جدید</div><button class="mc" onclick="closeM('addM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="action" value="add_reseller">
       <div class="mb">
@@ -418,14 +419,14 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <div class="mbg" id="setM">
   <div class="modal mlg">
     <div class="mh">
-      <div class="mt">⚙️ تنظیمات: <span id="setName" style="color:var(--acc)">...</span></div>
+      <div class="mt"><?=svgIcon('gear')?> تنظیمات: <span id="setName" style="color:var(--acc)">...</span></div>
       <button class="mc" onclick="closeM('setM')" title="بستن">✕</button>
     </div>
     <form method="POST" id="setForm"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
       <input type="hidden" name="action" value="update_settings">
       <input type="hidden" name="reseller_id" id="setRid">
       <div class="mb">
-        <div class="sec">🌐 ISP اختصاصی</div>
+        <div class="sec"><?=svgIcon('globe')?> ISP اختصاصی</div>
         <div class="fg">
           <select name="isp_name" id="setIsp">
             <option value="">— بدون محدودیت —</option>
@@ -438,10 +439,10 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
           <label class="sw"><input type="checkbox" name="can_delete" id="setDel"><span class="sl"></span></label>
         </div>
         <div class="trow">
-          <div><div class="tlbl">🔄 تمدید کاربر</div><div class="tdsc">ریسلر می‌تواند سرویس کاربران را تمدید کند</div></div>
+          <div><div class="tlbl"><?=svgIcon('refresh')?> تمدید کاربر</div><div class="tdsc">ریسلر می‌تواند سرویس کاربران را تمدید کند</div></div>
           <label class="sw"><input type="checkbox" name="can_renew" id="setRenew"><span class="sl"></span></label>
         </div>
-        <div class="sec">📦 گروه‌های مجاز و قیمت</div>
+        <div class="sec"><?=svgIcon('box')?> گروه‌های مجاز و قیمت</div>
         <p style="font-size:11px;color:var(--muted);margin-bottom:10px">گروه‌ها را تیک بزنید و قیمت هر کاربر (تومان) را وارد کنید. قیمت ۰ = قیمت پیش‌فرض.</p>
         <div class="gtw">
           <table class="gt">
@@ -465,7 +466,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
       </div>
       <div class="mf">
         <button type="button" class="btn bd" onclick="closeM('setM')">انصراف</button>
-        <button type="submit" class="btn bp">💾 ذخیره</button>
+        <button type="submit" class="btn bp"><?=svgIcon('database')?> ذخیره</button>
       </div>
     </form>
   </div>
@@ -474,13 +475,13 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <!-- گزارش ریسلر -->
 <div class="mbg" id="repM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">📊 گزارش: <span id="repName" style="color:var(--acc)"></span></div><button class="mc" onclick="closeM('repM')" title="بستن">✕</button></div>
+    <div class="mh"><div class="mt"><?=svgIcon('dashboard')?> گزارش: <span id="repName" style="color:var(--acc)"></span></div><button class="mc" onclick="closeM('repM')" title="بستن">✕</button></div>
     <div class="mb">
       <div class="fr" style="margin-bottom:12px">
         <div class="fg"><label class="lbl">از تاریخ</label><input type="date" id="repFrom" value="<?=date('Y-m-01')?>"></div>
         <div class="fg"><label class="lbl">تا تاریخ</label><input type="date" id="repTo" value="<?=date('Y-m-d')?>"></div>
       </div>
-      <button class="btn bp" style="width:100%;justify-content:center" onclick="loadReport()">🔍 نمایش گزارش</button>
+      <button class="btn bp" style="width:100%;justify-content:center" onclick="loadReport()"><?=svgIcon('search')?> نمایش گزارش</button>
       <div id="repRes" style="margin-top:14px"></div>
     </div>
   </div>
@@ -489,14 +490,14 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <!-- کاربران ISP -->
 <div class="mbg" id="ispM">
   <div class="modal mlg">
-    <div class="mh"><div class="mt">🌐 کاربران ISP</div><button class="mc" onclick="closeM('ispM')" title="بستن">✕</button></div>
+    <div class="mh"><div class="mt"><?=svgIcon('globe')?> کاربران ISP</div><button class="mc" onclick="closeM('ispM')" title="بستن">✕</button></div>
     <div class="mb">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
         <select id="ispSel" style="flex:1;min-width:160px;padding:9px 12px;background:var(--surf);border:1px solid var(--bor);border-radius:8px;color:var(--txt);font-family:'Vazirmatn';font-size:13px;outline:none">
           <option value="">انتخاب ISP...</option>
           <?php foreach($ibsIsps as $isp):?><option value="<?=sanitize($isp)?>"><?=sanitize($isp)?></option><?php endforeach;?>
         </select>
-        <button class="btn bp" onclick="loadIsp()">🔍 نمایش</button>
+        <button class="btn bp" onclick="loadIsp()"><?=svgIcon('search')?> نمایش</button>
       </div>
       <div id="ispRes"></div>
     </div>
@@ -506,7 +507,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
 <!-- مدیریت شناسه عددی ISP (isp_id) -->
 <div class="mbg" id="ispIdM">
   <div class="modal mlg">
-    <div class="mh"><div class="mt">🔧 مدیریت شناسه‌ی عددی ISP</div><button class="mc" onclick="closeM('ispIdM')" title="بستن">✕</button></div>
+    <div class="mh"><div class="mt"><?=svgIcon('wrench')?> مدیریت شناسه‌ی عددی ISP</div><button class="mc" onclick="closeM('ispIdM')" title="بستن">✕</button></div>
     <div class="mb">
       <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
         فیلتر کردن کاربرهای هر ISP توی IBSng از روی یک شناسه‌ی عددی (isp_id) انجام می‌شه، نه اسمش.
@@ -521,7 +522,7 @@ table.gt tr:hover td{background:rgba(59,130,246,.03)}
           <?php foreach($ispIdStatus as $ispEach=>$st):?>
           <tr>
             <td><span class="badge bbl"><?=sanitize($ispEach)?></span></td>
-            <td><?=$st['id']!==null?'<b>'.(int)$st['id'].'</b>':'<span class="badge bwa">⚠️ ثبت‌نشده</span>'?></td>
+            <td><?=$st['id']!==null?'<b>'.(int)$st['id'].'</b>':'<span class="badge bwa">'.svgIcon('warning').' ثبت‌نشده</span>'?></td>
             <td style="font-size:11px;color:var(--muted)"><?=$st['id']===null?'—':($st['isManual']?'دستی':'خودکار')?></td>
             <td>
               <form method="POST" style="display:flex;gap:6px" onsubmit="return true;">
@@ -628,7 +629,7 @@ function loadIsp(){
       const ol=d.rows.filter(u=>u.online).length;
       document.getElementById('ispRes').innerHTML=`
         <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-          <span class="badge bbl">👥 ${d.total}</span>
+          <span class="badge bbl"><?=svgIcon('users')?> ${d.total}</span>
           <span class="badge bok">🟢 ${ol}</span>
         </div>
         <div style="max-height:400px;overflow-y:auto;border:1px solid var(--bor);border-radius:8px">

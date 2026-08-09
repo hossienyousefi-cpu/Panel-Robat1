@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/ibsng_api.php';
 requireAdmin();
 
@@ -194,29 +195,29 @@ main{margin-right:var(--sw);flex:1;min-width:0}
   </div>
   <nav>
     <div class="ns">اصلی</div>
-    <a href="dashboard.php" class="ni">📊 داشبورد</a>
+    <a href="dashboard.php" class="ni"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="ns">مدیریت</div>
-    <a href="resellers.php" class="ni">👥 ریسلرها</a>
-    <a href="users.php" class="ni">🧑‍💻 کاربران</a>
+    <a href="resellers.php" class="ni"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="ni"><?=svgIcon('user')?> کاربران</a>
     <a href="online.php" class="ni active">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
-    <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="ni">💰 مدیریت موجودی</a>
-    <a href="payments.php" class="ni">🧾 فیش پرداخت <?php if($pendingCount>0):?><span class="pb"><?=$pendingCount?></span><?php endif;?></a>
+    <a href="transactions.php" class="ni"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="ni"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="ni"><?=svgIcon('wallet')?> مدیریت موجودی</a>
+    <a href="payments.php" class="ni"><?=svgIcon('receipt')?> فیش پرداخت <?php if($pendingCount>0):?><span class="pb"><?=$pendingCount?></span><?php endif;?></a>
     <div class="ns">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="ni">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="ni">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="ni">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="ni"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="ni"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="ni"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="ns">سیستم</div>
-    <a href="settings.php" class="ni">⚙️ تنظیمات</a>
-    <a href="logs.php" class="ni">📋 لاگ‌ها</a>
+    <a href="settings.php" class="ni"><?=svgIcon('gear')?> تنظیمات</a>
+    <a href="logs.php" class="ni"><?=svgIcon('list')?> لاگ‌ها</a>
   </nav>
   <div class="sf">
-    <div class="ai"><div class="av">🛡️</div>
+    <div class="ai"><div class="av"><?=svgIcon('shield')?></div>
       <div><div style="font-size:13px;font-weight:600"><?=$_SESSION['admin_username']?></div><div style="font-size:11px;color:var(--muted)">مدیر اصلی</div></div>
     </div>
-    <a href="logout.php" class="ni logout">🚪 خروج</a>
+    <a href="logout.php" class="ni logout"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
@@ -225,7 +226,7 @@ main{margin-right:var(--sw);flex:1;min-width:0}
     <div class="pg-t">🟢 کاربران آنلاین <span id="hCnt" style="font-size:13px;color:var(--grn)"></span></div>
     <div style="display:flex;gap:7px">
       <span id="autoTxt" style="font-size:12px;color:var(--muted);align-self:center"></span>
-      <button class="btn bg bsm" onclick="refresh()" title="بروزرسانی لیست">🔄 بروزرسانی</button>
+      <button class="btn bg bsm" onclick="refresh()" title="بروزرسانی لیست"><?=svgIcon('refresh')?> بروزرسانی</button>
       <button class="btn bc bsm" id="autoBtn" onclick="toggleAuto()" title="بروزرسانی خودکار">⏱ خودکار</button>
     </div>
   </div>
@@ -269,10 +270,10 @@ function renderResults(url){
   var el = document.getElementById('resultsContainer');
   el.innerHTML = '<div class="loading">⏳ در حال بارگذاری...</div>';
   fetch(url).then(function(r){return r.json();}).then(function(d){
-    if(d.error){ el.innerHTML='<div class="loading">⚠️ '+d.error+'</div>'; return; }
-    if(!d.rows || !d.rows.length){ el.innerHTML='<div class="loading">📡 هیچ کاربری آنلاین نیست</div>'; return; }
+    if(d.error){ el.innerHTML='<div class="loading"><?=svgIcon('warning')?> '+d.error+'</div>'; return; }
+    if(!d.rows || !d.rows.length){ el.innerHTML='<div class="loading"><?=svgIcon('signal')?> هیچ کاربری آنلاین نیست</div>'; return; }
     var html='<div class="card"><div class="tw"><table class="isp-users-list" style="width:100%"><thead><tr>'
-      +'<th>👤 کاربر</th><th>🌐 IP</th><th>⏱ مدت</th><th>📦 گروه</th><th>عملیات</th></tr></thead><tbody>';
+      +'<th><?=svgIcon('user')?> کاربر</th><th><?=svgIcon('globe')?> IP</th><th>⏱ مدت</th><th><?=svgIcon('box')?> گروه</th><th>عملیات</th></tr></thead><tbody>';
     d.rows.forEach(function(u,i){
       html+='<tr><td><strong>'+u.username+'</strong></td><td style="font-family:monospace">'+u.ip+'</td><td>'+u.duration+'</td><td>'+u.group+'</td>'
         +'<td><button class="btn bd bsm" data-i="'+i+'" title="Kill (قطع اتصال)">⚡ Kill</button></td></tr>';
@@ -322,7 +323,7 @@ function load(){
     document.getElementById('ispContainer').innerHTML=d.rows.map(function(r){
       var active = (r.isp === curIsp) ? ' expanded' : '';
       return '<div class="isp-card'+active+'" onclick="selectIsp(\''+r.isp.replace(/'/g,"\\'")+'\', this)" style="cursor:pointer">'
-        +'<div class="isp-name">🌐 '+r.isp+'</div>'
+        +'<div class="isp-name"><?=svgIcon('globe')?> '+r.isp+'</div>'
         +'<div class="isp-nums"><div class="isp-num"><div class="n n-online">'+r.online+'</div><div class="l">آنلاین</div></div></div>'
         +'</div>';
     }).join('');

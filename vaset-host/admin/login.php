@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 
 $error = '';
 
@@ -319,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="login-container">
   <div class="logo-section">
-    <div class="logo-icon">🛡️</div>
+    <div class="logo-icon"><?=svgIcon('shield')?></div>
     <div class="logo-title">پنل مدیریت</div>
     <div class="logo-subtitle">سیستم مدیریت اینترنت هوشمند</div>
     <div class="admin-badge">⭐ پنل مدیریت</div>
@@ -339,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="form-group">
         <label>نام کاربری</label>
         <div class="input-wrapper">
-          <span class="input-icon">👤</span>
+          <span class="input-icon"><?=svgIcon('user')?></span>
           <input type="text" name="username" placeholder="admin" required autocomplete="username">
         </div>
       </div>

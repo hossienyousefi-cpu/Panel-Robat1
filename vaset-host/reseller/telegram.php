@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/telegram_api.php';
 require_once '../includes/reseller_bot.php';
 require_once '../includes/bot_admins.php';
@@ -281,39 +282,39 @@ $myGroups = $myGroups->fetchAll();
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
     <?php else: ?>
-    <div class="logo-text">🌐 پنل ریسلر</div>
+    <div class="logo-text"><?=svgIcon('globe')?> پنل ریسلر</div>
     <?php endif; ?>
     <div class="logo-badge">پنل ریسلر</div>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">کاربران</div>
-    <a href="users.php" class="nav-item">👥 مدیریت کاربران</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('users')?> مدیریت کاربران</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌های من</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="payments.php" class="nav-item">🧾 ارسال فیش پرداخت</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌های من</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="payments.php" class="nav-item"><?=svgIcon('receipt')?> ارسال فیش پرداخت</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item active">🤖 بات تلگرام من</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item active"><?=svgIcon('bot')?> بات تلگرام من</a>
   </nav>
   <div class="sidebar-footer">
     <div class="reseller-info">
-      <div class="reseller-avatar">👤</div>
+      <div class="reseller-avatar"><?=svgIcon('user')?></div>
       <div>
         <div class="reseller-name"><?= sanitize($_SESSION['reseller_username']) ?></div>
         <div class="reseller-role">ریسلر</div>
       </div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">🤖 بات تلگرام اختصاصی من</div>
+    <div class="page-title"><?=svgIcon('bot')?> بات تلگرام اختصاصی من</div>
   </div>
   <div class="content">
     <?php if ($success): ?><div class="alert alert-success">✅ <?= sanitize($success) ?></div><?php endif; ?>
@@ -331,7 +332,7 @@ $myGroups = $myGroups->fetchAll();
 
     <div class="card">
       <div class="card-header">
-        <div style="font-size:20px">🔑</div>
+        <div style="font-size:20px"><?=svgIcon('key')?></div>
         <div>
           <div class="card-title">توکن بات</div>
           <div class="card-desc">در تلگرام به <b>@BotFather</b> پیام دهید، دستور <code>/newbot</code> را بزنید، یک نام برای بات انتخاب کنید و توکنی که می‌دهد را اینجا وارد کنید.</div>
@@ -344,7 +345,7 @@ $myGroups = $myGroups->fetchAll();
             <label>توکن بات (<?= $bot ? 'تنظیم شده' : 'تنظیم نشده' ?>)</label>
             <input type="text" name="bot_token" placeholder="123456:ABC-DEF..." value="<?= sanitize($bot['bot_token'] ?? '') ?>">
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
 
         <?php if ($bot): ?>
@@ -367,7 +368,7 @@ $myGroups = $myGroups->fetchAll();
           </p>
           <form method="POST" style="display:inline-block;margin-left:8px"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="action" value="set_webhook">
-            <button type="submit" class="btn btn-primary">🔗 تنظیم Webhook</button>
+            <button type="submit" class="btn btn-primary"><?=svgIcon('link')?> تنظیم Webhook</button>
           </form>
           <form method="POST" style="display:inline-block;margin-left:8px"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="action" value="delete_webhook">
@@ -398,14 +399,14 @@ $myGroups = $myGroups->fetchAll();
             <label>پیشوند یوزرنیم (فقط حروف/عدد انگلیسی)</label>
             <input type="text" name="username_prefix" placeholder="مثلاً: ars" value="<?= sanitize($bot['username_prefix'] ?? '') ?>">
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <div style="font-size:20px">🎨</div>
+        <div style="font-size:20px"><?=svgIcon('palette')?></div>
         <div>
           <div class="card-title">برندینگ فروشگاه</div>
           <div class="card-desc">اسم مغازه/کسب‌وکار خودتان را وارد کنید - همه‌جای بات (پیام خوش‌آمد و غیره) با همین اسم نشون داده می‌شه. پیام خوش‌آمد اختیاریه؛ اگه خالی بذارید، یک متن پیش‌فرض خوشگل با همین اسم فروشگاه ساخته می‌شه.</div>
@@ -422,14 +423,14 @@ $myGroups = $myGroups->fetchAll();
             <label>پیام خوش‌آمد اختصاصی (اختیاری)</label>
             <textarea name="welcome_message" placeholder="مثلاً: با ما بهترین اینترنت رو با بهترین قیمت تجربه کن 🚀"><?= sanitize($bot['welcome_message'] ?? '') ?></textarea>
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <div style="font-size:20px">🛡️</div>
+        <div style="font-size:20px"><?=svgIcon('shield')?></div>
         <div>
           <div class="card-title">دریافت اعلان سفارش‌های جدید در تلگرام</div>
           <div class="card-desc">با ثبت Chat ID خودتان، هر وقت مشتری‌ای رسید پرداخت بفرستد، همان‌جا در تلگرام با دکمه‌ی تأیید/رد برای شما ارسال می‌شود. بدون این هم می‌توانید از صفحه‌ی «سفارش‌های مستقیم» بررسی کنید.</div>
@@ -443,7 +444,7 @@ $myGroups = $myGroups->fetchAll();
             <label>Chat ID فعلی: <?= sanitize((string)($reseller['telegram_chat_id'] ?: 'ثبت نشده')) ?></label>
             <input type="text" name="my_chat_id" placeholder="مثلاً 123456789" value="<?= sanitize((string)($reseller['telegram_chat_id'] ?: '')) ?>">
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
         <form method="POST" style="margin-top:12px">
           <input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
@@ -456,7 +457,7 @@ $myGroups = $myGroups->fetchAll();
 
     <div class="card">
       <div class="card-header">
-        <div style="font-size:20px">💬</div>
+        <div style="font-size:20px"><?=svgIcon('chat')?></div>
         <div>
           <div class="card-title">متن‌های بات</div>
           <div class="card-desc">پیام پشتیبانی و اطلاعات کارت برای پرداخت مشتریان شما</div>
@@ -477,14 +478,14 @@ $myGroups = $myGroups->fetchAll();
             <label>راهنمای اتصال <span style="font-size:11px;color:var(--text2);font-weight:400">(نمایش داده می‌شه وقتی مشتری روی «📖 راهنمای اتصال» بزنه، همراه با فایل‌های کانفیگ - خالی بذارید تا یک متن پیش‌فرض نشون داده بشه)</span></label>
             <textarea name="connection_guide"><?= sanitize($bot['connection_guide'] ?? '') ?></textarea>
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <div style="font-size:20px">👮</div>
+        <div style="font-size:20px"><?=svgIcon('shield')?></div>
         <div>
           <div class="card-title">ادمین‌های اضافه‌ی بات</div>
           <div class="card-desc">علاوه بر خودتون (که بالاتر Chat ID‌تون رو ثبت کردید)، می‌تونید به کارمند/همکارتون هم اجازه‌ی تأیید سفارش و پاسخ به تیکت پشتیبانی رو از توی بات بدید - حتی بدون اینکه لاگین پنل وب داشته باشه.</div>
@@ -512,14 +513,14 @@ $myGroups = $myGroups->fetchAll();
           <input type="hidden" name="action" value="add_bot_admin">
           <div class="form-group"><label>Chat ID</label><input type="text" name="chat_id" placeholder="مثلاً 123456789" required></div>
           <div class="form-group"><label>اسم (اختیاری)</label><input type="text" name="display_name" placeholder="مثلاً: علی - پشتیبانی"></div>
-          <button type="submit" class="btn btn-primary">➕ افزودن ادمین</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('plus')?> افزودن ادمین</button>
         </form>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <div style="font-size:20px">💳</div>
+        <div style="font-size:20px"><?=svgIcon('card')?></div>
         <div>
           <div class="card-title">حساب‌های دریافت وجه</div>
           <div class="card-desc">چند حساب/کارت اضافه کنید، هرکدوم رو خواستید «فعال» کنید تا همون به مشتری‌های بات شما نمایش داده بشه.</div>
@@ -555,14 +556,14 @@ $myGroups = $myGroups->fetchAll();
           <div class="form-group"><label>شماره کارت</label><input type="text" name="card_number" placeholder="XXXX-XXXX-XXXX-XXXX"></div>
           <div class="form-group"><label>به نام</label><input type="text" name="account_holder" placeholder="نام صاحب حساب"></div>
           <div class="form-group"><label>توضیح اضافه (اختیاری)</label><input type="text" name="extra_note" placeholder="مثلاً: فقط شبا"></div>
-          <button type="submit" class="btn btn-primary">➕ افزودن حساب</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('plus')?> افزودن حساب</button>
         </form>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <div style="font-size:20px">🔧</div>
+        <div style="font-size:20px"><?=svgIcon('wrench')?></div>
         <div>
           <div class="card-title">فایل‌های کانفیگ OpenVPN</div>
           <div class="card-desc">فایل‌های .ovpn سرورهای مختلف رو اینجا آپلود کنید - مشتری از توی بات با دکمه‌ی «دانلود کانفیگ OpenVPN» می‌تونه دانلودشون کنه.</div>
@@ -589,7 +590,7 @@ $myGroups = $myGroups->fetchAll();
           <input type="hidden" name="action" value="upload_ovpn">
           <div class="form-group"><label>عنوان (مثلاً: سرور آلمان)</label><input type="text" name="ovpn_title" required></div>
           <div class="form-group"><label>فایل .ovpn</label><input type="file" name="ovpn_file" accept=".ovpn,.conf" required></div>
-          <button type="submit" class="btn btn-primary">📤 آپلود</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('upload')?> آپلود</button>
         </form>
       </div>
     </div>
@@ -597,7 +598,7 @@ $myGroups = $myGroups->fetchAll();
     <?php if ($myGroups): ?>
     <div class="card">
       <div class="card-header">
-        <div style="font-size:20px">💰</div>
+        <div style="font-size:20px"><?=svgIcon('wallet')?></div>
         <div>
           <div class="card-title">قیمت نمایش به مشتری در بات</div>
           <div class="card-desc">قیمتی که ادمین برای شما تنظیم کرده، هزینه‌ی واقعی خودتونه. اینجا می‌تونید برای هرکدوم یک قیمت جدا (با سود خودتون) برای نمایش/دریافت از مشتری‌های بات تنظیم کنید. خالی بذارید تا همون قیمت پایه نمایش داده بشه.</div>
@@ -622,7 +623,7 @@ $myGroups = $myGroups->fetchAll();
             </tr>
             <?php endforeach; ?>
           </table>
-          <button type="submit" class="btn btn-primary" style="margin-top:16px">💾 ذخیره قیمت‌ها</button>
+          <button type="submit" class="btn btn-primary" style="margin-top:16px"><?=svgIcon('database')?> ذخیره قیمت‌ها</button>
         </form>
       </div>
     </div>

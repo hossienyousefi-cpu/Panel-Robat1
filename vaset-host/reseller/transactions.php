@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 requireReseller();
 $rid = $_SESSION['reseller_id'];
 $reseller = $pdo->prepare("SELECT * FROM resellers WHERE id=?");
@@ -85,46 +86,46 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
     <?php else: ?>
-    <div class="logo-text">🌐 پنل ریسلر</div>
+    <div class="logo-text"><?=svgIcon('globe')?> پنل ریسلر</div>
     <?php endif; ?>
     <div class="logo-badge">پنل ریسلر</div>
   </div>
   <?php if ($reseller['debt'] > 0): ?>
   <div class="debt-banner">
-    <div class="debt-label">💳 بدهی شما</div>
+    <div class="debt-label"><?=svgIcon('card')?> بدهی شما</div>
     <div class="debt-amount"><?= money($reseller['debt']) ?> تومان</div>
   </div>
   <?php endif; ?>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">کاربران</div>
-    <a href="users.php" class="nav-item">👥 مدیریت کاربران</a>
-    <a href="users.php?action=add" class="nav-item">➕ افزودن کاربر</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('users')?> مدیریت کاربران</a>
+    <a href="users.php?action=add" class="nav-item"><?=svgIcon('plus')?> افزودن کاربر</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item active">💳 تراکنش‌های من</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="payments.php" class="nav-item">🧾 ارسال فیش پرداخت</a>
+    <a href="transactions.php" class="nav-item active"><?=svgIcon('card')?> تراکنش‌های من</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="payments.php" class="nav-item"><?=svgIcon('receipt')?> ارسال فیش پرداخت</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item">🤖 بات تلگرام من</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> بات تلگرام من</a>
   </nav>
   <div class="sidebar-footer">
     <div class="reseller-info">
-      <div class="reseller-avatar">👤</div>
+      <div class="reseller-avatar"><?=svgIcon('user')?></div>
       <div>
         <div class="reseller-name"><?= sanitize($_SESSION['reseller_username']) ?></div>
         <div class="reseller-role">ریسلر</div>
       </div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">💳 تراکنش‌های من</div>
+    <div class="page-title"><?=svgIcon('card')?> تراکنش‌های من</div>
   </div>
   <div class="content">
     <?php

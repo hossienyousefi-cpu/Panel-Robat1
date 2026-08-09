@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/ibsng_api.php';
 requireReseller();
 
@@ -210,32 +211,32 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
   <div class="logo">
     <?php $sL=getSetting('site_logo',''); if($sL&&file_exists(dirname(__DIR__).'/'.$sL)):?>
     <img src="../<?=sanitize($sL)?>" alt="" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
-    <?php else:?><div class="logo-t">🌐 پنل ریسلر</div><?php endif;?>
+    <?php else:?><div class="logo-t"><?=svgIcon('globe')?> پنل ریسلر</div><?php endif;?>
     <div class="logo-b">کاربران آنلاین</div>
   </div>
   <nav>
     <div class="ns">اصلی</div>
-    <a href="dashboard.php" class="ni">📊 داشبورد</a>
+    <a href="dashboard.php" class="ni"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="ns">کاربران</div>
-    <a href="users.php" class="ni">👥 مدیریت کاربران</a>
+    <a href="users.php" class="ni"><?=svgIcon('users')?> مدیریت کاربران</a>
     <a href="online.php" class="ni active">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
-    <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
-    <a href="payments.php" class="ni">🧾 ارسال فیش</a>
+    <a href="transactions.php" class="ni"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="ni"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="payments.php" class="ni"><?=svgIcon('receipt')?> ارسال فیش</a>
     <div class="ns">فروش مستقیم تلگرام</div>
-    <a href="direct_orders.php" class="ni">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="ni">🤖 بات تلگرام من</a>
+    <a href="direct_orders.php" class="ni"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="ni"><?=svgIcon('bot')?> بات تلگرام من</a>
   </nav>
   <div class="sf">
     <div class="ai">
-      <div class="av">👤</div>
+      <div class="av"><?=svgIcon('user')?></div>
       <div>
         <div style="font-size:13px;font-weight:600"><?=sanitize($_SESSION['reseller_username'])?></div>
         <div style="font-size:11px;color:var(--muted)">ریسلر</div>
       </div>
     </div>
-    <a href="logout.php" class="ni logout">🚪 خروج</a>
+    <a href="logout.php" class="ni logout"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
@@ -244,7 +245,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
     <div class="pg-t">🟢 کاربران آنلاین <span id="hCnt" style="font-size:13px;color:var(--grn)"></span></div>
     <div style="display:flex;gap:7px;align-items:center">
       <span id="autoTxt" style="font-size:12px;color:var(--muted)"></span>
-      <button class="btn bg bsm" onclick="refresh()" title="بروزرسانی لیست">🔄 بروزرسانی</button>
+      <button class="btn bg bsm" onclick="refresh()" title="بروزرسانی لیست"><?=svgIcon('refresh')?> بروزرسانی</button>
       <button class="btn bc bsm" id="autoBtn" onclick="toggleAuto()" title="بروزرسانی خودکار">⏱ خودکار</button>
     </div>
   </div>
@@ -252,7 +253,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
 
     <?php if($ispName!==''):?>
     <div class="isp-bar">
-      <span style="font-size:20px">🌐</span>
+      <span style="font-size:20px"><?=svgIcon('globe')?></span>
       <div>
         <div style="font-weight:700;font-size:14px"><?=sanitize($ispName)?></div>
         <div style="font-size:11px;color:var(--muted)">ISP اختصاصی شما</div>
@@ -269,7 +270,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
     <div class="sbox">
       <div class="srow">
         <input type="text" class="si" id="srch" placeholder="🔍 جستجو نام کاربری...">
-        <button class="btn bp bsm" onclick="loadData()" title="جستجو">🔍</button>
+        <button class="btn bp bsm" onclick="loadData()" title="جستجو"><?=svgIcon('search')?></button>
         <button class="btn bc bsm" onclick="document.getElementById('srch').value='';curGrp='';loadData()">✕ پاک</button>
       </div>
     </div>
@@ -321,7 +322,7 @@ function loadData(){
 
     // دکمه‌های گروه
     var gs=d.grp_stats||{};
-    var gHtml='<span style="font-size:11px;color:var(--muted)">📦</span>';
+    var gHtml='<span style="font-size:11px;color:var(--muted)"><?=svgIcon('box')?></span>';
     gHtml+='<button class="gf'+(curGrp===''?' on':'')+'" onclick="setGrp(\'\',this)">همه ('+d.total_online+')</button>';
     Object.keys(gs).forEach(function(g){
       gHtml+='<button class="gf'+(curGrp===g?' on':'')+'" onclick="setGrp(\''+g.replace(/'/g,"\\'")+ '\',this)">'+g+' ('+gs[g]+')</button>';
@@ -329,11 +330,11 @@ function loadData(){
     document.getElementById('grpBtns').innerHTML=gHtml;
 
     if(!d.rows||!d.rows.length){
-      document.getElementById('container').innerHTML='<div class="loading">📡 هیچ کاربری آنلاین نیست</div>';
+      document.getElementById('container').innerHTML='<div class="loading"><?=svgIcon('signal')?> هیچ کاربری آنلاین نیست</div>';
       return;
     }
     var html='<div class="card"><div class="tw"><table class="t"><thead><tr>'
-      +'<th>👤 کاربر</th><th>🌐 IP</th><th>📡 RAS</th><th>⏱ مدت</th><th>📦 گروه</th><th>🌐 ISP</th><th>عملیات</th>'
+      +'<th><?=svgIcon('user')?> کاربر</th><th><?=svgIcon('globe')?> IP</th><th><?=svgIcon('signal')?> RAS</th><th>⏱ مدت</th><th><?=svgIcon('box')?> گروه</th><th><?=svgIcon('globe')?> ISP</th><th>عملیات</th>'
       +'</tr></thead><tbody>';
     d.rows.forEach(function(u,i){
       html+='<tr>'

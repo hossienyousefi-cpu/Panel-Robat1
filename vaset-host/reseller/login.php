@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 
 $error = '';
 
@@ -79,10 +80,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="grid-overlay"></div>
 <div class="container">
   <div class="logo-section">
-    <div class="logo-icon">🌐</div>
+    <div class="logo-icon"><?=svgIcon('globe')?></div>
     <div class="logo-title">پنل ریسلر</div>
     <div class="logo-subtitle">پنل مدیریت ریسلر</div>
-    <div class="reseller-badge">👤 پنل ریسلر</div>
+    <div class="reseller-badge"><?=svgIcon('user')?> پنل ریسلر</div>
   </div>
   <div class="login-card">
     <div class="card-title">ورود به پنل ریسلر</div>
@@ -96,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="form-group">
         <label>نام کاربری</label>
         <div class="input-wrapper">
-          <span class="input-icon">👤</span>
+          <span class="input-icon"><?=svgIcon('user')?></span>
           <input type="text" name="username" placeholder="نام کاربری" required>
         </div>
       </div>

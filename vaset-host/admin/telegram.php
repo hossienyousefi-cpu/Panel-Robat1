@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/telegram_api.php';
 require_once '../includes/db_backup.php';
 require_once '../includes/bot_admins.php';
@@ -415,36 +416,36 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">مدیریت</div>
-    <a href="resellers.php" class="nav-item">👥 ریسلرها</a>
-    <a href="users.php" class="nav-item">🧑‍💻 کاربران</a>
+    <a href="resellers.php" class="nav-item"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('user')?> کاربران</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="nav-item">💰 مدیریت موجودی</a>
-    <a href="payments.php" class="nav-item">🧾 فیش پرداخت</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="nav-item"><?=svgIcon('wallet')?> مدیریت موجودی</a>
+    <a href="payments.php" class="nav-item"><?=svgIcon('receipt')?> فیش پرداخت</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="nav-item">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم <?php if($pendingOrders>0):?><span class="pending-badge"><?=$pendingOrders?></span><?php endif;?></a>
-    <a href="telegram.php" class="nav-item active">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="nav-item"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم <?php if($pendingOrders>0):?><span class="pending-badge"><?=$pendingOrders?></span><?php endif;?></a>
+    <a href="telegram.php" class="nav-item active"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="nav-section-label">سیستم</div>
-    <a href="logs.php" class="nav-item">📋 لاگ‌ها</a>
-    <a href="settings.php" class="nav-item">⚙️ تنظیمات</a>
+    <a href="logs.php" class="nav-item"><?=svgIcon('list')?> لاگ‌ها</a>
+    <a href="settings.php" class="nav-item"><?=svgIcon('gear')?> تنظیمات</a>
   </nav>
   <div class="sidebar-footer">
     <div class="admin-info">
-      <div class="admin-avatar">🛡️</div>
+      <div class="admin-avatar"><?=svgIcon('shield')?></div>
       <div><div class="admin-name"><?= sanitize($_SESSION['admin_username']) ?></div><div class="admin-role">مدیر اصلی</div></div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">🤖 ربات تلگرام</div>
+    <div class="page-title"><?=svgIcon('bot')?> ربات تلگرام</div>
   </div>
   <div class="content">
     <?php if ($message): ?><div class="alert alert-success">✅ <?= $message ?></div><?php endif; ?>
@@ -452,7 +453,7 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">🔑</div>
+        <div class="section-icon"><?=svgIcon('key')?></div>
         <div>
           <div class="section-title">توکن ربات</div>
           <div class="section-desc">از @BotFather در تلگرام یک ربات بسازید و توکن را اینجا وارد کنید</div>
@@ -473,7 +474,7 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <label>پراکسی برای اتصال به تلگرام <span style="font-size:11px;color:var(--muted);font-weight:400">(اگه سرور مستقیم به api.telegram.org وصل نمی‌شه - خطای Connection timed out - یک پراکسی خارج از ایران اینجا بدید. فرمت: socks5://user:pass@host:port یا http://user:pass@host:port. برای غیرفعال کردن، خالی بذارید و ذخیره کنید)</span></label>
             <input type="text" name="telegram_proxy" placeholder="socks5://user:pass@1.2.3.4:1080" value="<?= sanitize($telegramProxy) ?>">
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
 
         <?php if ($botToken !== ''): ?>
@@ -492,7 +493,7 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
           </p>
           <form method="POST" style="display:inline-block;margin-left:8px"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="action" value="set_webhook">
-            <button type="submit" class="btn btn-primary">🔗 تنظیم Webhook روی این آدرس</button>
+            <button type="submit" class="btn btn-primary"><?=svgIcon('link')?> تنظیم Webhook روی این آدرس</button>
           </form>
           <form method="POST" style="display:inline-block"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
             <input type="hidden" name="action" value="delete_webhook">
@@ -505,7 +506,7 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">🌉</div>
+        <div class="section-icon"><?=svgIcon('link')?></div>
         <div>
           <div class="section-title">پل اتصال (Bridge) روی هاست خارج از ایران</div>
           <div class="section-desc">api.telegram.org معمولاً از سرورهای ایران قابل‌دسترسی نیست. اگه هاست cPanel خارج از ایران دارید (بدون نیاز به VPS/root)، یک فایل PHP آماده اینجا دانلود کنید و فقط آپلودش کنید - دیگه نیازی به پراکسی واقعی نیست.</div>
@@ -521,19 +522,19 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <label>آدرس فایل بریج روی هاست خارج <span style="font-size:11px;color:var(--muted);font-weight:400">(بعد از آپلود فایل زیر روی هاست خارج، آدرس کامل اون فایل رو اینجا بدید - مثلاً https://yourdomain.com/tg_bridge.php - و ذخیره کنید. برای غیرفعال کردن بریج، خالی بذارید و ذخیره کنید)</span></label>
             <input type="text" name="telegram_bridge_url" placeholder="https://yourdomain.com/tg_bridge.php" value="<?= sanitize($telegramBridgeUrl) ?>">
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره آدرس بریج</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره آدرس بریج</button>
         </form>
         <form method="POST" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="download_bridge_file">
           <p style="font-size:12px;color:var(--muted);margin-bottom:10px">این فایل رو بدون هیچ ویرایشی (همه‌چیز از قبل توش تنظیم شده) توی هاست خارج آپلود کنید - مثلاً توی public_html به اسم tg_bridge.php - بعد آدرس کاملش رو توی فیلد بالا بدید و ذخیره کنید، و بعد دکمه‌ی «تنظیم Webhook» رو بزنید.</p>
-          <button type="submit" class="btn btn-purple">📥 دانلود فایل tg_bridge.php</button>
+          <button type="submit" class="btn btn-purple"><?=svgIcon('download')?> دانلود فایل tg_bridge.php</button>
         </form>
       </div>
     </div>
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">🛡️</div>
+        <div class="section-icon"><?=svgIcon('shield')?></div>
         <div>
           <div class="section-title">دریافت اعلان و کنترل از تلگرام</div>
           <div class="section-desc">با ثبت Chat ID خودتان، سفارش‌های جدید با دکمه تأیید/رد برای شما ارسال می‌شوند و دستورهای /export و /import و /stats را می‌توانید مستقیم به ربات بفرستید</div>
@@ -547,14 +548,14 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <label>Chat ID فعلی: <?= sanitize((string)($myChatId ?: 'ثبت نشده')) ?></label>
             <input type="text" name="my_chat_id" placeholder="مثلاً 123456789" value="<?= sanitize((string)($myChatId ?: '')) ?>">
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
       </div>
     </div>
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">👮</div>
+        <div class="section-icon"><?=svgIcon('shield')?></div>
         <div>
           <div class="section-title">ادمین‌های اضافه‌ی بات</div>
           <div class="section-desc">علاوه بر ادمین‌های پنل که Chat ID خودشون رو بالا ثبت کردن، می‌تونید به کس دیگه‌ای (حتی بدون لاگین پنل وب) اجازه‌ی تأیید سفارش و پاسخ به تیکت پشتیبانی رو از توی خودِ بات بدید.</div>
@@ -584,14 +585,14 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <div class="form-group"><label>Chat ID</label><input type="text" name="chat_id" placeholder="مثلاً 123456789" required></div>
             <div class="form-group"><label>اسم (اختیاری)</label><input type="text" name="display_name" placeholder="مثلاً: علی - پشتیبانی"></div>
           </div>
-          <button type="submit" class="btn btn-primary">➕ افزودن ادمین</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('plus')?> افزودن ادمین</button>
         </form>
       </div>
     </div>
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">💳</div>
+        <div class="section-icon"><?=svgIcon('card')?></div>
         <div>
           <div class="section-title">حساب‌های دریافت وجه</div>
           <div class="section-desc">چند حساب/کارت اضافه کنید، هرکدوم رو خواستید «فعال» کنید تا همون به مشتری‌های بات اصلی نمایش داده بشه.</div>
@@ -631,14 +632,14 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <div class="form-group"><label>به نام</label><input type="text" name="account_holder" placeholder="نام صاحب حساب"></div>
             <div class="form-group"><label>توضیح اضافه (اختیاری)</label><input type="text" name="extra_note" placeholder="مثلاً: فقط شبا"></div>
           </div>
-          <button type="submit" class="btn btn-primary">➕ افزودن حساب</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('plus')?> افزودن حساب</button>
         </form>
       </div>
     </div>
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">🔧</div>
+        <div class="section-icon"><?=svgIcon('wrench')?></div>
         <div>
           <div class="section-title">فایل‌های کانفیگ OpenVPN</div>
           <div class="section-desc">فایل‌های .ovpn سرورهای مختلف رو اینجا آپلود کنید - مشتری از توی بات با دکمه‌ی «دانلود کانفیگ OpenVPN» می‌تونه دانلودشون کنه.</div>
@@ -665,14 +666,14 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
           <input type="hidden" name="action" value="upload_ovpn">
           <div class="form-group"><label>عنوان (مثلاً: سرور آلمان)</label><input type="text" name="ovpn_title" required></div>
           <div class="form-group"><label>فایل .ovpn</label><input type="file" name="ovpn_file" accept=".ovpn,.conf" required></div>
-          <button type="submit" class="btn btn-purple">📤 آپلود</button>
+          <button type="submit" class="btn btn-purple"><?=svgIcon('upload')?> آپلود</button>
         </form>
       </div>
     </div>
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">🌐</div>
+        <div class="section-icon"><?=svgIcon('globe')?></div>
         <div>
           <div class="section-title">ISP فروش مستقیم</div>
           <div class="section-desc">کاربرانی که مستقیم از تلگرام (بدون ریسلر) خرید می‌کنند به این ISP بایند می‌شوند</div>
@@ -694,14 +695,14 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <input type="text" name="direct_isp_name" value="<?= sanitize($directIsp) ?>" placeholder="نام ISP">
             <?php endif; ?>
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
       </div>
     </div>
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">💬</div>
+        <div class="section-icon"><?=svgIcon('chat')?></div>
         <div>
           <div class="section-title">متن‌های ربات</div>
           <div class="section-desc">پیام پشتیبانی و اطلاعات کارت برای پرداخت مشتریان مستقیم</div>
@@ -722,14 +723,14 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <label>راهنمای اتصال <span style="font-size:11px;color:var(--muted);font-weight:400">(نمایش داده می‌شه وقتی مشتری روی «📖 راهنمای اتصال» بزنه، همراه با فایل‌های کانفیگ - خالی بذارید تا یک متن پیش‌فرض نشون داده بشه)</span></label>
             <textarea name="connection_guide"><?= sanitize($connectionGuide) ?></textarea>
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره</button>
         </form>
       </div>
     </div>
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">📢</div>
+        <div class="section-icon"><?=svgIcon('megaphone')?></div>
         <div>
           <div class="section-title">ارسال پیام همگانی</div>
           <div class="section-desc">این پیام برای همه‌ی مشتریانی که از بات اصلی خرید کرده‌اند (نه بات اختصاصی ریسلرها) ارسال می‌شود. اگه به پنل دسترسی ندارید، همین کار رو با دستور <code>/broadcast متن پیام</code> مستقیم توی خودِ بات هم می‌شه انجام داد.</div>
@@ -742,14 +743,14 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <label>متن پیام</label>
             <textarea name="broadcast_text" placeholder="متن پیام همگانی..." required></textarea>
           </div>
-          <button type="submit" class="btn btn-purple">📢 ارسال برای همه</button>
+          <button type="submit" class="btn btn-purple"><?=svgIcon('megaphone')?> ارسال برای همه</button>
         </form>
       </div>
     </div>
 
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">💾</div>
+        <div class="section-icon"><?=svgIcon('database')?></div>
         <div>
           <div class="section-title">Export / Import دیتابیس سیستم</div>
           <div class="section-desc">فقط دیتابیس اختصاصی همین پنل (ریسلرها، سفارش‌ها، تراکنش‌ها) - نه دیتابیس </div>
@@ -758,7 +759,7 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
       <div class="section-body">
         <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="export_db">
-          <button type="submit" class="btn btn-primary">📥 دانلود فایل Export (.sql)</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('download')?> دانلود فایل Export (.sql)</button>
         </form>
         <form method="POST" enctype="multipart/form-data" style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>">
           <input type="hidden" name="action" value="import_db">
@@ -766,7 +767,7 @@ $ovpnFiles = $pdo->query("SELECT * FROM ovpn_files WHERE reseller_id=0 ORDER BY 
             <label>فایل .sql برای بازگردانی <span style="font-size:11px;color:var(--danger);font-weight:400">(جدول‌های داخل فایل کامل جایگزین می‌شوند)</span></label>
             <input type="file" name="sql_file" accept=".sql" required>
           </div>
-          <button type="submit" class="btn btn-purple">📤 Import</button>
+          <button type="submit" class="btn btn-purple"><?=svgIcon('upload')?> Import</button>
         </form>
         <p style="font-size:12px;color:var(--muted);margin-top:16px">از داخل خود ربات تلگرام هم می‌توانید با دستور <code>/export</code> فایل را دریافت، یا با ارسال فایل .sql با کپشن <code>/import</code> آن را بازگردانی کنید (برای فایل‌های زیر ۲۰ مگابایت).</p>
       </div>

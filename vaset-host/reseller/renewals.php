@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 requireReseller();
 
 $rid = (int)$_SESSION['reseller_id'];
@@ -112,52 +113,52 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
   <div class="logo">
     <?php $sL=getSetting('site_logo',''); if($sL&&file_exists(dirname(__DIR__).'/'.$sL)):?>
     <img src="../<?=sanitize($sL)?>" alt="" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
-    <?php else:?><div class="logo-t">🌐 پنل ریسلر</div><?php endif;?>
+    <?php else:?><div class="logo-t"><?=svgIcon('globe')?> پنل ریسلر</div><?php endif;?>
     <div class="logo-b">مدیریت کاربران</div>
   </div>
   <div class="bcard">
-    <div class="blbl">💰 موجودی</div>
+    <div class="blbl"><?=svgIcon('wallet')?> موجودی</div>
     <div class="bval <?=$balance<=0?'low':''?>"><?=money($balance)?> <small style="font-size:10px;font-weight:400">تومان</small></div>
-    <?php if($ispName!==''):?><div style="font-size:10px;color:var(--muted);margin-top:3px">🌐 ISP: <?=sanitize($ispName)?></div><?php endif;?>
+    <?php if($ispName!==''):?><div style="font-size:10px;color:var(--muted);margin-top:3px"><?=svgIcon('globe')?> ISP: <?=sanitize($ispName)?></div><?php endif;?>
   </div>
   <nav>
     <div class="ns">اصلی</div>
-    <a href="dashboard.php" class="ni">📊 داشبورد</a>
+    <a href="dashboard.php" class="ni"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="ns">کاربران</div>
-    <a href="users.php" class="ni">🧑‍💻 مدیریت کاربران</a>
+    <a href="users.php" class="ni"><?=svgIcon('user')?> مدیریت کاربران</a>
     <a href="online.php" class="ni">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
-    <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="ni active">🔄 کاربران تمدیدشده</a>
-    <a href="payments.php" class="ni">🧾 ارسال فیش</a>
+    <a href="transactions.php" class="ni"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="ni active"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="payments.php" class="ni"><?=svgIcon('receipt')?> ارسال فیش</a>
     <div class="ns">فروش مستقیم تلگرام</div>
-    <a href="direct_orders.php" class="ni">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="ni">🤖 بات تلگرام من</a>
+    <a href="direct_orders.php" class="ni"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="ni"><?=svgIcon('bot')?> بات تلگرام من</a>
   </nav>
   <div class="sf">
     <div class="ai">
-      <div class="av">👤</div>
+      <div class="av"><?=svgIcon('user')?></div>
       <div>
         <div style="font-size:13px;font-weight:600"><?=sanitize($_SESSION['reseller_username'])?></div>
         <div style="font-size:11px;color:var(--muted)">ریسلر</div>
       </div>
     </div>
-    <a href="logout.php" class="ni logout">🚪 خروج</a>
+    <a href="logout.php" class="ni logout"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main>
   <div class="topbar">
-    <div class="pg-t">🔄 کاربران تمدیدشده</div>
+    <div class="pg-t"><?=svgIcon('refresh')?> کاربران تمدیدشده</div>
   </div>
   <div class="content">
     <div class="stats-row">
       <div class="stat-card">
-        <div class="stat-icon">🔄</div>
+        <div class="stat-icon"><?=svgIcon('refresh')?></div>
         <div><div class="stat-value" style="color:#34d399"><?=money($totalCount)?></div><div class="stat-label">تعداد تمدید در بازه</div></div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">💰</div>
+        <div class="stat-icon"><?=svgIcon('wallet')?></div>
         <div><div class="stat-value" style="color:#34d399"><?=money($totalPrice)?></div><div class="stat-label">مجموع مبلغ (تومان)</div></div>
       </div>
       <div class="stat-card">
@@ -171,7 +172,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
         <div class="fg2"><label class="lbl">از تاریخ</label><input class="si" type="date" name="from" value="<?=sanitize($from)?>"></div>
         <div class="fg2"><label class="lbl">تا تاریخ</label><input class="si" type="date" name="to" value="<?=sanitize($to)?>"></div>
         <div class="fg2 si-wide"><label class="lbl">جستجوی نام کاربری</label><input class="si" type="text" name="search" placeholder="نام کاربری..." value="<?=sanitize($search)?>"></div>
-        <button type="submit" class="btn bp">🔍 اعمال فیلتر</button>
+        <button type="submit" class="btn bp"><?=svgIcon('search')?> اعمال فیلتر</button>
       </div>
     </form>
 

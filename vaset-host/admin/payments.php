@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 requireAdmin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
     http_response_code(403);
@@ -159,15 +160,15 @@ $requests = $pdo->query("
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">مدیریت</div>
-    <a href="resellers.php" class="nav-item">👥 ریسلرها</a>
-    <a href="users.php" class="nav-item">🧑‍💻 کاربران</a>
+    <a href="resellers.php" class="nav-item"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('user')?> کاربران</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="nav-item">💰 مدیریت بدهی</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="nav-item"><?=svgIcon('wallet')?> مدیریت بدهی</a>
     <a href="payments.php" class="nav-item active">
       🧾 فیش‌های پرداخت
       <?php if ($pendingCount > 0): ?>
@@ -175,25 +176,25 @@ $requests = $pdo->query("
       <?php endif; ?>
     </a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="nav-item">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="nav-item"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="nav-section-label">سیستم</div>
-    <a href="logs.php" class="nav-item">📋 لاگ فعالیت‌ها</a>
-    <a href="settings.php" class="nav-item">⚙️ تنظیمات</a>
+    <a href="logs.php" class="nav-item"><?=svgIcon('list')?> لاگ فعالیت‌ها</a>
+    <a href="settings.php" class="nav-item"><?=svgIcon('gear')?> تنظیمات</a>
   </nav>
   <div class="sidebar-footer">
     <div class="admin-info">
-      <div class="admin-avatar">🛡️</div>
+      <div class="admin-avatar"><?=svgIcon('shield')?></div>
       <div><div class="admin-name"><?= $_SESSION['admin_username'] ?></div><div class="admin-role">مدیر اصلی</div></div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">🧾 فیش‌های پرداخت ریسلرها</div>
+    <div class="page-title"><?=svgIcon('receipt')?> فیش‌های پرداخت ریسلرها</div>
     <?php if ($pendingCount > 0): ?>
     <span style="background:rgba(245,158,11,.15);color:var(--warning);border:1px solid rgba(245,158,11,.3);padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700">
       ⏳ <?= $pendingCount ?> فیش در انتظار تأیید
@@ -226,13 +227,13 @@ $requests = $pdo->query("
       <a href="?filter=pending"  class="tab pending <?= $filter==='pending' ?'active':'' ?>">⏳ در انتظار (<?= $pendingCount ?>)</a>
       <a href="?filter=approved" class="tab <?= $filter==='approved'?'active':'' ?>">✅ تأیید شده</a>
       <a href="?filter=rejected" class="tab <?= $filter==='rejected'?'active':'' ?>">❌ رد شده</a>
-      <a href="?filter=all"      class="tab <?= $filter==='all'?'active':'' ?>">📋 همه</a>
+      <a href="?filter=all"      class="tab <?= $filter==='all'?'active':'' ?>"><?=svgIcon('list')?> همه</a>
     </div>
 
     <!-- لیست فیش‌ها -->
     <?php if (empty($requests)): ?>
     <div class="empty-state">
-      <div style="font-size:50px;margin-bottom:16px">🧾</div>
+      <div style="font-size:50px;margin-bottom:16px"><?=svgIcon('receipt')?></div>
       <div style="font-size:16px">فیشی در این دسته‌بندی وجود ندارد</div>
     </div>
     <?php else: ?>
@@ -241,7 +242,7 @@ $requests = $pdo->query("
       <div class="req-card <?= $req['status'] ?>">
         <div class="req-header">
           <div class="req-info">
-            <div class="req-avatar">👤</div>
+            <div class="req-avatar"><?=svgIcon('user')?></div>
             <div>
               <div class="req-name"><?= sanitize($req['reseller_name']) ?></div>
               <div class="req-meta">
@@ -283,7 +284,7 @@ $requests = $pdo->query("
           <!-- جزئیات -->
           <div class="req-details">
             <?php if ($req['description']): ?>
-            <div class="req-desc">💬 <?= sanitize($req['description']) ?></div>
+            <div class="req-desc"><?=svgIcon('chat')?> <?= sanitize($req['description']) ?></div>
             <?php endif; ?>
             <div class="req-debt">
               بدهی فعلی ریسلر: <strong><?= money($req['reseller_debt']) ?> تومان</strong>

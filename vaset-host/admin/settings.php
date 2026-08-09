@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 requireAdmin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
     http_response_code(403);
@@ -187,35 +188,35 @@ $siteLogo = getSetting('site_logo', '');
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">مدیریت</div>
-    <a href="resellers.php" class="nav-item">👥 ریسلرها</a>
-    <a href="users.php" class="nav-item">🧑‍💻 کاربران</a>
+    <a href="resellers.php" class="nav-item"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('user')?> کاربران</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="nav-item">💰 مدیریت بدهی</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="nav-item"><?=svgIcon('wallet')?> مدیریت بدهی</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="nav-item">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="nav-item"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="nav-section-label">سیستم</div>
-    <a href="logs.php" class="nav-item">📋 لاگ فعالیت‌ها</a>
-    <a href="settings.php" class="nav-item active">⚙️ تنظیمات</a>
+    <a href="logs.php" class="nav-item"><?=svgIcon('list')?> لاگ فعالیت‌ها</a>
+    <a href="settings.php" class="nav-item active"><?=svgIcon('gear')?> تنظیمات</a>
   </nav>
   <div class="sidebar-footer">
     <div class="admin-info">
-      <div class="admin-avatar">🛡️</div>
+      <div class="admin-avatar"><?=svgIcon('shield')?></div>
       <div><div class="admin-name"><?= $_SESSION['admin_username'] ?></div><div class="admin-role">مدیر اصلی</div></div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">⚙️ تنظیمات سیستم</div>
+    <div class="page-title"><?=svgIcon('gear')?> تنظیمات سیستم</div>
   </div>
   <div class="content">
     <?php if ($message): ?><div class="alert alert-success">✅ <?= $message ?></div><?php endif; ?>
@@ -224,7 +225,7 @@ $siteLogo = getSetting('site_logo', '');
     <!-- Change Admin Password -->
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">🔑</div>
+        <div class="section-icon"><?=svgIcon('key')?></div>
         <div>
           <div class="section-title">تغییر رمز عبور ادمین</div>
           <div class="section-desc">رمز عبور حساب مدیریت خود را تغییر دهید</div>
@@ -250,7 +251,7 @@ $siteLogo = getSetting('site_logo', '');
               <input type="password" name="confirm_pass" placeholder="••••••••" required minlength="6">
             </div>
           </div>
-          <button type="submit" class="btn btn-primary">🔑 تغییر رمز ادمین</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('key')?> تغییر رمز ادمین</button>
         </form>
       </div>
     </div>
@@ -258,7 +259,7 @@ $siteLogo = getSetting('site_logo', '');
     <!-- Change Reseller Password -->
     <div class="settings-section">
       <div class="section-header">
-        <div class="section-icon">👤</div>
+        <div class="section-icon"><?=svgIcon('user')?></div>
         <div>
           <div class="section-title">تغییر رمز عبور ریسلر</div>
           <div class="section-desc">رمز عبور هر ریسلر را از اینجا تغییر دهید</div>
@@ -286,7 +287,7 @@ $siteLogo = getSetting('site_logo', '');
               <input type="password" name="confirm_pass" placeholder="••••••••" required minlength="6">
             </div>
           </div>
-          <button type="submit" class="btn btn-purple">👤 تغییر رمز ریسلر</button>
+          <button type="submit" class="btn btn-purple"><?=svgIcon('user')?> تغییر رمز ریسلر</button>
         </form>
       </div>
     </div>
@@ -331,7 +332,7 @@ $siteLogo = getSetting('site_logo', '');
               <input type="text" inputmode="numeric" name="renew_price" value="<?= money($renewPrice) ?>" oninput="fmtMoneyInput(this)">
             </div>
           </div>
-          <button type="submit" class="btn btn-primary">💾 ذخیره تنظیمات</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('database')?> ذخیره تنظیمات</button>
         </form>
       </div>
     </div>
@@ -358,7 +359,7 @@ $siteLogo = getSetting('site_logo', '');
             <label>انتخاب فایل لوگو (PNG، JPG، SVG، WEBP — حداکثر ۲MB)</label>
             <input type="file" name="logo" accept="image/*" required style="padding:8px">
           </div>
-          <button type="submit" class="btn btn-primary">📤 آپلود لوگو</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('upload')?> آپلود لوگو</button>
         </form>
       </div>
     </div>

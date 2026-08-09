@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 requireAdmin();
 
 $logs = $pdo->query("SELECT l.*, CASE WHEN l.actor_type='admin' THEN a.username ELSE r.username END as actor_name FROM activity_logs l LEFT JOIN admins a ON l.actor_type='admin' AND l.actor_id=a.id LEFT JOIN resellers r ON l.actor_type='reseller' AND l.actor_id=r.id ORDER BY l.created_at DESC LIMIT 500")->fetchAll();
@@ -63,41 +64,41 @@ $logs = $pdo->query("SELECT l.*, CASE WHEN l.actor_type='admin' THEN a.username 
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">مدیریت</div>
-    <a href="resellers.php" class="nav-item">👥 ریسلرها</a>
-    <a href="users.php" class="nav-item">🧑‍💻 کاربران</a>
+    <a href="resellers.php" class="nav-item"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('user')?> کاربران</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="nav-item">💰 مدیریت بدهی</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="nav-item"><?=svgIcon('wallet')?> مدیریت بدهی</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="nav-item">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="nav-item"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="nav-section-label">سیستم</div>
-    <a href="logs.php" class="nav-item active">📋 لاگ فعالیت‌ها</a>
-    <a href="settings.php" class="nav-item">⚙️ تنظیمات</a>
+    <a href="logs.php" class="nav-item active"><?=svgIcon('list')?> لاگ فعالیت‌ها</a>
+    <a href="settings.php" class="nav-item"><?=svgIcon('gear')?> تنظیمات</a>
   </nav>
   <div class="sidebar-footer">
     <div class="admin-info">
-      <div class="admin-avatar">🛡️</div>
+      <div class="admin-avatar"><?=svgIcon('shield')?></div>
       <div><div class="admin-name"><?= $_SESSION['admin_username'] ?></div><div class="admin-role">مدیر اصلی</div></div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">📋 لاگ فعالیت‌ها</div>
+    <div class="page-title"><?=svgIcon('list')?> لاگ فعالیت‌ها</div>
     <span style="color:var(--muted);font-size:13px"><?= count($logs) ?> رکورد</span>
   </div>
   <div class="content">
     <div class="toolbar">
       <div class="search-box">
-        <span class="search-icon">🔍</span>
+        <span class="search-icon"><?=svgIcon('search')?></span>
         <input type="text" placeholder="جستجو..." oninput="filterTable(this.value)">
       </div>
     </div>

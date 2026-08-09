@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/ibsng_api.php';
 requireAdmin();
 
@@ -123,48 +124,48 @@ table.t tr:hover td{background:rgba(59,130,246,.02)}
   </div>
   <nav>
     <div class="ns">اصلی</div>
-    <a href="dashboard.php" class="ni">📊 داشبورد</a>
+    <a href="dashboard.php" class="ni"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="ns">مدیریت</div>
-    <a href="resellers.php" class="ni">👥 ریسلرها</a>
-    <a href="users.php" class="ni">🧑‍💻 کاربران</a>
+    <a href="resellers.php" class="ni"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="ni"><?=svgIcon('user')?> کاربران</a>
     <a href="online.php" class="ni">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
-    <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="ni active">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="ni">💰 مدیریت موجودی</a>
-    <a href="payments.php" class="ni">🧾 فیش پرداخت</a>
+    <a href="transactions.php" class="ni"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="ni active"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="ni"><?=svgIcon('wallet')?> مدیریت موجودی</a>
+    <a href="payments.php" class="ni"><?=svgIcon('receipt')?> فیش پرداخت</a>
     <div class="ns">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="ni">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="ni">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="ni">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="ni"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="ni"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="ni"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="ns">سیستم</div>
-    <a href="settings.php" class="ni">⚙️ تنظیمات</a>
-    <a href="logs.php" class="ni">📋 لاگ‌ها</a>
+    <a href="settings.php" class="ni"><?=svgIcon('gear')?> تنظیمات</a>
+    <a href="logs.php" class="ni"><?=svgIcon('list')?> لاگ‌ها</a>
   </nav>
   <div class="sf">
     <div class="ai">
-      <div class="av">🛡️</div>
+      <div class="av"><?=svgIcon('shield')?></div>
       <div>
         <div style="font-size:13px;font-weight:600"><?=$_SESSION['admin_username']?></div>
         <div style="font-size:11px;color:var(--muted)">مدیر اصلی</div>
       </div>
     </div>
-    <a href="logout.php" class="ni logout">🚪 خروج</a>
+    <a href="logout.php" class="ni logout"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main>
   <div class="topbar">
-    <div class="pg-t">🔄 کاربران تمدیدشده</div>
+    <div class="pg-t"><?=svgIcon('refresh')?> کاربران تمدیدشده</div>
   </div>
   <div class="content">
     <div class="stats-row">
       <div class="stat-card">
-        <div class="stat-icon">🔄</div>
+        <div class="stat-icon"><?=svgIcon('refresh')?></div>
         <div><div class="stat-value" style="color:#60a5fa"><?=money($totalCount)?></div><div class="stat-label">تعداد تمدید در بازه</div></div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">💰</div>
+        <div class="stat-icon"><?=svgIcon('wallet')?></div>
         <div><div class="stat-value" style="color:#34d399"><?=money($totalPrice)?></div><div class="stat-label">مجموع مبلغ (تومان)</div></div>
       </div>
       <div class="stat-card">
@@ -196,7 +197,7 @@ table.t tr:hover td{background:rgba(59,130,246,.02)}
             <option value="telegram" <?=$typeF==='telegram'?'selected':''?>>ربات تلگرام</option>
           </select>
         </div>
-        <button type="submit" class="btn bp">🔍 اعمال فیلتر</button>
+        <button type="submit" class="btn bp"><?=svgIcon('search')?> اعمال فیلتر</button>
       </div>
     </form>
 

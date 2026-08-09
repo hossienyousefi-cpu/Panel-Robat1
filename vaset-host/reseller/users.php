@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/ibsng_api.php';
 requireReseller();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
@@ -487,47 +488,47 @@ input:focus,select:focus{border-color:var(--acc)}
   <div class="logo">
     <?php $sL=getSetting('site_logo',''); if($sL&&file_exists(dirname(__DIR__).'/'.$sL)):?>
     <img src="../<?=sanitize($sL)?>" alt="" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
-    <?php else:?><div class="logo-t">🌐 پنل ریسلر</div><?php endif;?>
+    <?php else:?><div class="logo-t"><?=svgIcon('globe')?> پنل ریسلر</div><?php endif;?>
     <div class="logo-b">مدیریت کاربران</div>
   </div>
   <div class="bcard">
-    <div class="blbl">💰 موجودی</div>
+    <div class="blbl"><?=svgIcon('wallet')?> موجودی</div>
     <div class="bval <?=$balance<=0?'low':''?>"><?=money($balance)?> <small style="font-size:10px;font-weight:400">تومان</small></div>
-    <?php if($ispName!==''):?><div style="font-size:10px;color:var(--muted);margin-top:3px">🌐 ISP: <?=sanitize($ispName)?></div><?php endif;?>
+    <?php if($ispName!==''):?><div style="font-size:10px;color:var(--muted);margin-top:3px"><?=svgIcon('globe')?> ISP: <?=sanitize($ispName)?></div><?php endif;?>
   </div>
   <nav>
     <div class="ns">اصلی</div>
-    <a href="dashboard.php" class="ni">📊 داشبورد</a>
+    <a href="dashboard.php" class="ni"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="ns">کاربران</div>
-    <a href="users.php" class="ni active">🧑‍💻 مدیریت کاربران</a>
+    <a href="users.php" class="ni active"><?=svgIcon('user')?> مدیریت کاربران</a>
     <a href="online.php" class="ni">🟢 کاربران آنلاین</a>
     <div class="ns">مالی</div>
-    <a href="transactions.php" class="ni">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="ni">🔄 کاربران تمدیدشده</a>
-    <a href="payments.php" class="ni">🧾 ارسال فیش</a>
+    <a href="transactions.php" class="ni"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="ni"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="payments.php" class="ni"><?=svgIcon('receipt')?> ارسال فیش</a>
     <div class="ns">فروش مستقیم تلگرام</div>
-    <a href="direct_orders.php" class="ni">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="ni">🤖 بات تلگرام من</a>
+    <a href="direct_orders.php" class="ni"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="ni"><?=svgIcon('bot')?> بات تلگرام من</a>
   </nav>
   <div class="sf">
     <div class="ai">
-      <div class="av">👤</div>
+      <div class="av"><?=svgIcon('user')?></div>
       <div>
         <div style="font-size:13px;font-weight:600"><?=sanitize($_SESSION['reseller_username'])?></div>
         <div style="font-size:11px;color:var(--muted)">ریسلر</div>
       </div>
     </div>
-    <a href="logout.php" class="ni logout">🚪 خروج</a>
+    <a href="logout.php" class="ni logout"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main>
   <div class="topbar">
-    <div class="pg-t">🧑‍💻 مدیریت کاربران<?php if($ispName):?> <span style="font-size:13px;color:var(--acc2);font-weight:400">· <?=sanitize($ispName)?></span><?php endif;?></div>
+    <div class="pg-t"><?=svgIcon('user')?> مدیریت کاربران<?php if($ispName):?> <span style="font-size:13px;color:var(--acc2);font-weight:400">· <?=sanitize($ispName)?></span><?php endif;?></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn bc" onclick="hardRefresh()" title="بروزرسانی کامل">🔄</button>
-      <button class="btn bpu" onclick="openM('bulkM')">📦 ساخت گروهی</button>
-      <button class="btn bp" onclick="openM('addM')">➕ کاربر جدید</button>
+      <button class="btn bc" onclick="hardRefresh()" title="بروزرسانی کامل"><?=svgIcon('refresh')?></button>
+      <button class="btn bpu" onclick="openM('bulkM')"><?=svgIcon('box')?> ساخت گروهی</button>
+      <button class="btn bp" onclick="openM('addM')"><?=svgIcon('plus')?> کاربر جدید</button>
     </div>
   </div>
   <div class="content">
@@ -538,7 +539,7 @@ input:focus,select:focus{border-color:var(--acc)}
     <div class="card" style="margin-bottom:14px">
       <div style="padding:10px 14px;border-bottom:1px solid var(--bor);font-weight:700;font-size:13px;display:flex;align-items:center;gap:10px">
         📋 <?=count($bulkResult)?> کاربر ساخته شد
-        <button onclick="copyBulk()" class="btn bg bsm" title="کپی نتایج ساخت گروهی">📋 کپی همه</button>
+        <button onclick="copyBulk()" class="btn bg bsm" title="کپی نتایج ساخت گروهی"><?=svgIcon('list')?> کپی همه</button>
         <button onclick="downloadBulk()" class="btn bp bsm" title="دانلود تصویر JPEG">⬇️ دانلود</button>
       </div>
       <div style="overflow-x:auto;max-height:260px;overflow-y:auto">
@@ -555,21 +556,21 @@ input:focus,select:focus{border-color:var(--acc)}
     <?php endif;?>
 
     <div class="tabs">
-      <button class="tab active" id="tabAll" onclick="setTab('all',this)">📋 همه کاربران</button>
-      <button class="tab" id="tabExp" onclick="setTab('exp3',this)">⚠️ رو به اتمام (۳ روز)</button>
+      <button class="tab active" id="tabAll" onclick="setTab('all',this)"><?=svgIcon('list')?> همه کاربران</button>
+      <button class="tab" id="tabExp" onclick="setTab('exp3',this)"><?=svgIcon('warning')?> رو به اتمام (۳ روز)</button>
     </div>
 
     <div class="sbox">
-      <div class="sbox-title">🔍 جستجوی پیشرفته</div>
+      <div class="sbox-title"><?=svgIcon('search')?> جستجوی پیشرفته</div>
       <div class="srow">
         <input type="text" class="si si-wide" id="fSrch" placeholder="👤 نام کاربری...">
         <select class="si si-med" id="fGrp">
-          <option value="">📦 همه گروه‌ها</option>
+          <option value=""><?=svgIcon('box')?> همه گروه‌ها</option>
           <?php foreach($grpList as $g):?><option value="<?=sanitize($g)?>"><?=sanitize($g)?></option><?php endforeach;?>
         </select>
-        <button class="btn bp" onclick="curP=0;load()">🔍 جستجو</button>
+        <button class="btn bp" onclick="curP=0;load()"><?=svgIcon('search')?> جستجو</button>
         <button class="btn bc" onclick="clrSrch()">✕ پاک</button>
-        <button class="btn bg" onclick="load()" style="padding:8px 10px" title="بروزرسانی">🔄</button>
+        <button class="btn bg" onclick="load()" style="padding:8px 10px" title="بروزرسانی"><?=svgIcon('refresh')?></button>
       </div>
     </div>
 
@@ -594,7 +595,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <!-- ایجاد کاربر -->
 <div class="mbg" id="addM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">➕ کاربر جدید</div><button class="mc" onclick="closeM('addM')" title="بستن">✕</button></div>
+    <div class="mh"><div class="mt"><?=svgIcon('plus')?> کاربر جدید</div><button class="mc" onclick="closeM('addM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="create_user">
       <input type="hidden" name="isp_name" value="<?=sanitize($ispName)?>">
       <div class="mb">
@@ -635,7 +636,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <!-- ساخت گروهی -->
 <div class="mbg" id="bulkM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">📦 ساخت گروهی</div><button class="mc" onclick="closeM('bulkM')" title="بستن">✕</button></div>
+    <div class="mh"><div class="mt"><?=svgIcon('box')?> ساخت گروهی</div><button class="mc" onclick="closeM('bulkM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="bulk_create">
       <input type="hidden" name="isp_name" value="<?=sanitize($ispName)?>">
       <div class="mb">
@@ -665,7 +666,7 @@ input:focus,select:focus{border-color:var(--acc)}
       </div>
       <div class="mf">
         <button type="button" class="btn bd" onclick="closeM('bulkM')">انصراف</button>
-        <button type="submit" class="btn bpu">📦 ایجاد</button>
+        <button type="submit" class="btn bpu"><?=svgIcon('box')?> ایجاد</button>
       </div>
     </form>
   </div>
@@ -674,7 +675,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <!-- تغییر رمز -->
 <div class="mbg" id="passM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">🔑 تغییر رمز</div><button class="mc" onclick="closeM('passM')" title="بستن">✕</button></div>
+    <div class="mh"><div class="mt"><?=svgIcon('key')?> تغییر رمز</div><button class="mc" onclick="closeM('passM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="change_password">
       <input type="hidden" name="user_id" id="pUid">
       <div class="mb">
@@ -703,7 +704,7 @@ input:focus,select:focus{border-color:var(--acc)}
 <?php if($canRenew):?>
 <div class="mbg" id="rnM">
   <div class="modal msm">
-    <div class="mh"><div class="mt">🔄 تمدید کاربر</div><button class="mc" onclick="closeM('rnM')" title="بستن">✕</button></div>
+    <div class="mh"><div class="mt"><?=svgIcon('refresh')?> تمدید کاربر</div><button class="mc" onclick="closeM('rnM')" title="بستن">✕</button></div>
     <form method="POST"><input type="hidden" name="csrf_token" value="<?=generateCsrf()?>"><input type="hidden" name="action" value="renew_user">
       <input type="hidden" name="user_id" id="rnUid">
       <div class="mb">
@@ -921,7 +922,7 @@ function renderTable(d,pp){
   const total=d.total,rows=d.rows||[];
   if(d.error_msg){
     document.getElementById('tinfo').textContent='';
-    document.getElementById('tbody').innerHTML='<tr><td colspan="7" class="loading" style="color:var(--yel)">⚠️ '+d.error_msg+'</td></tr>';
+    document.getElementById('tbody').innerHTML='<tr><td colspan="7" class="loading" style="color:var(--yel)"><?=svgIcon('warning')?> '+d.error_msg+'</td></tr>';
     document.getElementById('pag').innerHTML='';return;
   }
   const totalIsp=d.total_isp||total;
@@ -940,8 +941,8 @@ function renderTable(d,pp){
     const pw=`<span class="pass-box" onclick="cp(this)">${u.password}</span>`;
     // status هیچ‌وقت لاک/آنلاک بودن رو نشون نمی‌ده (فیلد جداست توی )، پس نمی‌شه
     // مطمئن حدس زد الان لاکه یا نه - هر دو دکمه رو همیشه نشون می‌دیم.
-    let acts=`<button class="btn by bsm" onclick="openPM('${u.id}','${u.username}')" title="تغییر رمز">🔑</button>`;
-    if(CR) acts+=`<button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید">🔄</button>`;
+    let acts=`<button class="btn by bsm" onclick="openPM('${u.id}','${u.username}')" title="تغییر رمز"><?=svgIcon('key')?></button>`;
+    if(CR) acts+=`<button class="btn bg bsm" onclick="openRn('${u.id}','${u.username}')" title="تمدید"><?=svgIcon('refresh')?></button>`;
     acts+=`<button class="btn bwa bsm" onclick="openLk('${u.id}','${u.username}','Disable')" title="قفل کردن">🔒</button>`;
     acts+=`<button class="btn bc bsm" onclick="openLk('${u.id}','${u.username}','Recharged')" title="رفع قفل">🔓</button>`;
     if(CD) acts+=`<button class="btn bd bsm" onclick="openDel('${u.id}','${u.username}')" title="حذف کاربر">🗑</button>`;

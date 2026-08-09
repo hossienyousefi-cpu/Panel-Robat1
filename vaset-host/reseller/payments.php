@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 requireReseller();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf($_POST['csrf_token'] ?? '')) {
     http_response_code(403);
@@ -152,45 +153,45 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
     <?php else: ?>
-    <div class="logo-text">🌐 پنل ریسلر</div>
+    <div class="logo-text"><?=svgIcon('globe')?> پنل ریسلر</div>
     <?php endif; ?>
     <div class="logo-badge">پنل ریسلر</div>
   </div>
   <?php if ($reseller['debt'] > 0): ?>
   <div class="debt-banner">
-    <div class="debt-label">💳 بدهی شما</div>
+    <div class="debt-label"><?=svgIcon('card')?> بدهی شما</div>
     <div class="debt-amount"><?= money($reseller['debt']) ?> تومان</div>
   </div>
   <?php endif; ?>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">کاربران</div>
-    <a href="users.php" class="nav-item">👥 مدیریت کاربران</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('users')?> مدیریت کاربران</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌های من</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="payments.php" class="nav-item active">🧾 ارسال فیش پرداخت</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌های من</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="payments.php" class="nav-item active"><?=svgIcon('receipt')?> ارسال فیش پرداخت</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item">🤖 بات تلگرام من</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> بات تلگرام من</a>
   </nav>
   <div class="sidebar-footer">
     <div class="reseller-info">
-      <div class="reseller-avatar">👤</div>
+      <div class="reseller-avatar"><?=svgIcon('user')?></div>
       <div>
         <div class="reseller-name"><?= sanitize($_SESSION['reseller_username']) ?></div>
         <div class="reseller-role">ریسلر</div>
       </div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">🧾 ارسال فیش پرداخت</div>
+    <div class="page-title"><?=svgIcon('receipt')?> ارسال فیش پرداخت</div>
     <?php if ($reseller['debt'] > 0): ?>
     <span style="color:var(--danger);font-size:14px;font-weight:600">بدهی: <?= money($reseller['debt']) ?> تومان</span>
     <?php endif; ?>
@@ -201,7 +202,7 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
 
     <div class="card">
       <div class="card-header">
-        <span style="font-size:22px">📤</span>
+        <span style="font-size:22px"><?=svgIcon('upload')?></span>
         <div class="card-title">ارسال فیش پرداخت جدید</div>
       </div>
       <div class="card-body">
@@ -218,20 +219,20 @@ $requests->execute([$rid]); $requests = $requests->fetchAll();
             <label>تصویر یا PDF فیش پرداخت *</label>
             <div class="upload-zone">
               <input type="file" name="receipt" accept=".jpg,.jpeg,.png,.pdf,.webp" onchange="showPreview(this)" required>
-              <div class="upload-icon">🧾</div>
+              <div class="upload-icon"><?=svgIcon('receipt')?></div>
               <div class="upload-text">فایل را اینجا بکشید یا کلیک کنید</div>
               <div class="upload-sub">JPG، PNG، PDF - حداکثر ۵ مگابایت</div>
               <div class="upload-preview" id="uploadPreview"></div>
             </div>
           </div>
-          <button type="submit" class="btn btn-primary">📤 ارسال فیش پرداخت</button>
+          <button type="submit" class="btn btn-primary"><?=svgIcon('upload')?> ارسال فیش پرداخت</button>
         </form>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <span style="font-size:22px">📋</span>
+        <span style="font-size:22px"><?=svgIcon('list')?></span>
         <div class="card-title">تاریخچه فیش‌های ارسالی</div>
       </div>
       <div class="table-wrapper">

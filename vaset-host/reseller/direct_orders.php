@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/icons.php';
 require_once '../includes/ibsng_api.php';
 require_once '../includes/telegram_api.php';
 require_once '../includes/reseller_bot.php';
@@ -176,42 +177,42 @@ $orders = $orders->fetchAll();
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
     <?php else: ?>
-    <div class="logo-text">🌐 پنل ریسلر</div>
+    <div class="logo-text"><?=svgIcon('globe')?> پنل ریسلر</div>
     <?php endif; ?>
     <div class="logo-badge">پنل ریسلر</div>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">کاربران</div>
-    <a href="users.php" class="nav-item">👥 مدیریت کاربران</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('users')?> مدیریت کاربران</a>
     <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌های من</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="payments.php" class="nav-item">🧾 ارسال فیش پرداخت</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌های من</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="payments.php" class="nav-item"><?=svgIcon('receipt')?> ارسال فیش پرداخت</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
     <a href="direct_orders.php" class="nav-item active">
       🛒 سفارش‌های مستقیم
       <?php if ($pendingCount > 0): ?><span class="pending-badge"><?= $pendingCount ?></span><?php endif; ?>
     </a>
-    <a href="telegram.php" class="nav-item">🤖 بات تلگرام من</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> بات تلگرام من</a>
   </nav>
   <div class="sidebar-footer">
     <div class="reseller-info">
-      <div class="reseller-avatar">👤</div>
+      <div class="reseller-avatar"><?=svgIcon('user')?></div>
       <div>
         <div class="reseller-name"><?= sanitize($_SESSION['reseller_username']) ?></div>
         <div class="reseller-role">ریسلر</div>
       </div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">🛒 سفارش‌های مستقیم بات من</div>
+    <div class="page-title"><?=svgIcon('cart')?> سفارش‌های مستقیم بات من</div>
     <?php if ($pendingCount > 0): ?>
     <span style="background:rgba(245,158,11,.15);color:var(--warning);border:1px solid rgba(245,158,11,.3);padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700">
       ⏳ <?= $pendingCount ?> سفارش در انتظار تأیید
@@ -242,12 +243,12 @@ $orders = $orders->fetchAll();
       <a href="?filter=pending" class="tab <?= $filter==='pending'?'active':'' ?>">⏳ در انتظار (<?= $pendingCount ?>)</a>
       <a href="?filter=approved" class="tab <?= $filter==='approved'?'active':'' ?>">✅ تأیید شده</a>
       <a href="?filter=rejected" class="tab <?= $filter==='rejected'?'active':'' ?>">❌ رد شده</a>
-      <a href="?filter=all" class="tab <?= $filter==='all'?'active':'' ?>">📋 همه</a>
+      <a href="?filter=all" class="tab <?= $filter==='all'?'active':'' ?>"><?=svgIcon('list')?> همه</a>
     </div>
 
     <?php if (empty($orders)): ?>
     <div class="empty-state">
-      <div style="font-size:50px;margin-bottom:16px">🛒</div>
+      <div style="font-size:50px;margin-bottom:16px"><?=svgIcon('cart')?></div>
       <div style="font-size:16px">سفارشی در این دسته‌بندی وجود ندارد</div>
     </div>
     <?php else: ?>
