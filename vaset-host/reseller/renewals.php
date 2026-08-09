@@ -46,6 +46,7 @@ $rows = $stmt->fetchAll();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>کاربران تمدیدشده - پنل ریسلر</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="../assets/css/theme.css" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#08100a;--sb:#0c1810;--card:#111f14;--surf:#0c1810;--bor:#1e3025;--acc:#10b981;--acc2:#06b6d4;--pur:#8b5cf6;--txt:#e2e8f0;--txt2:#94a3b8;--muted:#475569;--red:#ef4444;--grn:#10b981;--yel:#f59e0b;--sw:260px}
@@ -103,7 +104,7 @@ table.t tr:hover td{background:rgba(16,185,129,.02)}
 .pag a.active,.pag span.active{background:var(--acc);color:#fff;border-color:var(--acc)}
 </style>
 </head>
-<body>
+<body class="theme-reseller">
 <div class="overlay" id="overlay" onclick="closeSB()"></div>
 <button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
 

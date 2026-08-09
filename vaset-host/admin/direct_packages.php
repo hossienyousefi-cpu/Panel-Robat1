@@ -65,6 +65,7 @@ $pendingOrders = $pdo->query("SELECT COUNT(*) FROM telegram_orders WHERE status=
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>بسته‌های فروش مستقیم - پنل مدیریت</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="../assets/css/theme.css" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#080c18;--sb:#0d1424;--card:#131e30;--surf:#0d1a2a;--bor:#1e2d45;--acc:#3b82f6;--acc2:#06b6d4;--pur:#8b5cf6;--gold:#f59e0b;--txt:#e2e8f0;--txt2:#94a3b8;--muted:#475569;--red:#ef4444;--grn:#10b981;--yel:#f59e0b;--sw:260px}
@@ -122,7 +123,7 @@ input[type=text],input[type=number],select{width:100%;padding:9px 12px;backgroun
 input:focus,select:focus{border-color:var(--acc)}
 </style>
 </head>
-<body>
+<body class="theme-admin">
 <aside>
   <div class="logo">
     <?php $sL=getSetting('site_logo',''); if($sL&&file_exists(dirname(__DIR__).'/'.$sL)):?>

@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/config.php';
 require_once '../includes/ibsng_api.php';
+require_once '../includes/icons.php';
 requireReseller();
 
 $rid = $_SESSION['reseller_id'];
@@ -107,6 +108,7 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>داشبورد ریسلر - پنل ریسلر</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="../assets/css/theme.css" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -221,58 +223,58 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
   .expiry-chip { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: #fbbf24; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
 </style>
 </head>
-<body>
+<body class="theme-reseller">
 <div class="overlay" id="overlay" onclick="closeSB()"></div>
-<button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
+<button class="hamburger" onclick="toggleSB()" title="منو"><?=svgIcon('menu','icon-lg')?></button>
 
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
     <?php else: ?>
-    <div class="logo-text">🌐 پنل ریسلر</div>
+    <div class="logo-text"><?=svgIcon('globe','icon-lg')?> پنل ریسلر</div>
     <?php endif; ?>
     <div class="logo-badge">پنل ریسلر</div>
   </div>
 
   <?php if ($reseller['debt'] > 0): ?>
   <div class="debt-banner">
-    <div class="debt-label">💳 بدهی شما</div>
+    <div class="debt-label"><?=svgIcon('card')?> بدهی شما</div>
     <div class="debt-amount"><?= money($reseller['debt']) ?> تومان</div>
   </div>
   <?php endif; ?>
 
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item active">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item active"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">کاربران</div>
-    <a href="users.php" class="nav-item">👥 مدیریت کاربران</a>
-    <a href="users.php?action=add" class="nav-item">➕ افزودن کاربر</a>
-    <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('users')?> مدیریت کاربران</a>
+    <a href="users.php?action=add" class="nav-item"><?=svgIcon('plus')?> افزودن کاربر</a>
+    <a href="online.php" class="nav-item"><?=svgIcon('online')?> کاربران آنلاین</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌های من</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="payments.php" class="nav-item">🧾 ارسال فیش پرداخت</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌های من</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="payments.php" class="nav-item"><?=svgIcon('receipt')?> ارسال فیش پرداخت</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item">🤖 بات تلگرام من</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> بات تلگرام من</a>
   </nav>
 
   <div class="sidebar-footer">
     <div class="reseller-info">
-      <div class="reseller-avatar">👤</div>
+      <div class="reseller-avatar"><?=svgIcon('user','icon-lg')?></div>
       <div>
         <div class="reseller-name"><?= sanitize($_SESSION['reseller_username']) ?></div>
         <div class="reseller-role">ریسلر</div>
       </div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">📊 داشبورد من</div>
+    <div class="page-title"><?=svgIcon('dashboard','icon-lg')?> داشبورد من</div>
     <div class="topbar-right">
       <div class="online-badge">
         <div class="online-dot"></div>
@@ -289,19 +291,19 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
     <div class="stats-grid">
       <div class="stat-card green">
         <div class="stat-glow"></div>
-        <div class="stat-icon">👥</div>
+        <div class="stat-icon"><?=svgIcon('users')?></div>
         <div class="stat-value"><?= $totalUsers ?></div>
         <div class="stat-label">کل کاربران من</div>
       </div>
       <div class="stat-card gold">
         <div class="stat-glow"></div>
-        <div class="stat-icon">🟢</div>
+        <div class="stat-icon"><?=svgIcon('online')?></div>
         <div class="stat-value"><?= $onlineCount ?></div>
         <div class="stat-label">آنلاین الان</div>
       </div>
       <a href="users.php?tab=exp&days=7" class="stat-card red" style="text-decoration:none;color:inherit;cursor:pointer">
         <div class="stat-glow"></div>
-        <div class="stat-icon">⚠️</div>
+        <div class="stat-icon"><?=svgIcon('warning')?></div>
         <div class="stat-value"><?= count($expiringSoon) ?></div>
         <div class="stat-label">در حال انقضا</div>
       </a>
@@ -310,19 +312,19 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
     <!-- Quick Actions -->
     <div class="quick-actions">
       <a href="users.php?action=add" class="quick-btn">
-        <div class="quick-btn-icon">➕</div>
+        <div class="quick-btn-icon"><?=svgIcon('plus','icon-lg')?></div>
         <div class="quick-btn-text">افزودن کاربر جدید</div>
       </a>
       <a href="users.php" class="quick-btn">
-        <div class="quick-btn-icon">👁️</div>
+        <div class="quick-btn-icon"><?=svgIcon('eye','icon-lg')?></div>
         <div class="quick-btn-text">مدیریت کاربران</div>
       </a>
       <a href="online.php" class="quick-btn">
-        <div class="quick-btn-icon">📡</div>
+        <div class="quick-btn-icon"><?=svgIcon('signal','icon-lg')?></div>
         <div class="quick-btn-text">کاربران آنلاین</div>
       </a>
       <a href="payments.php" class="quick-btn">
-        <div class="quick-btn-icon">🧾</div>
+        <div class="quick-btn-icon"><?=svgIcon('receipt','icon-lg')?></div>
         <div class="quick-btn-text">ارسال فیش پرداخت</div>
       </a>
     </div>
@@ -331,13 +333,13 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
       <!-- Recent Users -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">👥 کاربران اخیر</div>
+          <div class="card-title"><?=svgIcon('users')?> کاربران اخیر</div>
           <a href="users.php" class="card-action">مشاهده همه</a>
         </div>
         <div class="card-body">
           <?php foreach ($recentUsers as $u): ?>
           <div class="user-row">
-            <div class="user-avatar">🧑</div>
+            <div class="user-avatar"><?=svgIcon('user')?></div>
             <div style="flex:1">
               <div class="user-name"><?= sanitize($u['username']) ?></div>
               <div class="user-expire">انقضا: <?= $u['expire_date'] ?: '—' ?></div>
@@ -356,7 +358,7 @@ $recentUsers->execute([$rid]); $recentUsers = $recentUsers->fetchAll();
       <!-- Recent Transactions -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">💳 تراکنش‌های اخیر</div>
+          <div class="card-title"><?=svgIcon('card')?> تراکنش‌های اخیر</div>
           <a href="transactions.php" class="card-action">همه</a>
         </div>
         <div class="card-body">

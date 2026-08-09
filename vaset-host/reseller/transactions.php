@@ -15,6 +15,7 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تراکنش‌ها - پنل ریسلر</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="../assets/css/theme.css" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root { --bg: #08100a; --sidebar: #0c1810; --card: #131f17; --border: #1e3025; --accent: #10b981; --accent2: #06b6d4; --text: #e2e8f0; --text2: #94a3b8; --muted: #475569; --danger: #ef4444; --success: #10b981; --warning: #f59e0b; --sidebar-w: 260px; }
@@ -76,7 +77,7 @@ $transactions->execute([$rid]); $transactions = $transactions->fetchAll();
   .amount-neg { color: var(--danger); font-weight: 700; }
 </style>
 </head>
-<body>
+<body class="theme-reseller">
 <div class="overlay" id="overlay" onclick="closeSB()"></div>
 <button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
 <aside class="sidebar" id="sidebar">

@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/config.php';
 require_once '../includes/ibsng_api.php';
+require_once '../includes/icons.php';
 requireAdmin();
 
 // ===== آمار از دیتابیس محلی =====
@@ -121,6 +122,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>داشبورد مدیریت - پنل مدیریت</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="../assets/css/theme.css" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -202,48 +204,48 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
   .exp-days-green{color:var(--success);font-weight:700}
 </style>
 </head>
-<body>
+<body class="theme-admin">
 <aside class="sidebar">
     <div class="sidebar-logo">
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>
     <img src="../<?=sanitize($siteLogo)?>" alt="لوگو" style="max-height:52px;max-width:180px;object-fit:contain;margin-bottom:4px;display:block">
     <?php else: ?>
-    <div class="logo-text">⚡ پنل مدیریت</div>
+    <div class="logo-text"><?=svgIcon('bolt','icon-lg')?> پنل مدیریت</div>
     <?php endif; ?>
     <div class="logo-badge">سیستم مدیریت اینترنت</div>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">اصلی</div>
-    <a href="dashboard.php" class="nav-item active">📊 داشبورد</a>
+    <a href="dashboard.php" class="nav-item active"><?=svgIcon('dashboard')?> داشبورد</a>
     <div class="nav-section-label">مدیریت</div>
-    <a href="resellers.php" class="nav-item">👥 ریسلرها</a>
-    <a href="users.php" class="nav-item">🧑‍💻 کاربران</a>
-    <a href="online.php" class="nav-item">🟢 کاربران آنلاین</a>
-    <a href="users.php?tab=expiring" class="nav-item">⚠️ رو به اتمام</a>
+    <a href="resellers.php" class="nav-item"><?=svgIcon('users')?> ریسلرها</a>
+    <a href="users.php" class="nav-item"><?=svgIcon('user')?> کاربران</a>
+    <a href="online.php" class="nav-item"><?=svgIcon('online')?> کاربران آنلاین</a>
+    <a href="users.php?tab=expiring" class="nav-item"><?=svgIcon('warning')?> رو به اتمام</a>
     <div class="nav-section-label">مالی</div>
-    <a href="transactions.php" class="nav-item">💳 تراکنش‌ها</a>
-    <a href="renewals.php" class="nav-item">🔄 کاربران تمدیدشده</a>
-    <a href="debts.php" class="nav-item">💰 مدیریت بدهی</a>
+    <a href="transactions.php" class="nav-item"><?=svgIcon('card')?> تراکنش‌ها</a>
+    <a href="renewals.php" class="nav-item"><?=svgIcon('refresh')?> کاربران تمدیدشده</a>
+    <a href="debts.php" class="nav-item"><?=svgIcon('wallet')?> مدیریت بدهی</a>
     <div class="nav-section-label">فروش مستقیم تلگرام</div>
-    <a href="direct_packages.php" class="nav-item">📦 بسته‌های فروش مستقیم</a>
-    <a href="direct_orders.php" class="nav-item">🛒 سفارش‌های مستقیم</a>
-    <a href="telegram.php" class="nav-item">🤖 ربات تلگرام</a>
+    <a href="direct_packages.php" class="nav-item"><?=svgIcon('box')?> بسته‌های فروش مستقیم</a>
+    <a href="direct_orders.php" class="nav-item"><?=svgIcon('cart')?> سفارش‌های مستقیم</a>
+    <a href="telegram.php" class="nav-item"><?=svgIcon('bot')?> ربات تلگرام</a>
     <div class="nav-section-label">سیستم</div>
-    <a href="logs.php" class="nav-item">📋 لاگ فعالیت‌ها</a>
-    <a href="settings.php" class="nav-item">⚙️ تنظیمات</a>
+    <a href="logs.php" class="nav-item"><?=svgIcon('list')?> لاگ فعالیت‌ها</a>
+    <a href="settings.php" class="nav-item"><?=svgIcon('gear')?> تنظیمات</a>
   </nav>
   <div class="sidebar-footer">
     <div class="admin-info">
-      <div class="admin-avatar">🛡️</div>
+      <div class="admin-avatar"><?=svgIcon('shield','icon-lg')?></div>
       <div><div class="admin-name"><?= $_SESSION['admin_username'] ?></div><div class="admin-role">مدیر اصلی سیستم</div></div>
     </div>
-    <a href="logout.php" class="nav-item logout-btn">🚪 خروج</a>
+    <a href="logout.php" class="nav-item logout-btn"><?=svgIcon('logout')?> خروج</a>
   </div>
 </aside>
 
 <main class="main">
   <div class="topbar">
-    <div class="page-title">📊 داشبورد</div>
+    <div class="page-title"><?=svgIcon('dashboard','icon-lg')?> داشبورد</div>
     <div style="display:flex;align-items:center;gap:16px;font-size:13px;color:var(--text2)">
       <div class="online-badge">
         <div class="online-dot"></div>
@@ -259,7 +261,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
 
       <a href="resellers.php" class="stat-card blue" style="text-decoration:none">
         <div class="stat-glow"></div>
-        <div class="stat-icon">👥</div>
+        <div class="stat-icon"><?=svgIcon('users')?></div>
         <div class="stat-value"><?= money($totalResellers) ?></div>
         <div class="stat-label">کل ریسلرها</div>
         <div class="stat-sub"><?= money($activeResellers) ?> فعال</div>
@@ -267,7 +269,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
 
       <a href="users.php" class="stat-card cyan" style="text-decoration:none">
         <div class="stat-glow"></div>
-        <div class="stat-icon">🧑‍💻</div>
+        <div class="stat-icon"><?=svgIcon('user')?></div>
         <div class="stat-value"><?= money($totalUsers) ?></div>
         <div class="stat-label">کل کاربران</div>
         <div class="stat-sub"><?= money($activeUsers) ?> فعال</div>
@@ -275,7 +277,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
 
       <a href="online.php" class="stat-card green" style="text-decoration:none">
         <div class="stat-glow"></div>
-        <div class="stat-icon">🟢</div>
+        <div class="stat-icon"><?=svgIcon('online')?></div>
         <div class="stat-value"><?= money($onlineCount) ?></div>
         <div class="stat-label">آنلاین</div>
         <div class="stat-sub">همین الان</div>
@@ -283,7 +285,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
 
       <a href="users.php?tab=expiring" class="stat-card gold" style="text-decoration:none">
         <div class="stat-glow"></div>
-        <div class="stat-icon">⚠️</div>
+        <div class="stat-icon"><?=svgIcon('warning')?></div>
         <div class="stat-value"><?= money($expiringCount) ?></div>
         <div class="stat-label">در حال انقضا</div>
         <div class="stat-sub">۷ روز آینده</div>
@@ -291,7 +293,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
 
       <a href="debts.php" class="stat-card red" style="text-decoration:none">
         <div class="stat-glow"></div>
-        <div class="stat-icon">💰</div>
+        <div class="stat-icon"><?=svgIcon('wallet')?></div>
         <div class="stat-value"><?= money($totalDebt) ?></div>
         <div class="stat-label">کل بدهی</div>
         <div class="stat-sub">تومان</div>
@@ -299,7 +301,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
 
       <a href="transactions.php" class="stat-card purple" style="text-decoration:none">
         <div class="stat-glow"></div>
-        <div class="stat-icon">📈</div>
+        <div class="stat-icon"><?=svgIcon('trend')?></div>
         <div class="stat-value"><?= money($totalTrans) ?></div>
         <div class="stat-label">کل تراکنش‌ها</div>
         <div class="stat-sub">تومان</div>
@@ -309,10 +311,10 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
 
     <!-- Quick Actions -->
     <div class="quick-actions">
-      <a href="resellers.php?action=add" class="quick-btn"><div class="quick-btn-icon">➕</div><div class="quick-btn-text">افزودن ریسلر</div></a>
-      <a href="users.php" class="quick-btn"><div class="quick-btn-icon">👁️</div><div class="quick-btn-text">مشاهده کاربران</div></a>
-      <a href="debts.php" class="quick-btn"><div class="quick-btn-icon">💳</div><div class="quick-btn-text">مدیریت بدهی</div></a>
-      <a href="online.php" class="quick-btn"><div class="quick-btn-icon">📡</div><div class="quick-btn-text">کاربران آنلاین</div></a>
+      <a href="resellers.php?action=add" class="quick-btn"><div class="quick-btn-icon"><?=svgIcon('plus','icon-lg')?></div><div class="quick-btn-text">افزودن ریسلر</div></a>
+      <a href="users.php" class="quick-btn"><div class="quick-btn-icon"><?=svgIcon('eye','icon-lg')?></div><div class="quick-btn-text">مشاهده کاربران</div></a>
+      <a href="debts.php" class="quick-btn"><div class="quick-btn-icon"><?=svgIcon('card','icon-lg')?></div><div class="quick-btn-text">مدیریت بدهی</div></a>
+      <a href="online.php" class="quick-btn"><div class="quick-btn-icon"><?=svgIcon('signal','icon-lg')?></div><div class="quick-btn-text">کاربران آنلاین</div></a>
     </div>
 
     <!-- Tables -->
@@ -320,13 +322,13 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
       <!-- Recent Logs -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">📋 آخرین فعالیت‌ها</div>
+          <div class="card-title"><?=svgIcon('list')?> آخرین فعالیت‌ها</div>
           <a href="logs.php" class="card-action">مشاهده همه</a>
         </div>
         <div class="card-body">
           <?php foreach ($recentLogs as $log): ?>
           <div class="log-item">
-            <div class="log-avatar log-<?= $log['actor_type'] ?>"><?= $log['actor_type']==='admin'?'🛡️':'👤' ?></div>
+            <div class="log-avatar log-<?= $log['actor_type'] ?>"><?= $log['actor_type']==='admin'?svgIcon('shield'):svgIcon('user') ?></div>
             <div>
               <div class="log-action"><?= sanitize($log['action']) ?></div>
               <div class="log-time"><?= sanitize($log['actor_name']) ?> · <?= date('H:i', strtotime($log['created_at'])) ?></div>
@@ -342,14 +344,14 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
       <!-- Expiring Soon - از  -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">⚠️ کاربران در حال انقضا</div>
+          <div class="card-title"><?=svgIcon('warning')?> کاربران در حال انقضا</div>
           <a href="users.php?tab=expiring" class="card-action">مشاهده همه</a>
         </div>
         <div class="card-body">
           <?php if (!empty($expiringSoon)): ?>
           <?php foreach ($expiringSoon as $user): ?>
           <div class="log-item">
-            <div class="log-avatar" style="background:rgba(245,158,11,.15)">⏰</div>
+            <div class="log-avatar" style="background:rgba(245,158,11,.15)"><?=svgIcon('clock')?></div>
             <div style="flex:1">
               <div class="log-action"><?= sanitize($user['username']) ?></div>
               <div class="log-time">
@@ -378,10 +380,11 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
     <!-- Resellers Table -->
     <div class="card">
       <div class="card-header">
-        <div class="card-title">👥 ریسلرهای اخیر</div>
+        <div class="card-title"><?=svgIcon('users')?> ریسلرهای اخیر</div>
         <a href="resellers.php" class="card-action">مدیریت ریسلرها</a>
       </div>
       <div class="card-body">
+        <div class="table-wrap">
         <table class="table">
           <thead>
             <tr><th>نام کاربری</th><th>نام کامل</th><th>تعداد کاربر</th><th>بدهی</th><th>وضعیت</th></tr>
@@ -401,6 +404,7 @@ $recentResellers = $pdo->query("SELECT * FROM resellers ORDER BY created_at DESC
             <?php endforeach; ?>
           </tbody>
         </table>
+        </div>
       </div>
     </div>
 

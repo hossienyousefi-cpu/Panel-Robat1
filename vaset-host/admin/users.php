@@ -400,6 +400,7 @@ $pendingCount=$pdo->query("SELECT COUNT(*) FROM payment_requests WHERE status='p
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>مدیریت کاربران</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="../assets/css/theme.css" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#080c18;--sb:#0d1424;--card:#131e30;--surf:#0d1a2a;--bor:#1e2d45;--acc:#3b82f6;--acc2:#06b6d4;--pur:#8b5cf6;--txt:#e2e8f0;--txt2:#94a3b8;--muted:#475569;--red:#ef4444;--grn:#10b981;--yel:#f59e0b;--sw:260px}
@@ -504,7 +505,7 @@ input:focus,select:focus{border-color:var(--acc)}
 .li{width:50px!important;padding:7px 8px!important;text-align:center}
 </style>
 </head>
-<body>
+<body class="theme-admin">
 <div class="overlay" id="overlay" onclick="closeSB()"></div>
 <button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
 

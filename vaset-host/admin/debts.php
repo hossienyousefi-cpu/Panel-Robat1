@@ -48,6 +48,7 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
 <meta charset="UTF-8">
 <title>مدیریت موجودی - پنل مدیریت</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="../assets/css/theme.css" rel="stylesheet">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{--bg:#080c18;--sidebar:#0d1424;--card:#131e30;--border:#1e2d45;--accent:#3b82f6;--accent2:#06b6d4;--purple:#8b5cf6;--text:#e2e8f0;--text2:#94a3b8;--muted:#475569;--danger:#ef4444;--success:#10b981;--warning:#f59e0b;--sidebar-w:260px}
@@ -107,7 +108,7 @@ $debtors = $pdo->query("SELECT COUNT(*) FROM resellers WHERE debt > 0")->fetchCo
   input:focus{border-color:var(--accent)}
 </style>
 </head>
-<body>
+<body class="theme-admin">
 <aside class="sidebar">
     <div class="sidebar-logo">
     <?php $siteLogo=getSetting('site_logo',''); if($siteLogo&&file_exists(dirname(__DIR__).'/'.$siteLogo)): ?>

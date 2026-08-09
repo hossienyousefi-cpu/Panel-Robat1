@@ -220,6 +220,7 @@ $myGroups = $myGroups->fetchAll();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>بات تلگرام اختصاصی - پنل ریسلر</title>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="../assets/css/theme.css" rel="stylesheet">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{--bg:#08100a;--sidebar:#0c1810;--card:#131f17;--border:#1e3025;--accent:#10b981;--accent2:#06b6d4;--purple:#8b5cf6;--gold:#f59e0b;--text:#e2e8f0;--text2:#94a3b8;--muted:#475569;--danger:#ef4444;--success:#10b981;--sidebar-w:260px}
@@ -272,7 +273,7 @@ $myGroups = $myGroups->fetchAll();
   .badge-danger{background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.3)}
 </style>
 </head>
-<body>
+<body class="theme-reseller">
 <div class="overlay" id="overlay" onclick="closeSB()"></div>
 <button class="hamburger" onclick="toggleSB()" title="منو">☰</button>
 <aside class="sidebar" id="sidebar">

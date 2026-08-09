@@ -1,0 +1,85 @@
+/* ===========================================================================
+   سیستم طراحی مشترک پنل (ادمین + ریسلر) — بر پایه‌ی خروجی ui-ux-pro-max
+   (پالت Dark Mode OLED، تراکم Dashboard، مقیاس تایپوگرافی داده‌محور).
+   این فایل عمداً به‌جای بازنویسی هر صفحه، فقط مقادیرِ متغیرهای CSS موجود
+   (--bg، --accent، --border و...) رو با لود شدن بعد از <style> همون صفحه
+   بازنویسی می‌کنه - چون هر دو روی یک selector (:root) با specificity برابر
+   تعریف می‌شن، آخرین موردِ اعمال‌شده (این فایل) توی cascade برنده می‌شه.
+   یعنی برای «قدیمی‌ترین» صفحات (که کلاس‌های کوتاه‌شده‌ی .ni/.sf/.pb دارن) هم
+   بدون دست زدن به HTML/کلاس‌هاشون، رنگ‌بندی جدید اعمال می‌شه. فقط کافیه یک
+   خط <link> به این فایل توی <head> هر صفحه اضافه بشه.
+   =========================================================================== */
+
+:root{
+  /* پس‌زمینه/سطوح - یک پله تیره‌تر و "OLED" تر از قبل برای کنتراست بهتر */
+  --bg:#020617;
+  --sidebar:#0b1220;
+  --card:#0f172a;
+  --border:#1e293b;
+  --border-soft:rgba(30,41,59,.6);
+
+  /* متن */
+  --text:#f1f5f9;
+  --text2:#94a3b8;
+  --muted:#64748b;
+
+  /* وضعیت‌ها - یک‌دست‌شده روی سبزِ #22c55e (طبق پالت پیشنهادی) */
+  --danger:#ef4444;
+  --success:#22c55e;
+  --warning:#f59e0b;
+
+  /* شعاع/سایه‌ی یکدست برای کارت‌ها و دکمه‌ها */
+  --radius:14px;
+  --radius-sm:10px;
+  --shadow-card:0 1px 2px rgba(0,0,0,.5), 0 8px 24px -12px rgba(0,0,0,.6);
+
+  --sidebar-w:260px;
+}
+
+/* پنل ادمین: آبی (بدون تغییر نسبت به قبل، فقط با پس‌زمینه‌ی تیره‌تر هماهنگ شد) */
+body.theme-admin{
+  --accent:#3b82f6;
+  --accent2:#06b6d4;
+  --purple:#8b5cf6;
+  --gold:#f59e0b;
+}
+
+/* پنل ریسلر: سبز - دقیقاً همون رنگ CTA پیشنهادی سیستم طراحی */
+body.theme-reseller{
+  --accent:#22c55e;
+  --accent2:#06b6d4;
+  --purple:#8b5cf6;
+  --gold:#f59e0b;
+}
+
+/* ===== حالت‌های تعاملی/دسترس‌پذیری (اولویت ۱و۲ چک‌لیست UX) ===== */
+a,button,.nav-item,.ni,input,select,textarea,summary{
+  transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .15s ease,box-shadow .15s ease;
+}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,
+.nav-item:focus-visible,.ni:focus-visible,.btn:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+button,.btn,.nav-item,.ni,.quick-btn,.stat-card a{ cursor:pointer; }
+
+/* حداقل اندازه‌ی لمسی برای دکمه‌های کوچک (۴۴×۴۴ طبق چک‌لیست Touch) */
+.btn{ min-height:40px; }
+
+/* ===== جدول‌ها: روی موبایل به‌جای شکستن layout، اسکرول افقی بگیرن ===== */
+.table-wrap{ width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.table-wrap table{ min-width:640px; }
+
+/* ===== آیکن‌های SVG (جایگزین ایموجی در ناوبری/کارت‌ها) ===== */
+.icon{
+  width:18px; height:18px; flex-shrink:0;
+  stroke:currentColor; fill:none; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round;
+  vertical-align:-4px;
+}
+.icon-lg{ width:26px; height:26px; stroke-width:1.6; }
+.stat-icon .icon{ width:24px; height:24px; color:inherit; }
+
+@media (prefers-reduced-motion:reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
